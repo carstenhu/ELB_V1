@@ -26,6 +26,7 @@ function createInitialState(): AppState {
 
 let state = createInitialState();
 const listeners = new Set<() => void>();
+let pendingObjectSelectionId: string | null = null;
 
 function emit(): void {
   const snapshot: AppStorageSnapshot = {
@@ -46,6 +47,12 @@ export function subscribe(listener: () => void): () => void {
 
 export function getState(): AppState {
   return state;
+}
+
+export function consumePendingObjectSelectionId(): string | null {
+  const nextId = pendingObjectSelectionId;
+  pendingObjectSelectionId = null;
+  return nextId;
 }
 
 export function createSnapshot(): AppStorageSnapshot {
@@ -189,6 +196,7 @@ export function addObject(): string | null {
   const nextDepartmentId = lastObject?.departmentId ?? state.masterData.departments[0]?.id ?? "";
 
   const objectId = crypto.randomUUID();
+  pendingObjectSelectionId = objectId;
 
   updateCurrentCase((current) => ({
     ...current,

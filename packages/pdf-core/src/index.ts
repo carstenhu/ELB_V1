@@ -41,13 +41,19 @@ export interface PdfHotspotRect {
   heightPct: number;
 }
 
+export interface PdfObjectHotspotRect extends PdfHotspotRect {
+  contentTopPct: number;
+  contentHeightPct: number;
+  lineHeightPct: number;
+}
+
 export interface PdfHotspotMap {
   meta: PdfHotspotRect;
   consignor: PdfHotspotRect;
   owner: PdfHotspotRect;
   bank: PdfHotspotRect;
   costs: PdfHotspotRect;
-  object: PdfHotspotRect;
+  object: PdfObjectHotspotRect;
   consignorSignature: PdfHotspotRect;
   clerkSignature: PdfHotspotRect;
 }
@@ -358,12 +364,40 @@ function getUnionForFields(form: PdfForm, fieldNames: string[]) {
   return unionRects(fieldNames.flatMap((fieldName) => getFieldRects(form, fieldName)));
 }
 
+function createObjectHotspotRect(args: {
+  union: NonNullable<ReturnType<typeof unionRects>>;
+  pageWidth: number;
+  pageHeight: number;
+  capacityLines: number;
+  lineHeight: number;
+  contentTop: number;
+  contentLeft: number;
+}): PdfObjectHotspotRect {
+  const baseRect = toHotspotRect(args.union, args.pageWidth, args.pageHeight);
+  const contentHeight = Math.min(args.capacityLines * args.lineHeight, args.union.height);
+  const contentWidth = Math.max(args.union.right - args.contentLeft - 1.8, 0);
+
+  return {
+    ...baseRect,
+    leftPct: (args.contentLeft / args.pageWidth) * 100,
+    widthPct: (contentWidth / args.pageWidth) * 100,
+    contentTopPct: ((args.pageHeight - args.contentTop) / args.pageHeight) * 100,
+    contentHeightPct: (contentHeight / args.pageHeight) * 100,
+    lineHeightPct: (args.lineHeight / args.pageHeight) * 100
+  };
+}
+
 interface ObjectFieldLayout {
   intNumber: string;
   auctionLabel: string;
   departmentCode: string;
   description: string;
   estimate: string;
+  intNumberLines: string[];
+  auctionLabelLines: string[];
+  departmentCodeLines: string[];
+  descriptionLines: string[];
+  estimateLines: string[];
   lineCount: number;
 }
 
@@ -375,12 +409,32 @@ export interface ObjectPageChunk {
   estimate: string;
   items: ObjectPageChunkItem[];
   usedLines: number;
+  capacityLines: number;
 }
 
 export interface ObjectPageChunkItem {
   objectIndex: number;
   startLine: number;
   totalLines: number;
+  intNumberLines: string[];
+  auctionLabelLines: string[];
+  departmentCodeLines: string[];
+  descriptionLines: string[];
+  estimateLines: string[];
+}
+
+interface ObjectFieldGeometry {
+  intNumber: NonNullable<ReturnType<typeof unionRects>>;
+  auctionLabel: NonNullable<ReturnType<typeof unionRects>>;
+  departmentCode: NonNullable<ReturnType<typeof unionRects>>;
+  description: NonNullable<ReturnType<typeof unionRects>>;
+  estimate: NonNullable<ReturnType<typeof unionRects>>;
+  block: NonNullable<ReturnType<typeof unionRects>>;
+  lineHeight: number;
+  fontSize: number;
+  capacityLines: number;
+  contentLeft: number;
+  contentTop: number;
 }
 
 function buildObjectFieldLayout(
@@ -406,53 +460,107 @@ function buildObjectFieldLayout(
     departmentCode: normalize(departmentLines).join("\r\n"),
     description: normalize(descriptionLines).join("\r\n"),
     estimate: normalize(estimateLines).join("\r\n"),
+    intNumberLines: normalize(intLines),
+    auctionLabelLines: normalize(auctionLines),
+    departmentCodeLines: normalize(departmentLines),
+    descriptionLines: normalize(descriptionLines),
+    estimateLines: normalize(estimateLines),
     lineCount
   };
 }
 
+function getRequiredRect(form: PdfForm, fieldName: string) {
+  const rect = getUnionForFields(form, [fieldName]);
+  if (!rect) {
+    throw new Error(`PDF-Feld nicht gefunden: ${fieldName}`);
+  }
+  return rect;
+}
+
+function getObjectFieldGeometry(form: PdfForm, suffix: "1" | "2"): ObjectFieldGeometry {
+  const intNumber = getRequiredRect(form, `Int-Nr ${suffix}`);
+  const auctionLabel = getRequiredRect(form, `Erhalten ${suffix}`);
+  const departmentCode = getRequiredRect(form, `Kapitel ${suffix}`);
+  const description = getRequiredRect(form, `Kurzbeschreibung ${suffix}`);
+  const estimate = getRequiredRect(form, `Schätzung ${suffix}`);
+  const block = unionRects([intNumber, auctionLabel, departmentCode, description, estimate]);
+
+  if (!block) {
+    throw new Error(`Objektblock konnte nicht rekonstruiert werden: ${suffix}`);
+  }
+
+  const top = Math.min(intNumber.top, auctionLabel.top, departmentCode.top, description.top, estimate.top);
+  const bottom = Math.max(intNumber.bottom, auctionLabel.bottom, departmentCode.bottom, description.bottom, estimate.bottom);
+  const height = Math.max(top - bottom, 1);
+  const fontSize = 8.7;
+  const lineHeight = 10.8;
+  const topPadding = 1;
+  const bottomPadding = 0.8;
+  const leftPadding = 1.8;
+
+  return {
+    intNumber,
+    auctionLabel,
+    departmentCode,
+    description,
+    estimate,
+    block: {
+      ...block,
+      top,
+      bottom,
+      height
+    },
+    lineHeight,
+    fontSize,
+    capacityLines: Math.max(Math.floor((height - topPadding - bottomPadding) / lineHeight), 1),
+    contentLeft: block.left + leftPadding,
+    contentTop: top - topPadding
+  };
+}
+
 export async function buildObjectPageChunks(rows: PdfPreviewObjectRow[]): Promise<ObjectPageChunk[]> {
-  const font = await PDFDocument.create().then((pdf) => pdf.embedFont(StandardFonts.Helvetica));
-  const fontSize = 9.2;
-  const lineHeight = 10.4;
   const mainPdf = await PDFDocument.load(await loadTemplateBytes(templatePdfUrl));
   const followPdf = await PDFDocument.load(await loadTemplateBytes(templateObjectsPdfUrl));
   const mainForm = mainPdf.getForm();
   const followForm = followPdf.getForm();
+  const geometryMain = getObjectFieldGeometry(mainForm, "1");
+  const geometryFollow = getObjectFieldGeometry(followForm, "2");
+  const font = await PDFDocument.create().then((pdf) => pdf.embedFont(StandardFonts.Helvetica));
 
-  const mainHeights = getUnionForFields(mainForm, ["Kurzbeschreibung 1"]);
-  const followHeights = getUnionForFields(followForm, ["Kurzbeschreibung 2"]);
-  const mainCap = Math.max(Math.floor((mainHeights?.height ?? 220) / lineHeight), 1);
-  const followCap = Math.max(Math.floor((followHeights?.height ?? 260) / lineHeight), 1);
+  const mainCap = geometryMain.capacityLines;
+  const followCap = geometryFollow.capacityLines;
 
   const mainWidths = {
-    intNumber: getUnionForFields(mainForm, ["Int-Nr 1"])?.width ?? 42,
-    auctionLabel: getUnionForFields(mainForm, ["Erhalten 1"])?.width ?? 95,
-    departmentCode: getUnionForFields(mainForm, ["Kapitel 1"])?.width ?? 55,
-    description: getUnionForFields(mainForm, ["Kurzbeschreibung 1"])?.width ?? 260,
-    estimate: getUnionForFields(mainForm, ["Schätzung 1"])?.width ?? 90
+    intNumber: Math.max(geometryMain.intNumber.width - 3.6, 1),
+    auctionLabel: Math.max(geometryMain.auctionLabel.width - 3.6, 1),
+    departmentCode: Math.max(geometryMain.departmentCode.width - 3.6, 1),
+    description: Math.max(geometryMain.description.width - 3.6, 1),
+    estimate: Math.max(geometryMain.estimate.width - 3.6, 1)
   };
   const followWidths = {
-    intNumber: getUnionForFields(followForm, ["Int-Nr 2"])?.width ?? 42,
-    auctionLabel: getUnionForFields(followForm, ["Erhalten 2"])?.width ?? 95,
-    departmentCode: getUnionForFields(followForm, ["Kapitel 2"])?.width ?? 55,
-    description: getUnionForFields(followForm, ["Kurzbeschreibung 2"])?.width ?? 260,
-    estimate: getUnionForFields(followForm, ["Schätzung 2"])?.width ?? 90
+    intNumber: Math.max(geometryFollow.intNumber.width - 3.6, 1),
+    auctionLabel: Math.max(geometryFollow.auctionLabel.width - 3.6, 1),
+    departmentCode: Math.max(geometryFollow.departmentCode.width - 3.6, 1),
+    description: Math.max(geometryFollow.description.width - 3.6, 1),
+    estimate: Math.max(geometryFollow.estimate.width - 3.6, 1)
   };
 
   const chunks: ObjectPageChunk[] = [];
-  let current: ObjectPageChunk = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0 };
+  let current: ObjectPageChunk = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0, capacityLines: mainCap };
   let usedLines = 0;
   let capacity = mainCap;
 
   rows.forEach((row, objectIndex) => {
     const widths = chunks.length === 0 ? mainWidths : followWidths;
-    const layout = buildObjectFieldLayout(row, font, widths, fontSize);
-    const blockLines = layout.lineCount + (usedLines > 0 ? 2 : 0);
+    const layout = buildObjectFieldLayout(row, font, widths, geometryMain.fontSize);
+    const separatorLines = usedLines > 0 ? 1 : 0;
+    const requiredLines = separatorLines + layout.lineCount;
 
-    if (usedLines > 0 && usedLines + blockLines > capacity) {
+    if (usedLines > 0 && usedLines + requiredLines > capacity) {
       current.usedLines = usedLines;
+      current.capacityLines = capacity;
       chunks.push(current);
-      current = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0 };
+      current = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0, capacityLines: followCap };
       usedLines = 0;
       capacity = followCap;
     }
@@ -477,15 +585,22 @@ export async function buildObjectPageChunks(rows: PdfPreviewObjectRow[]): Promis
     current.estimate += layout.estimate;
     current.items.push({
       objectIndex,
-      startLine: usedLines,
-      totalLines: layout.lineCount
+      startLine: usedLines + separatorLines,
+      totalLines: layout.lineCount,
+      intNumberLines: layout.intNumberLines,
+      auctionLabelLines: layout.auctionLabelLines,
+      departmentCodeLines: layout.departmentCodeLines,
+      descriptionLines: layout.descriptionLines,
+      estimateLines: layout.estimateLines
     });
-    usedLines += blockLines;
+    usedLines += requiredLines;
     current.usedLines = usedLines;
+    current.capacityLines = capacity;
   });
 
   if (usedLines > 0 || !chunks.length) {
     current.usedLines = usedLines;
+    current.capacityLines = capacity;
     chunks.push(current);
   }
 
@@ -530,13 +645,39 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
     return toHotspotRect(union, pageWidth, pageHeight);
   }
 
+  function buildObjectHotspot(fields: string[]) {
+    const suffix = pageKind === "main" ? "1" : "2";
+    try {
+      const geometry = getObjectFieldGeometry(form, suffix);
+      return createObjectHotspotRect({
+        union: geometry.block,
+        pageWidth,
+        pageHeight,
+        capacityLines: geometry.capacityLines,
+        lineHeight: geometry.lineHeight,
+        contentTop: geometry.contentTop,
+        contentLeft: geometry.contentLeft
+      });
+    } catch {
+      return {
+        topPct: 0,
+        leftPct: 0,
+        widthPct: 0,
+        heightPct: 0,
+        contentTopPct: 0,
+        contentHeightPct: 0,
+        lineHeightPct: 0
+      };
+    }
+  }
+
   return {
     meta: buildHotspot(fieldMap.meta),
     consignor: buildHotspot(fieldMap.consignor),
     owner: buildHotspot(fieldMap.owner),
     bank: buildHotspot(fieldMap.bank),
     costs: buildHotspot(fieldMap.costs),
-    object: buildHotspot(fieldMap.object),
+    object: buildObjectHotspot(fieldMap.object),
     consignorSignature: buildHotspot(fieldMap.consignorSignature),
     clerkSignature: buildHotspot(fieldMap.clerkSignature)
   };
@@ -585,11 +726,57 @@ function fillObjectFields(
   row: ObjectPageChunk,
   suffix: "1" | "2"
 ): void {
-  setMultilineTextFieldSafe(form, `Int-Nr ${suffix}`, row.intNumber);
-  setMultilineTextFieldSafe(form, `Erhalten ${suffix}`, row.auctionLabel);
-  setMultilineTextFieldSafe(form, `Kapitel ${suffix}`, row.departmentCode);
-  setMultilineTextFieldSafe(form, `Kurzbeschreibung ${suffix}`, row.description);
-  setMultilineTextFieldSafe(form, `Schätzung ${suffix}`, row.estimate);
+  setMultilineTextFieldSafe(form, `Int-Nr ${suffix}`, "");
+  setMultilineTextFieldSafe(form, `Erhalten ${suffix}`, "");
+  setMultilineTextFieldSafe(form, `Kapitel ${suffix}`, "");
+  setMultilineTextFieldSafe(form, `Kurzbeschreibung ${suffix}`, "");
+  setMultilineTextFieldSafe(form, `Schätzung ${suffix}`, "");
+}
+
+async function drawObjectChunk(args: {
+  pdf: PDFDocument;
+  page: PDFPage;
+  form: PdfForm;
+  row: ObjectPageChunk;
+  suffix: "1" | "2";
+}): Promise<void> {
+  const geometry = getObjectFieldGeometry(args.form, args.suffix);
+  const font = await args.pdf.embedFont(StandardFonts.Helvetica);
+  const baselineOffset = geometry.fontSize;
+  const columnX = {
+    intNumber: geometry.intNumber.left + 1.8,
+    auctionLabel: geometry.auctionLabel.left + 1.8,
+    departmentCode: geometry.departmentCode.left + 1.8,
+    description: geometry.description.left + 1.8,
+    estimate: geometry.estimate.left + 1.8
+  };
+
+  args.row.items.forEach((item) => {
+    const columns = [
+      { x: columnX.intNumber, values: item.intNumberLines },
+      { x: columnX.auctionLabel, values: item.auctionLabelLines },
+      { x: columnX.departmentCode, values: item.departmentCodeLines },
+      { x: columnX.description, values: item.descriptionLines },
+      { x: columnX.estimate, values: item.estimateLines }
+    ];
+
+    columns.forEach((column) => {
+      column.values.forEach((line, index) => {
+        if (!line.trim()) {
+          return;
+        }
+
+        const lineTop = geometry.contentTop - (item.startLine + index) * geometry.lineHeight;
+        args.page.drawText(line, {
+          x: column.x,
+          y: lineTop - baselineOffset,
+          size: geometry.fontSize,
+          font,
+          color: rgb(0.07, 0.1, 0.09)
+        });
+      });
+    });
+  });
 }
 
 export function createPdfPreviewModel(caseFile: CaseFile, masterData: MasterData): PdfPreviewModel {
@@ -630,13 +817,20 @@ export async function generateElbPdf(caseFile: CaseFile, masterData: MasterData)
   const clerk = masterData.clerks.find((item) => item.id === caseFile.meta.clerkId);
 
   for (let index = 0; index < totalPages; index += 1) {
-    const row = objectPages[index] ?? { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0 };
+    const row = objectPages[index] ?? { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0, capacityLines: 0 };
     const sourceBytes = index === 0 ? mainTemplateBytes : followTemplateBytes;
     const sourcePdf = await PDFDocument.load(sourceBytes);
     const form = sourcePdf.getForm();
 
     fillSharedFields(form, caseFile, masterData, index + 1, totalPages);
     fillObjectFields(form, row, index === 0 ? "1" : "2");
+    await drawObjectChunk({
+      pdf: sourcePdf,
+      page: sourcePdf.getPage(0),
+      form,
+      row,
+      suffix: index === 0 ? "1" : "2"
+    });
 
     await drawSignatureIntoFields(sourcePdf, 0, form, ["der Einlieferer Sig", "der Einlieferer Sig 2"], caseFile.signatures.consignorSignaturePng);
     await drawSignatureIntoFields(sourcePdf, 0, form, ["Koller Auktionen Sig 1"], clerk?.signaturePng ?? "");

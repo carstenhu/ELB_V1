@@ -8,13 +8,13 @@ import { APP_NAME } from "@elb/shared/constants";
 import { Field, Section } from "@elb/ui/forms";
 import { createWordPreviewModel } from "@elb/word-core/index";
 import { PdfCanvasPreview } from "./pdfPreview";
-import { addObject, applyAuctionPricingRules, createNewCase, createSnapshot, deleteObject, finalizeCurrentCase, getState, loadCaseById, saveDraft, selectClerk, subscribe, replaceState, updateCurrentCase, updateMasterData, updateObject } from "./appState";
+import { addObject, applyAuctionPricingRules, consumePendingObjectSelectionId, createNewCase, createSnapshot, deleteObject, finalizeCurrentCase, getState, loadCaseById, saveDraft, selectClerk, subscribe, replaceState, updateCurrentCase, updateMasterData, updateObject } from "./appState";
 const pages = [
     { id: "consignor", label: "Einlieferer" },
     { id: "objects", label: "Objekte" },
     { id: "internal", label: "Interne Infos" },
     { id: "pdfPreview", label: "ELB-PDF" },
-    { id: "wordPreview", label: "Sch\u00e4tzliste" }
+    { id: "wordPreview", label: "Schätzliste" }
 ];
 function useAppState() {
     return useSyncExternalStore(subscribe, getState, getState);
@@ -173,8 +173,9 @@ function TopBar(props) {
                         if (value === "new-case") {
                             createNewCase();
                         }
-                        if (value.startsWith("clerk:")) {
-                            selectClerk(value.replace("clerk:", ""));
+                        if (value === "new-object") {
+                            addObject();
+                            props.onPageChange("objects");
                         }
                         if (value.startsWith("case:")) {
                             loadCaseById(value.replace("case:", ""));
@@ -183,7 +184,7 @@ function TopBar(props) {
                             props.onPageChange("admin");
                         }
                         event.target.value = "";
-                    }, children: [_jsx("option", { value: "", children: "Men\u00FC" }), _jsx("option", { value: "new-case", children: "Neuer Vorgang" }), _jsx("option", { value: "admin", children: "Admin" }), state.masterData.clerks.map((clerk) => (_jsxs("option", { value: `clerk:${clerk.id}`, children: ["Sachbearbeiter wechseln: ", clerk.name] }, clerk.id))), state.drafts.map((draft) => (_jsxs("option", { value: `case:${draft.meta.id}`, children: ["Draft laden: ", draft.consignor.lastName || "Unbenannt", " ", draft.meta.receiptNumber] }, draft.meta.id))), state.finalized.map((caseFile) => (_jsxs("option", { value: `case:${caseFile.meta.id}`, children: ["Finalisiert laden: ", caseFile.consignor.lastName || "Unbenannt", " ", caseFile.meta.receiptNumber] }, caseFile.meta.id)))] }) })] }));
+                    }, children: [_jsx("option", { value: "", children: "Men\u00FC" }), _jsx("option", { value: "new-case", children: "Neuer Vorgang" }), _jsx("option", { value: "new-object", children: "Objekt hinzuf\u00FCgen" }), _jsx("option", { value: "admin", children: "Admin" }), state.drafts.map((draft) => (_jsxs("option", { value: `case:${draft.meta.id}`, children: ["Draft laden: ", draft.consignor.lastName || "Unbenannt", " ", draft.meta.receiptNumber] }, draft.meta.id))), state.finalized.map((caseFile) => (_jsxs("option", { value: `case:${caseFile.meta.id}`, children: ["Finalisiert laden: ", caseFile.consignor.lastName || "Unbenannt", " ", caseFile.meta.receiptNumber] }, caseFile.meta.id)))] }) })] }));
 }
 function AdminModal(props) {
     const state = useAppState();
@@ -249,24 +250,76 @@ function AdminPage() {
                                 .split("\n")
                                 .map((value) => value.trim())
                                 .filter(Boolean)
-                        })) }) }) })) : null, section === "clerks" ? (_jsx(Section, { title: "Sachbearbeiter", children: state.masterData.clerks.map((clerk, index) => (_jsxs("div", { className: "admin-clerk", children: [_jsx(Field, { label: `Sachbearbeiter ${index + 1}`, full: true, children: _jsx("input", { value: clerk.name, onChange: (event) => updateMasterData((current) => ({
-                                    ...current,
-                                    clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
-                                })) }) }), _jsx(Field, { label: "Signatur", full: true, children: _jsx(SignaturePadEditor, { value: clerk.signaturePng, onChange: (dataUrl) => updateMasterData((current) => ({
-                                    ...current,
-                                    clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
-                                })) }) }), clerk.signaturePng ? _jsx("img", { className: "signature-preview", src: clerk.signaturePng, alt: `Signatur ${clerk.name}` }) : null] }, clerk.id))) })) : null, section === "auctions" ? (_jsx(Section, { title: "Auktionen", children: state.masterData.auctions.map((auction, index) => (_jsx(Field, { label: `Auktion ${index + 1}`, full: true, children: _jsx("input", { value: auction.number, onChange: (event) => updateMasterData((current) => ({
-                            ...current,
-                            auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
-                        })) }) }, auction.id))) })) : null, section === "departments" ? (_jsx(Section, { title: "Abteilungen / Interessengebiete", children: state.masterData.departments.map((department, index) => (_jsx(Field, { label: `Abteilung ${index + 1}`, full: true, children: _jsx("input", { value: `${department.code} Â· ${department.name}`, onChange: (event) => updateMasterData((current) => ({
-                            ...current,
-                            departments: current.departments.map((item) => item.id === department.id
-                                ? {
-                                    ...item,
-                                    name: event.target.value
-                                }
-                                : item)
-                        })) }) }, department.id))) })) : null] }));
+                        })) }) }) })) : null, section === "clerks" ? (_jsxs(Section, { title: "Sachbearbeiter", children: [state.masterData.clerks.map((clerk, index) => (_jsxs("div", { className: "admin-clerk", children: [_jsxs("div", { className: "form-row form-row--triple", children: [_jsx(Field, { label: `Sachbearbeiter ${index + 1}`, children: _jsx("input", { value: clerk.name, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
+                                            })) }) }), _jsx(Field, { label: "E-Mail", children: _jsx("input", { value: clerk.email, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, email: event.target.value } : item))
+                                            })) }) }), _jsx(Field, { label: "Telefon", children: _jsx("input", { value: clerk.phone, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, phone: event.target.value } : item))
+                                            })) }) })] }), _jsx(Field, { label: "Signatur", full: true, children: _jsx(SignaturePadEditor, { value: clerk.signaturePng, onChange: (dataUrl) => updateMasterData((current) => ({
+                                        ...current,
+                                        clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
+                                    })) }) }), clerk.signaturePng ? _jsx("img", { className: "signature-preview", src: clerk.signaturePng, alt: `Signatur ${clerk.name}` }) : null, _jsx("div", { className: "inline-actions", children: _jsx("button", { type: "button", onClick: () => updateMasterData((current) => ({
+                                        ...current,
+                                        clerks: current.clerks.filter((item) => item.id !== clerk.id)
+                                    })), children: "L\u00f6schen" }) })] }, clerk.id))), _jsx("div", { className: "inline-actions", children: _jsx("button", { type: "button", className: "primary", onClick: () => updateMasterData((current) => ({
+                                ...current,
+                                clerks: [
+                                    ...current.clerks,
+                                    {
+                                        id: crypto.randomUUID(),
+                                        name: "",
+                                        email: "",
+                                        phone: "",
+                                        signaturePng: ""
+                                    }
+                                ]
+                            })), children: "Sachbearbeiter hinzuf\u00fcgen" }) })] })) : null, section === "auctions" ? (_jsxs(Section, { title: "Auktionen", children: [state.masterData.auctions.map((auction, index) => (_jsxs("div", { className: "admin-clerk", children: [_jsxs("div", { className: "form-row form-row--triple", children: [_jsx(Field, { label: `Auktion ${index + 1}`, children: _jsx("input", { value: auction.number, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
+                                            })) }) }), _jsx(Field, { label: "Monat", children: _jsx("input", { value: auction.month, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, month: event.target.value } : item))
+                                            })) }) }), _jsx(Field, { label: "Jahr", children: _jsx("input", { value: auction.year, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, year: event.target.value } : item))
+                                            })) }) })] }), _jsx("div", { className: "inline-actions", children: _jsx("button", { type: "button", onClick: () => updateMasterData((current) => ({
+                                        ...current,
+                                        auctions: current.auctions.filter((item) => item.id !== auction.id)
+                                    })), children: "L\u00f6schen" }) })] }, auction.id))), _jsx("div", { className: "inline-actions", children: _jsx("button", { type: "button", className: "primary", onClick: () => updateMasterData((current) => ({
+                                ...current,
+                                auctions: [
+                                    ...current.auctions,
+                                    {
+                                        id: crypto.randomUUID(),
+                                        number: "",
+                                        month: "",
+                                        year: ""
+                                    }
+                                ]
+                            })), children: "Auktion hinzuf\u00fcgen" }) })] })) : null, section === "departments" ? (_jsxs(Section, { title: "Abteilungen / Interessengebiete", children: [state.masterData.departments.map((department, index) => (_jsxs("div", { className: "admin-clerk", children: [_jsxs("div", { className: "form-row form-row--double", children: [_jsx(Field, { label: `Abteilung ${index + 1}`, children: _jsx("input", { value: department.code, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                departments: current.departments.map((item) => (item.id === department.id ? { ...item, code: event.target.value } : item))
+                                            })) }) }), _jsx(Field, { label: "Bezeichnung", children: _jsx("input", { value: department.name, onChange: (event) => updateMasterData((current) => ({
+                                                ...current,
+                                                departments: current.departments.map((item) => (item.id === department.id ? { ...item, name: event.target.value } : item))
+                                            })) }) })] }), _jsx("div", { className: "inline-actions", children: _jsx("button", { type: "button", onClick: () => updateMasterData((current) => ({
+                                        ...current,
+                                        departments: current.departments.filter((item) => item.id !== department.id)
+                                    })), children: "Löschen" }) })] }, department.id))), _jsx("div", { className: "inline-actions", children: _jsx("button", { type: "button", className: "primary", onClick: () => updateMasterData((current) => ({
+                                ...current,
+                                departments: [
+                                    ...current.departments,
+                                    {
+                                        id: crypto.randomUUID(),
+                                        code: "",
+                                        name: ""
+                                    }
+                                ]
+                            })), children: "Abteilung hinzufügen" }) })] })) : null] }));
 }
 function ConsignorPage(props) {
     const state = useAppState();
@@ -364,6 +417,11 @@ function ObjectsPage(props) {
     const state = useAppState();
     const [selectedObjectId, setSelectedObjectId] = useState(props.caseFile.objects[0]?.id ?? "");
     useEffect(() => {
+        const pendingObjectId = consumePendingObjectSelectionId();
+        if (pendingObjectId && props.caseFile.objects.some((item) => item.id === pendingObjectId)) {
+            setSelectedObjectId(pendingObjectId);
+            return;
+        }
         if (!props.caseFile.objects.length) {
             setSelectedObjectId("");
             return;
@@ -385,7 +443,7 @@ function ObjectsPage(props) {
                         return (_jsxs(_Fragment, { children: [_jsxs("div", { className: "form-row form-row--triple", children: [_jsx(Field, { label: "Int.-Nr.", children: _jsx("input", { value: selectedObject.intNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value })) }) }), _jsx(Field, { label: "Auktion", children: _jsx("select", { value: selectedObject.auctionId, onChange: (event) => {
                                                     updateObject(selectedObject.id, (current) => ({ ...current, auctionId: event.target.value }));
                                                     applyAuctionPricingRules(selectedObject.id);
-                                                }, children: state.masterData.auctions.map((auctionOption) => (_jsxs("option", { value: auctionOption.id, children: [auctionOption.number, " ", auctionOption.month, "/", auctionOption.year.slice(-2)] }, auctionOption.id))) }) }), _jsx(Field, { label: "Abteilung", children: _jsx("select", { value: selectedObject.departmentId, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value })), children: state.masterData.departments.map((department) => (_jsxs("option", { value: department.id, children: [department.code, " \u00B7 ", department.name] }, department.id))) }) })] }), _jsx(Field, { label: "Kurzbeschrieb", full: true, children: _jsx("input", { value: selectedObject.shortDescription, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value })) }) }), _jsx(Field, { label: "Beschreibung", full: true, children: _jsx("textarea", { value: selectedObject.description, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value })) }) }), _jsxs("div", { className: ibid ? "form-row form-row--triple" : "form-row form-row--quad", children: [_jsx(Field, { label: "Sch\\u00e4tzung von", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.low), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } })) }) }), _jsx(Field, { label: "Sch\\u00e4tzung bis", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.high), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } })) }) }), _jsx(Field, { label: ibid ? "Startpreis" : "Limite", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.priceValue), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value })) }) }), !ibid ? (_jsx(Field, { label: "Nettolimite", children: _jsx("input", { type: "checkbox", checked: selectedObject.pricingMode === "netLimit", onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" })) }) })) : null] }), _jsxs("div", { className: "form-row form-row--double", children: [_jsx(Field, { label: "Referenznr.", children: _jsx("input", { value: selectedObject.referenceNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value })) }) }), _jsx(Field, { label: "Bemerkungen", children: _jsx("input", { value: selectedObject.remarks, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value })) }) })] }), _jsx(Field, { label: "Objektfotos", full: true, children: _jsxs("div", { className: "photo-upload", children: [_jsx("input", { type: "file", accept: "image/*", multiple: true, onChange: async (event) => {
+                                                }, children: state.masterData.auctions.map((auctionOption) => (_jsxs("option", { value: auctionOption.id, children: [auctionOption.number, " ", auctionOption.month, "/", auctionOption.year.slice(-2)] }, auctionOption.id))) }) }), _jsx(Field, { label: "Abteilung", children: _jsx("select", { value: selectedObject.departmentId, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value })), children: state.masterData.departments.map((department) => (_jsxs("option", { value: department.id, children: [department.code, " \u00B7 ", department.name] }, department.id))) }) })] }), _jsx(Field, { label: "Kurzbeschrieb", full: true, children: _jsx("input", { value: selectedObject.shortDescription, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value })) }) }), _jsx(Field, { label: "Beschreibung", full: true, children: _jsx("textarea", { value: selectedObject.description, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value })) }) }), _jsxs("div", { className: ibid ? "form-row form-row--triple" : "form-row form-row--quad", children: [_jsx(Field, { label: "Sch\u00E4tzung von", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.low), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } })) }) }), _jsx(Field, { label: "Sch\u00E4tzung bis", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.high), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } })) }) }), _jsx(Field, { label: ibid ? "Startpreis" : "Limite", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.priceValue), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value })) }) }), !ibid ? (_jsx(Field, { label: "Nettolimite", children: _jsx("input", { type: "checkbox", checked: selectedObject.pricingMode === "netLimit", onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" })) }) })) : null] }), _jsxs("div", { className: "form-row form-row--double", children: [_jsx(Field, { label: "Referenznr.", children: _jsx("input", { value: selectedObject.referenceNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value })) }) }), _jsx(Field, { label: "Bemerkungen", children: _jsx("input", { value: selectedObject.remarks, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value })) }) })] }), _jsx(Field, { label: "Objektfotos", full: true, children: _jsxs("div", { className: "photo-upload", children: [_jsx("input", { type: "file", accept: "image/*", multiple: true, onChange: async (event) => {
                                                     const files = Array.from(event.target.files ?? []);
                                                     if (!files.length) {
                                                         return;
@@ -406,7 +464,7 @@ function ObjectsPage(props) {
                                                                     ? { ...item, photoAssetIds: item.photoAssetIds.filter((assetId) => assetId !== asset.id) }
                                                                     : item)
                                                             })), children: "\u00D7" })] }, asset.id))) })) : null] }) })] }));
-                    })() : null] }), _jsxs(Section, { title: "Konditionen f\u00FCr alle Objekte", children: [_jsx(Field, { label: "Kommission", children: _jsx("input", { value: props.caseFile.costs.commission.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Versicherung", children: _jsx("input", { value: props.caseFile.costs.insurance.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Transport", children: _jsx("input", { value: props.caseFile.costs.transport.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Abb.-Kosten", children: _jsx("input", { value: props.caseFile.costs.imaging.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Kosten Expertisen", children: _jsx("input", { value: props.caseFile.costs.expertise.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Internet", children: _jsx("input", { value: props.caseFile.costs.internet.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Provenienz / Infos", full: true, children: _jsx("textarea", { value: props.caseFile.costs.provenance, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } })) }) })] })] }));
+                    })() : null] }), _jsxs(Section, { title: "Konditionen f\u00FCr alle Objekte", children: [_jsxs("div", { className: "form-row form-row--six", children: [_jsx(Field, { label: "Kommission", children: _jsx("input", { value: props.caseFile.costs.commission.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Versicherung", children: _jsx("input", { value: props.caseFile.costs.insurance.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Transport", children: _jsx("input", { value: props.caseFile.costs.transport.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Abb.-Kosten", children: _jsx("input", { value: props.caseFile.costs.imaging.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Kosten Expertisen", children: _jsx("input", { value: props.caseFile.costs.expertise.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Internet", children: _jsx("input", { value: props.caseFile.costs.internet.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } })) }) })] }), _jsx(Field, { label: "Provenienz / Infos", full: true, children: _jsx("textarea", { value: props.caseFile.costs.provenance, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } })) }) })] })] }));
 }
 function InternalPage(props) {
     const state = useAppState();
@@ -426,7 +484,7 @@ function InternalPage(props) {
                                                 ? [...current.internalInfo.interestDepartmentIds, department.id]
                                                 : current.internalInfo.interestDepartmentIds.filter((id) => id !== department.id)
                                         }
-                                    })) }), _jsxs("span", { children: [department.code, " ? ", department.name] })] }, department.id));
+                                    })) }), _jsxs("span", { children: [department.code, " ", "\u00b7", " ", department.name] })] }, department.id));
                     }) }) })] }));
 }
 function PdfEditModal(props) {

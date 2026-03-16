@@ -37,16 +37,16 @@ function getHotspots(pageNumber, layouts, objectPages) {
         }
     ];
     const objectPage = objectPages[pageNumber - 1];
-    if (objectPage && objectPage.items.length > 0 && layout.object.heightPct > 0) {
-        const totalLines = Math.max(objectPage.usedLines, 1);
+    if (objectPage && objectPage.items.length > 0 && layout.object.contentHeightPct > 0) {
+        const lineHeightPct = layout.object.lineHeightPct || (layout.object.contentHeightPct / Math.max(objectPage.capacityLines, 1));
         objectPage.items.forEach((item, itemIndex) => {
             hotspots.push({
                 key: `object-${pageNumber}-${item.objectIndex}`,
                 label: `Objekt ${itemIndex + 1}`,
-                top: `${layout.object.topPct + (item.startLine / totalLines) * layout.object.heightPct}%`,
+                top: `${layout.object.contentTopPct + item.startLine * lineHeightPct}%`,
                 left: `${layout.object.leftPct}%`,
                 width: `${layout.object.widthPct}%`,
-                height: `${(item.totalLines / totalLines) * layout.object.heightPct}%`,
+                height: `${Math.max(item.totalLines * lineHeightPct, lineHeightPct)}%`,
                 target: { kind: "object", objectIndex: item.objectIndex }
             });
         });

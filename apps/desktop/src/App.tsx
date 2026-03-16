@@ -10,6 +10,7 @@ import { PdfCanvasPreview, type PdfEditTarget } from "./pdfPreview";
 import {
   addObject,
   applyAuctionPricingRules,
+  consumePendingObjectSelectionId,
   createNewCase,
   createSnapshot,
   deleteObject,
@@ -30,7 +31,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "objects", label: "Objekte" },
   { id: "internal", label: "Interne Infos" },
   { id: "pdfPreview", label: "ELB-PDF" },
-  { id: "wordPreview", label: "Sch\u00e4tzliste" }
+  { id: "wordPreview", label: "Schätzliste" }
 ];
 
 function useAppState() {
@@ -275,6 +276,10 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
             if (value === "new-case") {
               createNewCase();
             }
+            if (value === "new-object") {
+              addObject();
+              props.onPageChange("objects");
+            }
             if (value.startsWith("case:")) {
               loadCaseById(value.replace("case:", ""));
             }
@@ -286,6 +291,7 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
         >
           <option value="">Menü</option>
           <option value="new-case">Neuer Vorgang</option>
+          <option value="new-object">Objekt hinzufügen</option>
           <option value="admin">Admin</option>
           {state.drafts.map((draft) => (
             <option key={draft.meta.id} value={`case:${draft.meta.id}`}>
@@ -527,17 +533,41 @@ function AdminPage() {
         <Section title="Sachbearbeiter">
           {state.masterData.clerks.map((clerk, index) => (
             <div key={clerk.id} className="admin-clerk">
-              <Field label={`Sachbearbeiter ${index + 1}`} full>
-                <input
-                  value={clerk.name}
-                  onChange={(event) =>
-                    updateMasterData((current) => ({
-                      ...current,
-                      clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
-                    }))
-                  }
-                />
-              </Field>
+              <div className="form-row form-row--triple">
+                <Field label={`Sachbearbeiter ${index + 1}`}>
+                  <input
+                    value={clerk.name}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="E-Mail">
+                  <input
+                    value={clerk.email}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, email: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Telefon">
+                  <input
+                    value={clerk.phone}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, phone: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
               <Field label="Signatur" full>
                 <SignaturePadEditor
                   value={clerk.signaturePng}
@@ -550,51 +580,190 @@ function AdminPage() {
                 />
               </Field>
               {clerk.signaturePng ? <img className="signature-preview" src={clerk.signaturePng} alt={`Signatur ${clerk.name}`} /> : null}
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      clerks: current.clerks.filter((item) => item.id !== clerk.id)
+                    }))
+                  }
+                >
+                  {"L\u00f6schen"}
+                </button>
+              </div>
             </div>
           ))}
+          <div className="inline-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() =>
+                updateMasterData((current) => ({
+                  ...current,
+                  clerks: [
+                    ...current.clerks,
+                    {
+                      id: crypto.randomUUID(),
+                      name: "",
+                      email: "",
+                      phone: "",
+                      signaturePng: ""
+                    }
+                  ]
+                }))
+              }
+            >
+              {"Sachbearbeiter hinzuf\u00fcgen"}
+            </button>
+          </div>
         </Section>
       ) : null}
 
       {section === "auctions" ? (
         <Section title="Auktionen">
           {state.masterData.auctions.map((auction, index) => (
-            <Field key={auction.id} label={`Auktion ${index + 1}`} full>
-              <input
-                value={auction.number}
-                onChange={(event) =>
-                  updateMasterData((current) => ({
-                    ...current,
-                    auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
-                  }))
-                }
-              />
-            </Field>
+            <div key={auction.id} className="admin-clerk">
+              <div className="form-row form-row--triple">
+                <Field label={`Auktion ${index + 1}`}>
+                  <input
+                    value={auction.number}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Monat">
+                  <input
+                    value={auction.month}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, month: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Jahr">
+                  <input
+                    value={auction.year}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, year: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      auctions: current.auctions.filter((item) => item.id !== auction.id)
+                    }))
+                  }
+                >
+                  {"L\u00f6schen"}
+                </button>
+              </div>
+            </div>
           ))}
+          <div className="inline-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() =>
+                updateMasterData((current) => ({
+                  ...current,
+                  auctions: [
+                    ...current.auctions,
+                    {
+                      id: crypto.randomUUID(),
+                      number: "",
+                      month: "",
+                      year: ""
+                    }
+                  ]
+                }))
+              }
+            >
+              {"Auktion hinzuf\u00fcgen"}
+            </button>
+          </div>
         </Section>
       ) : null}
 
       {section === "departments" ? (
         <Section title="Abteilungen / Interessengebiete">
           {state.masterData.departments.map((department, index) => (
-            <Field key={department.id} label={`Abteilung ${index + 1}`} full>
-              <input
-                value={`${department.code} Â· ${department.name}`}
-                onChange={(event) =>
-                  updateMasterData((current) => ({
-                    ...current,
-                    departments: current.departments.map((item) =>
-                      item.id === department.id
-                        ? {
-                            ...item,
-                            name: event.target.value
-                          }
-                        : item
-                    )
-                  }))
-                }
-              />
-            </Field>
+            <div key={department.id} className="admin-clerk">
+              <div className="form-row form-row--double">
+                <Field label={`Abteilung ${index + 1}`}>
+                  <input
+                    value={department.code}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        departments: current.departments.map((item) => (item.id === department.id ? { ...item, code: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Bezeichnung">
+                  <input
+                    value={department.name}
+                    onChange={(event) =>
+                      updateMasterData((current) => ({
+                        ...current,
+                        departments: current.departments.map((item) => (item.id === department.id ? { ...item, name: event.target.value } : item))
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      departments: current.departments.filter((item) => item.id !== department.id)
+                    }))
+                  }
+                >
+                  {"Löschen"}
+                </button>
+              </div>
+            </div>
           ))}
+          <div className="inline-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() =>
+                updateMasterData((current) => ({
+                  ...current,
+                  departments: [
+                    ...current.departments,
+                    {
+                      id: crypto.randomUUID(),
+                      code: "",
+                      name: ""
+                    }
+                  ]
+                }))
+              }
+            >
+              {"Abteilung hinzufügen"}
+            </button>
+          </div>
         </Section>
       ) : null}
     </div>
@@ -898,6 +1067,12 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
   const [selectedObjectId, setSelectedObjectId] = useState<string>(props.caseFile.objects[0]?.id ?? "");
 
   useEffect(() => {
+    const pendingObjectId = consumePendingObjectSelectionId();
+    if (pendingObjectId && props.caseFile.objects.some((item) => item.id === pendingObjectId)) {
+      setSelectedObjectId(pendingObjectId);
+      return;
+    }
+
     if (!props.caseFile.objects.length) {
       setSelectedObjectId("");
       return;
@@ -981,10 +1156,10 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                 <textarea value={selectedObject.description} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))} />
               </Field>
               <div className={ibid ? "form-row form-row--triple" : "form-row form-row--quad"}>
-                <Field label="Sch\u00e4tzung von">
+                <Field label="Schätzung von">
                   <input value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
                 </Field>
-                <Field label="Sch\u00e4tzung bis">
+                <Field label="Schätzung bis">
                   <input value={formatAmountForDisplay(selectedObject.estimate.high)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
                 </Field>
                 <Field label={ibid ? "Startpreis" : "Limite"}>
@@ -1067,24 +1242,26 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
       </Section>
 
       <Section title="Konditionen für alle Objekte">
-        <Field label="Kommission">
-          <input value={props.caseFile.costs.commission.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />
-        </Field>
-        <Field label="Versicherung">
-          <input value={props.caseFile.costs.insurance.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } }))} />
-        </Field>
-        <Field label="Transport">
-          <input value={props.caseFile.costs.transport.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } }))} />
-        </Field>
-        <Field label="Abb.-Kosten">
-          <input value={props.caseFile.costs.imaging.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } }))} />
-        </Field>
-        <Field label="Kosten Expertisen">
-          <input value={props.caseFile.costs.expertise.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } }))} />
-        </Field>
-        <Field label="Internet">
-          <input value={props.caseFile.costs.internet.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } }))} />
-        </Field>
+        <div className="form-row form-row--six">
+          <Field label="Kommission">
+            <input value={props.caseFile.costs.commission.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />
+          </Field>
+          <Field label="Versicherung">
+            <input value={props.caseFile.costs.insurance.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } }))} />
+          </Field>
+          <Field label="Transport">
+            <input value={props.caseFile.costs.transport.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } }))} />
+          </Field>
+          <Field label="Abb.-Kosten">
+            <input value={props.caseFile.costs.imaging.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } }))} />
+          </Field>
+          <Field label="Kosten Expertisen">
+            <input value={props.caseFile.costs.expertise.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } }))} />
+          </Field>
+          <Field label="Internet">
+            <input value={props.caseFile.costs.internet.amount} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } }))} />
+          </Field>
+        </div>
         <Field label="Provenienz / Infos" full>
           <textarea value={props.caseFile.costs.provenance} onChange={(event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } }))} />
         </Field>
@@ -1136,7 +1313,7 @@ function InternalPage(props: { caseFile: CaseFile }) {
                   }
                 />
                 <span>
-                  {department.code} ? {department.name}
+                  {department.code} {"\u00b7"} {department.name}
                 </span>
               </label>
             );

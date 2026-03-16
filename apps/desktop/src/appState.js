@@ -15,6 +15,7 @@ function createInitialState() {
 }
 let state = createInitialState();
 const listeners = new Set();
+let pendingObjectSelectionId = null;
 function emit() {
     const snapshot = {
         masterData: state.masterData,
@@ -32,6 +33,11 @@ export function subscribe(listener) {
 }
 export function getState() {
     return state;
+}
+export function consumePendingObjectSelectionId() {
+    const nextId = pendingObjectSelectionId;
+    pendingObjectSelectionId = null;
+    return nextId;
 }
 export function createSnapshot() {
     return {
@@ -153,6 +159,7 @@ export function addObject() {
     const nextAuctionId = lastObject?.auctionId ?? state.masterData.auctions[0]?.id ?? "";
     const nextDepartmentId = lastObject?.departmentId ?? state.masterData.departments[0]?.id ?? "";
     const objectId = crypto.randomUUID();
+    pendingObjectSelectionId = objectId;
     updateCurrentCase((current) => ({
         ...current,
         objects: [
