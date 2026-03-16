@@ -13,9 +13,8 @@ const pages = [
     { id: "consignor", label: "Einlieferer" },
     { id: "objects", label: "Objekte" },
     { id: "internal", label: "Interne Infos" },
-    { id: "admin", label: "Admin" },
-    { id: "pdfPreview", label: "ELB-PDF-Vorschau" },
-    { id: "wordPreview", label: "Word-Schätzliste-Vorschau" }
+    { id: "pdfPreview", label: "ELB-PDF" },
+    { id: "wordPreview", label: "Sch\u00e4tzliste" }
 ];
 function useAppState() {
     return useSyncExternalStore(subscribe, getState, getState);
@@ -383,10 +382,10 @@ function ObjectsPage(props) {
                                 }, children: "Objekt hinzuf\u00FCgen" }), selectedObject ? _jsx("button", { onClick: () => deleteObject(selectedObject.id), children: "Objekt l\u00F6schen" }) : null] }), !selectedObject ? _jsx("p", { children: "Noch keine Objekte erfasst." }) : null, selectedObject ? (() => {
                         const auction = state.masterData.auctions.find((candidate) => candidate.id === selectedObject.auctionId);
                         const ibid = auction ? auction.number.toLowerCase().startsWith("ibid") : false;
-                        return (_jsxs(_Fragment, { children: [_jsx(Field, { label: "Int.-Nr.", children: _jsx("input", { value: selectedObject.intNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value })) }) }), _jsx(Field, { label: "Auktion", children: _jsx("select", { value: selectedObject.auctionId, onChange: (event) => {
-                                            updateObject(selectedObject.id, (current) => ({ ...current, auctionId: event.target.value }));
-                                            applyAuctionPricingRules(selectedObject.id);
-                                        }, children: state.masterData.auctions.map((auctionOption) => (_jsxs("option", { value: auctionOption.id, children: [auctionOption.number, " ", auctionOption.month, "/", auctionOption.year.slice(-2)] }, auctionOption.id))) }) }), _jsx(Field, { label: "Abteilung", children: _jsx("select", { value: selectedObject.departmentId, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value })), children: state.masterData.departments.map((department) => (_jsxs("option", { value: department.id, children: [department.code, " \u00B7 ", department.name] }, department.id))) }) }), _jsx(Field, { label: "Kurzbeschrieb", full: true, children: _jsx("input", { value: selectedObject.shortDescription, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value })) }) }), _jsx(Field, { label: "Beschreibung", full: true, children: _jsx("textarea", { value: selectedObject.description, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value })) }) }), _jsx(Field, { label: "Referenznr.", full: true, children: _jsx("input", { value: selectedObject.referenceNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value })) }) }), _jsx(Field, { label: "Bemerkungen", full: true, children: _jsx("textarea", { value: selectedObject.remarks, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value })) }) }), _jsx(Field, { label: "Sch\u00E4tzung von", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.low), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } })) }) }), _jsx(Field, { label: "Sch\u00E4tzung bis", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.high), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } })) }) }), _jsx(Field, { label: ibid ? "Startpreis" : "Limite / Nettolimite", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.priceValue), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value })) }) }), !ibid ? (_jsx(Field, { label: "Nettolimite", children: _jsx("input", { type: "checkbox", checked: selectedObject.pricingMode === "netLimit", onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" })) }) })) : null, _jsx(Field, { label: "Objektfotos", full: true, children: _jsxs("div", { className: "photo-upload", children: [_jsx("input", { type: "file", accept: "image/*", multiple: true, onChange: async (event) => {
+                        return (_jsxs(_Fragment, { children: [_jsxs("div", { className: "form-row form-row--triple", children: [_jsx(Field, { label: "Int.-Nr.", children: _jsx("input", { value: selectedObject.intNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value })) }) }), _jsx(Field, { label: "Auktion", children: _jsx("select", { value: selectedObject.auctionId, onChange: (event) => {
+                                                    updateObject(selectedObject.id, (current) => ({ ...current, auctionId: event.target.value }));
+                                                    applyAuctionPricingRules(selectedObject.id);
+                                                }, children: state.masterData.auctions.map((auctionOption) => (_jsxs("option", { value: auctionOption.id, children: [auctionOption.number, " ", auctionOption.month, "/", auctionOption.year.slice(-2)] }, auctionOption.id))) }) }), _jsx(Field, { label: "Abteilung", children: _jsx("select", { value: selectedObject.departmentId, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value })), children: state.masterData.departments.map((department) => (_jsxs("option", { value: department.id, children: [department.code, " \u00B7 ", department.name] }, department.id))) }) })] }), _jsx(Field, { label: "Kurzbeschrieb", full: true, children: _jsx("input", { value: selectedObject.shortDescription, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value })) }) }), _jsx(Field, { label: "Beschreibung", full: true, children: _jsx("textarea", { value: selectedObject.description, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value })) }) }), _jsxs("div", { className: ibid ? "form-row form-row--triple" : "form-row form-row--quad", children: [_jsx(Field, { label: "Sch\\u00e4tzung von", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.low), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } })) }) }), _jsx(Field, { label: "Sch\\u00e4tzung bis", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.estimate.high), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } })) }) }), _jsx(Field, { label: ibid ? "Startpreis" : "Limite", children: _jsx("input", { value: formatAmountForDisplay(selectedObject.priceValue), onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value })) }) }), !ibid ? (_jsx(Field, { label: "Nettolimite", children: _jsx("input", { type: "checkbox", checked: selectedObject.pricingMode === "netLimit", onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" })) }) })) : null] }), _jsxs("div", { className: "form-row form-row--double", children: [_jsx(Field, { label: "Referenznr.", children: _jsx("input", { value: selectedObject.referenceNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value })) }) }), _jsx(Field, { label: "Bemerkungen", children: _jsx("input", { value: selectedObject.remarks, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value })) }) })] }), _jsx(Field, { label: "Objektfotos", full: true, children: _jsxs("div", { className: "photo-upload", children: [_jsx("input", { type: "file", accept: "image/*", multiple: true, onChange: async (event) => {
                                                     const files = Array.from(event.target.files ?? []);
                                                     if (!files.length) {
                                                         return;
@@ -417,18 +416,18 @@ function InternalPage(props) {
                                 ...current.internalInfo,
                                 notes: event.target.value
                             }
-                        })) }) }) }), _jsx(Section, { title: "Interessengebiete", children: state.masterData.departments.map((department) => {
-                    const checked = props.caseFile.internalInfo.interestDepartmentIds.includes(department.id);
-                    return (_jsxs("label", { className: "checkbox-line", children: [_jsx("input", { type: "checkbox", checked: checked, onChange: (event) => updateCurrentCase((current) => ({
-                                    ...current,
-                                    internalInfo: {
-                                        ...current.internalInfo,
-                                        interestDepartmentIds: event.target.checked
-                                            ? [...current.internalInfo.interestDepartmentIds, department.id]
-                                            : current.internalInfo.interestDepartmentIds.filter((id) => id !== department.id)
-                                    }
-                                })) }), _jsxs("span", { children: [department.code, " \u00B7 ", department.name] })] }, department.id));
-                }) })] }));
+                        })) }) }) }), _jsx(Section, { title: "Interessengebiete", children: _jsx("div", { className: "chip-flow", children: state.masterData.departments.map((department) => {
+                        const checked = props.caseFile.internalInfo.interestDepartmentIds.includes(department.id);
+                        return (_jsxs("label", { className: "checkbox-line", children: [_jsx("input", { type: "checkbox", checked: checked, onChange: (event) => updateCurrentCase((current) => ({
+                                        ...current,
+                                        internalInfo: {
+                                            ...current.internalInfo,
+                                            interestDepartmentIds: event.target.checked
+                                                ? [...current.internalInfo.interestDepartmentIds, department.id]
+                                                : current.internalInfo.interestDepartmentIds.filter((id) => id !== department.id)
+                                        }
+                                    })) }), _jsxs("span", { children: [department.code, " ? ", department.name] })] }, department.id));
+                    }) }) })] }));
 }
 function PdfEditModal(props) {
     const state = useAppState();

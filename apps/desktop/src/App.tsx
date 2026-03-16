@@ -29,9 +29,8 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "consignor", label: "Einlieferer" },
   { id: "objects", label: "Objekte" },
   { id: "internal", label: "Interne Infos" },
-  { id: "admin", label: "Admin" },
-  { id: "pdfPreview", label: "ELB-PDF-Vorschau" },
-  { id: "wordPreview", label: "Word-Schätzliste-Vorschau" }
+  { id: "pdfPreview", label: "ELB-PDF" },
+  { id: "wordPreview", label: "Sch\u00e4tzliste" }
 ];
 
 function useAppState() {
@@ -276,9 +275,6 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
             if (value === "new-case") {
               createNewCase();
             }
-            if (value.startsWith("clerk:")) {
-              selectClerk(value.replace("clerk:", ""));
-            }
             if (value.startsWith("case:")) {
               loadCaseById(value.replace("case:", ""));
             }
@@ -291,11 +287,6 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
           <option value="">Menü</option>
           <option value="new-case">Neuer Vorgang</option>
           <option value="admin">Admin</option>
-          {state.masterData.clerks.map((clerk) => (
-            <option key={clerk.id} value={`clerk:${clerk.id}`}>
-              Sachbearbeiter wechseln: {clerk.name}
-            </option>
-          ))}
           {state.drafts.map((draft) => (
             <option key={draft.meta.id} value={`case:${draft.meta.id}`}>
               Draft laden: {draft.consignor.lastName || "Unbenannt"} {draft.meta.receiptNumber}
@@ -954,6 +945,7 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
 
           return (
             <>
+              <div className="form-row form-row--triple">
               <Field label="Int.-Nr.">
                 <input value={selectedObject.intNumber} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value }))} />
               </Field>
@@ -981,36 +973,41 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                   ))}
                 </select>
               </Field>
+              </div>
               <Field label="Kurzbeschrieb" full>
                 <input value={selectedObject.shortDescription} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value }))} />
               </Field>
               <Field label="Beschreibung" full>
                 <textarea value={selectedObject.description} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))} />
               </Field>
-              <Field label="Referenznr." full>
-                <input value={selectedObject.referenceNumber} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
-              </Field>
-              <Field label="Bemerkungen" full>
-                <textarea value={selectedObject.remarks} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))} />
-              </Field>
-              <Field label="Schätzung von">
-                <input value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
-              </Field>
-              <Field label="Schätzung bis">
-                <input value={formatAmountForDisplay(selectedObject.estimate.high)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
-              </Field>
-              <Field label={ibid ? "Startpreis" : "Limite / Nettolimite"}>
-                <input value={formatAmountForDisplay(selectedObject.priceValue)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))} />
-              </Field>
-              {!ibid ? (
-                <Field label="Nettolimite">
-                  <input
-                    type="checkbox"
-                    checked={selectedObject.pricingMode === "netLimit"}
-                    onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" }))}
-                  />
+              <div className={ibid ? "form-row form-row--triple" : "form-row form-row--quad"}>
+                <Field label="Sch\u00e4tzung von">
+                  <input value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
                 </Field>
-              ) : null}
+                <Field label="Sch\u00e4tzung bis">
+                  <input value={formatAmountForDisplay(selectedObject.estimate.high)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+                </Field>
+                <Field label={ibid ? "Startpreis" : "Limite"}>
+                  <input value={formatAmountForDisplay(selectedObject.priceValue)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))} />
+                </Field>
+                {!ibid ? (
+                  <Field label="Nettolimite">
+                    <input
+                      type="checkbox"
+                      checked={selectedObject.pricingMode === "netLimit"}
+                      onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" }))}
+                    />
+                  </Field>
+                ) : null}
+              </div>
+              <div className="form-row form-row--double">
+                <Field label="Referenznr.">
+                  <input value={selectedObject.referenceNumber} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
+                </Field>
+                <Field label="Bemerkungen">
+                  <input value={selectedObject.remarks} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))} />
+                </Field>
+              </div>
               <Field label="Objektfotos" full>
                 <div className="photo-upload">
                   <input
@@ -1118,31 +1115,33 @@ function InternalPage(props: { caseFile: CaseFile }) {
         </Field>
       </Section>
       <Section title="Interessengebiete">
-        {state.masterData.departments.map((department) => {
-          const checked = props.caseFile.internalInfo.interestDepartmentIds.includes(department.id);
-          return (
-            <label key={department.id} className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(event) =>
-                  updateCurrentCase((current) => ({
-                    ...current,
-                    internalInfo: {
-                      ...current.internalInfo,
-                      interestDepartmentIds: event.target.checked
-                        ? [...current.internalInfo.interestDepartmentIds, department.id]
-                        : current.internalInfo.interestDepartmentIds.filter((id) => id !== department.id)
-                    }
-                  }))
-                }
-              />
-              <span>
-                {department.code} · {department.name}
-              </span>
-            </label>
-          );
-        })}
+        <div className="chip-flow">
+          {state.masterData.departments.map((department) => {
+            const checked = props.caseFile.internalInfo.interestDepartmentIds.includes(department.id);
+            return (
+              <label key={department.id} className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) =>
+                    updateCurrentCase((current) => ({
+                      ...current,
+                      internalInfo: {
+                        ...current.internalInfo,
+                        interestDepartmentIds: event.target.checked
+                          ? [...current.internalInfo.interestDepartmentIds, department.id]
+                          : current.internalInfo.interestDepartmentIds.filter((id) => id !== department.id)
+                      }
+                    }))
+                  }
+                />
+                <span>
+                  {department.code} ? {department.name}
+                </span>
+              </label>
+            );
+          })}
+        </div>
       </Section>
     </div>
   );
