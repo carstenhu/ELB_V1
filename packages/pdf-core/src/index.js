@@ -270,7 +270,7 @@ function buildObjectFieldLayout(row, font, widths, fontSize) {
 export async function buildObjectPageChunks(rows) {
     const font = await PDFDocument.create().then((pdf) => pdf.embedFont(StandardFonts.Helvetica));
     const fontSize = 9.2;
-    const lineHeight = 11.8;
+    const lineHeight = 10.4;
     const mainPdf = await PDFDocument.load(await loadTemplateBytes(templatePdfUrl));
     const followPdf = await PDFDocument.load(await loadTemplateBytes(templateObjectsPdfUrl));
     const mainForm = mainPdf.getForm();
@@ -294,24 +294,30 @@ export async function buildObjectPageChunks(rows) {
         estimate: getUnionForFields(followForm, ["Schätzung 2"])?.width ?? 90
     };
     const chunks = [];
-    let current = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [] };
+    let current = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0 };
     let usedLines = 0;
     let capacity = mainCap;
     rows.forEach((row, objectIndex) => {
         const widths = chunks.length === 0 ? mainWidths : followWidths;
         const layout = buildObjectFieldLayout(row, font, widths, fontSize);
-        const blockLines = layout.lineCount + 1;
+        const blockLines = layout.lineCount + (usedLines > 0 ? 2 : 0);
         if (usedLines > 0 && usedLines + blockLines > capacity) {
+            current.usedLines = usedLines;
             chunks.push(current);
-            current = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [] };
+            current = { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0 };
             usedLines = 0;
             capacity = followCap;
         }
         if (usedLines > 0) {
             current.intNumber += "\r\n";
+            current.intNumber += "\r\n";
+            current.auctionLabel += "\r\n";
             current.auctionLabel += "\r\n";
             current.departmentCode += "\r\n";
+            current.departmentCode += "\r\n";
             current.description += "\r\n";
+            current.description += "\r\n";
+            current.estimate += "\r\n";
             current.estimate += "\r\n";
         }
         current.intNumber += layout.intNumber;
@@ -325,8 +331,10 @@ export async function buildObjectPageChunks(rows) {
             totalLines: layout.lineCount
         });
         usedLines += blockLines;
+        current.usedLines = usedLines;
     });
     if (usedLines > 0 || !chunks.length) {
+        current.usedLines = usedLines;
         chunks.push(current);
     }
     return chunks;
@@ -455,7 +463,7 @@ export async function generateElbPdf(caseFile, masterData) {
     const totalPages = Math.max(objectPages.length, 1);
     const clerk = masterData.clerks.find((item) => item.id === caseFile.meta.clerkId);
     for (let index = 0; index < totalPages; index += 1) {
-        const row = objectPages[index] ?? { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [] };
+        const row = objectPages[index] ?? { intNumber: "", auctionLabel: "", departmentCode: "", description: "", estimate: "", items: [], usedLines: 0 };
         const sourceBytes = index === 0 ? mainTemplateBytes : followTemplateBytes;
         const sourcePdf = await PDFDocument.load(sourceBytes);
         const form = sourcePdf.getForm();

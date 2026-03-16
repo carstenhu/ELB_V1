@@ -453,6 +453,8 @@ function AdminModal(props: { open: boolean; onClose: () => void }) {
   );
 }
 
+void AdminModal;
+
 function AdminPage() {
   const state = useAppState();
   const [pinInput, setPinInput] = useState("");
@@ -932,7 +934,15 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
           </select>
         </Field>
         <div className="inline-actions">
-          <button className="primary" onClick={() => addObject()}>
+          <button
+            className="primary"
+            onClick={() => {
+              const objectId = addObject();
+              if (objectId) {
+                setSelectedObjectId(objectId);
+              }
+            }}
+          >
             Objekt hinzufügen
           </button>
           {selectedObject ? <button onClick={() => deleteObject(selectedObject.id)}>Objekt löschen</button> : null}
@@ -976,6 +986,12 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
               </Field>
               <Field label="Beschreibung" full>
                 <textarea value={selectedObject.description} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))} />
+              </Field>
+              <Field label="Referenznr." full>
+                <input value={selectedObject.referenceNumber} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
+              </Field>
+              <Field label="Bemerkungen" full>
+                <textarea value={selectedObject.remarks} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))} />
               </Field>
               <Field label="Schätzung von">
                 <input value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
@@ -1132,7 +1148,12 @@ function InternalPage(props: { caseFile: CaseFile }) {
   );
 }
 
-function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | null; onClose: () => void }) {
+function PdfEditModal(props: {
+  caseFile: CaseFile;
+  openTarget: PdfEditTarget | null;
+  onClose: () => void;
+  onTargetChange: (target: PdfEditTarget | null) => void;
+}) {
   const state = useAppState();
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
@@ -1441,6 +1462,34 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
 
           {props.openTarget.kind === "object" && objectItem ? (
             <Section title={`Objekt ${objectItem.intNumber}`}>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => {
+                    const objectId = addObject();
+                    if (!objectId) {
+                      return;
+                    }
+
+                    props.onTargetChange({
+                      kind: "object",
+                      objectIndex: props.caseFile.objects.length
+                    });
+                  }}
+                >
+                  Objekt hinzufügen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteObject(objectItem.id);
+                    props.onClose();
+                  }}
+                >
+                  Objekt löschen
+                </button>
+              </div>
               <Field label="Int.-Nr.">
                 <input value={objectItem.intNumber} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, intNumber: event.target.value }))} />
               </Field>
@@ -1473,6 +1522,21 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
               </Field>
               <Field label="Beschreibung" full>
                 <textarea value={objectItem.description} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, description: event.target.value }))} />
+              </Field>
+              <Field label="Referenznr." full>
+                <input value={objectItem.referenceNumber} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
+              </Field>
+              <Field label="Bemerkungen" full>
+                <textarea value={objectItem.remarks} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, remarks: event.target.value }))} />
+              </Field>
+              <Field label="Schätzung von">
+                <input value={formatAmountForDisplay(objectItem.estimate.low)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
+              </Field>
+              <Field label="Schätzung bis">
+                <input value={formatAmountForDisplay(objectItem.estimate.high)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+              </Field>
+              <Field label="Limite / Startpreis">
+                <input value={formatAmountForDisplay(objectItem.priceValue)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, priceValue: event.target.value }))} />
               </Field>
             </Section>
           ) : null}
@@ -1580,7 +1644,7 @@ function PdfPreviewPage(props: { caseFile: CaseFile }) {
             {exportStatus ? <p>{exportStatus}</p> : null}
           </div>
         </div>
-        <PdfEditModal caseFile={props.caseFile} openTarget={editTarget} onClose={() => setEditTarget(null)} />
+        <PdfEditModal caseFile={props.caseFile} openTarget={editTarget} onClose={() => setEditTarget(null)} onTargetChange={setEditTarget} />
       </div>
     </div>
   );
@@ -1631,7 +1695,6 @@ function WordPreviewPage(props: { caseFile: CaseFile }) {
 export function App() {
   const state = useAppState();
   const [page, setPage] = useState<PageId>("consignor");
-  const [adminOpen, setAdminOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const firstSaveRef = useRef(true);
   const caseFile = state.currentCase;
@@ -1675,22 +1738,19 @@ export function App() {
     <div className="app-shell">
       <SessionOverlay />
       <TopBar page={page} onPageChange={setPage} />
-      <button className="admin-fab" onClick={() => setAdminOpen(true)}>
-        Admin
-      </button>
-      <AdminModal open={adminOpen} onClose={() => setAdminOpen(false)} />
-      {!caseFile ? (
+      {!caseFile && page !== "admin" ? (
         <main className="empty-state">
           <h1>Kein aktiver Vorgang</h1>
           <p>Bitte zuerst einen Sachbearbeiter wählen oder einen neuen Vorgang anlegen.</p>
         </main>
       ) : (
         <main className="page">
-          {page === "consignor" ? <ConsignorPage caseFile={caseFile} /> : null}
-          {page === "objects" ? <ObjectsPage caseFile={caseFile} /> : null}
-          {page === "internal" ? <InternalPage caseFile={caseFile} /> : null}
-          {page === "pdfPreview" ? <PdfPreviewPage caseFile={caseFile} /> : null}
-          {page === "wordPreview" ? <WordPreviewPage caseFile={caseFile} /> : null}
+          {page === "admin" ? <AdminPage /> : null}
+          {page === "consignor" && caseFile ? <ConsignorPage caseFile={caseFile} /> : null}
+          {page === "objects" && caseFile ? <ObjectsPage caseFile={caseFile} /> : null}
+          {page === "internal" && caseFile ? <InternalPage caseFile={caseFile} /> : null}
+          {page === "pdfPreview" && caseFile ? <PdfPreviewPage caseFile={caseFile} /> : null}
+          {page === "wordPreview" && caseFile ? <WordPreviewPage caseFile={caseFile} /> : null}
         </main>
       )}
     </div>

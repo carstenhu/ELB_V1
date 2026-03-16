@@ -3,6 +3,7 @@ export const pageIdSchema = z.enum([
     "consignor",
     "objects",
     "internal",
+    "admin",
     "pdfPreview",
     "wordPreview",
 ]);

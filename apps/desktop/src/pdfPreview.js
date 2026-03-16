@@ -38,7 +38,7 @@ function getHotspots(pageNumber, layouts, objectPages) {
     ];
     const objectPage = objectPages[pageNumber - 1];
     if (objectPage && objectPage.items.length > 0 && layout.object.heightPct > 0) {
-        const totalLines = Math.max(...objectPage.items.map((item) => item.startLine + item.totalLines), 1);
+        const totalLines = Math.max(objectPage.usedLines, 1);
         objectPage.items.forEach((item, itemIndex) => {
             hotspots.push({
                 key: `object-${pageNumber}-${item.objectIndex}`,

@@ -147,23 +147,25 @@ export function loadCaseById(id) {
 }
 export function addObject() {
     if (!state.currentCase) {
-        return;
+        return null;
     }
     const lastObject = state.currentCase.objects.at(-1);
     const nextAuctionId = lastObject?.auctionId ?? state.masterData.auctions[0]?.id ?? "";
     const nextDepartmentId = lastObject?.departmentId ?? state.masterData.departments[0]?.id ?? "";
+    const objectId = crypto.randomUUID();
     updateCurrentCase((current) => ({
         ...current,
         objects: [
             ...current.objects,
             createEmptyObject({
-                id: crypto.randomUUID(),
+                id: objectId,
                 intNumber: formatReceiptNumber(current.objects.length + 1),
                 auctionId: nextAuctionId,
                 departmentId: nextDepartmentId
             })
         ]
     }));
+    return objectId;
 }
 export function updateObject(objectId, updater) {
     updateCurrentCase((current) => ({
