@@ -29,6 +29,7 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "consignor", label: "Einlieferer" },
   { id: "objects", label: "Objekte" },
   { id: "internal", label: "Interne Infos" },
+  { id: "admin", label: "Admin" },
   { id: "pdfPreview", label: "ELB-PDF-Vorschau" },
   { id: "wordPreview", label: "Word-Schätzliste-Vorschau" }
 ];
@@ -85,6 +86,140 @@ async function createOptimizedImageAsset(file: File): Promise<Asset> {
 
 function findAsset(caseFile: CaseFile, assetId: string): Asset | undefined {
   return caseFile.assets.find((asset) => asset.id === assetId);
+}
+
+function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) {
+      return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 3;
+    context.strokeStyle = "#111111";
+
+    if (!props.value) {
+      return;
+    }
+
+    const image = new Image();
+    image.onload = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    };
+    image.src = props.value;
+  }, [props.value]);
+
+  function getCanvasPoint(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height
+    };
+  }
+
+  function start(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    const point = getCanvasPoint(event);
+    if (!canvas || !context || !point) {
+      return;
+    }
+
+    isDrawingRef.current = true;
+    lastPointRef.current = point;
+    canvas.setPointerCapture(event.pointerId);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  }
+
+  function move(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!isDrawingRef.current) {
+      return;
+    }
+
+    const context = canvasRef.current?.getContext("2d");
+    const point = getCanvasPoint(event);
+    const lastPoint = lastPointRef.current;
+    if (!context || !point || !lastPoint) {
+      return;
+    }
+
+    context.beginPath();
+    context.moveTo(lastPoint.x, lastPoint.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    lastPointRef.current = point;
+  }
+
+  function end(event?: ReactPointerEvent<HTMLCanvasElement>) {
+    if (event && canvasRef.current?.hasPointerCapture(event.pointerId)) {
+      canvasRef.current.releasePointerCapture(event.pointerId);
+    }
+    isDrawingRef.current = false;
+    lastPointRef.current = null;
+  }
+
+  function clear() {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) {
+      return;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    props.onChange("");
+  }
+
+  function save() {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    props.onChange(canvas.toDataURL("image/png"));
+  }
+
+  return (
+    <div className="signature-pad">
+      <canvas
+        ref={canvasRef}
+        className="signature-pad__canvas"
+        width={640}
+        height={220}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerLeave={end}
+      />
+      <div className="signature-pad__actions">
+        <button type="button" className="secondary-button" onClick={clear}>
+          Löschen
+        </button>
+        <button type="button" className="primary-button" onClick={save}>
+          Übernehmen
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function SessionOverlay() {
@@ -148,7 +283,7 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
               loadCaseById(value.replace("case:", ""));
             }
             if (value === "admin") {
-              props.onPageChange("internal");
+              props.onPageChange("admin");
             }
             event.target.value = "";
           }}
@@ -261,22 +396,14 @@ function AdminModal(props: { open: boolean; onClose: () => void }) {
                   />
                 </Field>
                 <Field label="Signatur" full>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) {
-                        return;
-                      }
-
-                      const dataUrl = await readFileAsDataUrl(file);
+                  <SignaturePadEditor
+                    value={clerk.signaturePng}
+                    onChange={(dataUrl) =>
                       updateMasterData((current) => ({
                         ...current,
                         clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
-                      }));
-                      event.target.value = "";
-                    }}
+                      }))
+                    }
                   />
                 </Field>
                 {clerk.signaturePng ? <img className="signature-preview" src={clerk.signaturePng} alt={`Signatur ${clerk.name}`} /> : null}
@@ -322,6 +449,161 @@ function AdminModal(props: { open: boolean; onClose: () => void }) {
           </Section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminPage() {
+  const state = useAppState();
+  const [pinInput, setPinInput] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
+  const [section, setSection] = useState<"security" | "required" | "clerks" | "auctions" | "departments">("security");
+
+  if (!unlocked) {
+    return (
+      <div className="page-grid">
+        <Section title="Admin entsperren">
+          <Field label="Admin-PIN">
+            <input type="password" value={pinInput} onChange={(event) => setPinInput(event.target.value)} />
+          </Field>
+          <div className="inline-actions">
+            <button
+              className="primary"
+              onClick={() => {
+                if (pinInput === state.masterData.adminPin) {
+                  setUnlocked(true);
+                }
+              }}
+            >
+              Öffnen
+            </button>
+          </div>
+        </Section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page-grid">
+      <Section title="Admin-Bereiche">
+        <div className="toggle-list">
+          <button type="button" className={section === "security" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("security")}>PIN</button>
+          <button type="button" className={section === "required" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("required")}>Pflichtfelder</button>
+          <button type="button" className={section === "clerks" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("clerks")}>Sachbearbeiter</button>
+          <button type="button" className={section === "auctions" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("auctions")}>Auktionen</button>
+          <button type="button" className={section === "departments" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("departments")}>Abteilungen</button>
+        </div>
+      </Section>
+
+      {section === "security" ? (
+        <Section title="Lokale PIN">
+          <Field label="Admin-PIN">
+            <input
+              value={state.masterData.adminPin}
+              onChange={(event) =>
+                updateMasterData((current) => ({
+                  ...current,
+                  adminPin: event.target.value
+                }))
+              }
+            />
+          </Field>
+        </Section>
+      ) : null}
+
+      {section === "required" ? (
+        <Section title="PDF-Pflichtfelder">
+          <Field label="Feldliste" full>
+            <textarea
+              value={state.masterData.globalPdfRequiredFields.join("\n")}
+              onChange={(event) =>
+                updateMasterData((current) => ({
+                  ...current,
+                  globalPdfRequiredFields: event.target.value
+                    .split("\n")
+                    .map((value) => value.trim())
+                    .filter(Boolean)
+                }))
+              }
+            />
+          </Field>
+        </Section>
+      ) : null}
+
+      {section === "clerks" ? (
+        <Section title="Sachbearbeiter">
+          {state.masterData.clerks.map((clerk, index) => (
+            <div key={clerk.id} className="admin-clerk">
+              <Field label={`Sachbearbeiter ${index + 1}`} full>
+                <input
+                  value={clerk.name}
+                  onChange={(event) =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Signatur" full>
+                <SignaturePadEditor
+                  value={clerk.signaturePng}
+                  onChange={(dataUrl) =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
+                    }))
+                  }
+                />
+              </Field>
+              {clerk.signaturePng ? <img className="signature-preview" src={clerk.signaturePng} alt={`Signatur ${clerk.name}`} /> : null}
+            </div>
+          ))}
+        </Section>
+      ) : null}
+
+      {section === "auctions" ? (
+        <Section title="Auktionen">
+          {state.masterData.auctions.map((auction, index) => (
+            <Field key={auction.id} label={`Auktion ${index + 1}`} full>
+              <input
+                value={auction.number}
+                onChange={(event) =>
+                  updateMasterData((current) => ({
+                    ...current,
+                    auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
+                  }))
+                }
+              />
+            </Field>
+          ))}
+        </Section>
+      ) : null}
+
+      {section === "departments" ? (
+        <Section title="Abteilungen / Interessengebiete">
+          {state.masterData.departments.map((department, index) => (
+            <Field key={department.id} label={`Abteilung ${index + 1}`} full>
+              <input
+                value={`${department.code} Â· ${department.name}`}
+                onChange={(event) =>
+                  updateMasterData((current) => ({
+                    ...current,
+                    departments: current.departments.map((item) =>
+                      item.id === department.id
+                        ? {
+                            ...item,
+                            name: event.target.value
+                          }
+                        : item
+                    )
+                  }))
+                }
+              />
+            </Field>
+          ))}
+        </Section>
+      ) : null}
     </div>
   );
 }
@@ -857,9 +1139,10 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const objectItem = props.openTarget?.kind === "object" ? props.caseFile.objects[props.openTarget.objectIndex] ?? null : null;
+  const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === props.caseFile.meta.clerkId);
 
   useEffect(() => {
-    if (props.openTarget?.kind !== "consignorSignature") {
+    if (props.openTarget?.kind !== "consignorSignature" && props.openTarget?.kind !== "clerkSignature") {
       return;
     }
 
@@ -877,7 +1160,12 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
     context.lineWidth = 3;
     context.strokeStyle = "#111111";
 
-    if (!props.caseFile.signatures.consignorSignaturePng) {
+    const signatureValue =
+      props.openTarget.kind === "consignorSignature"
+        ? props.caseFile.signatures.consignorSignaturePng
+        : activeClerk?.signaturePng ?? "";
+
+    if (!signatureValue) {
       return;
     }
 
@@ -888,8 +1176,8 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
     };
-    image.src = props.caseFile.signatures.consignorSignaturePng;
-  }, [props.caseFile.signatures.consignorSignaturePng, props.openTarget]);
+    image.src = signatureValue;
+  }, [activeClerk?.signaturePng, props.caseFile.signatures.consignorSignaturePng, props.openTarget]);
 
   function getCanvasPoint(event: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = signatureCanvasRef.current;
@@ -957,13 +1245,23 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    updateCurrentCase((current) => ({
-      ...current,
-      signatures: {
-        ...current.signatures,
-        consignorSignaturePng: ""
-      }
-    }));
+    if (props.openTarget?.kind === "consignorSignature") {
+      updateCurrentCase((current) => ({
+        ...current,
+        signatures: {
+          ...current.signatures,
+          consignorSignaturePng: ""
+        }
+      }));
+      return;
+    }
+
+    if (props.openTarget?.kind === "clerkSignature" && activeClerk) {
+      updateMasterData((current) => ({
+        ...current,
+        clerks: current.clerks.map((clerk) => (clerk.id === activeClerk.id ? { ...clerk, signaturePng: "" } : clerk))
+      }));
+    }
   }
 
   function saveSignature() {
@@ -972,13 +1270,25 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
       return;
     }
 
-    updateCurrentCase((current) => ({
-      ...current,
-      signatures: {
-        ...current.signatures,
-        consignorSignaturePng: canvas.toDataURL("image/png")
-      }
-    }));
+    const dataUrl = canvas.toDataURL("image/png");
+
+    if (props.openTarget?.kind === "consignorSignature") {
+      updateCurrentCase((current) => ({
+        ...current,
+        signatures: {
+          ...current.signatures,
+          consignorSignaturePng: dataUrl
+        }
+      }));
+    }
+
+    if (props.openTarget?.kind === "clerkSignature" && activeClerk) {
+      updateMasterData((current) => ({
+        ...current,
+        clerks: current.clerks.map((clerk) => (clerk.id === activeClerk.id ? { ...clerk, signaturePng: dataUrl } : clerk))
+      }));
+    }
+
     props.onClose();
   }
 
@@ -1198,7 +1508,7 @@ function PdfEditModal(props: { caseFile: CaseFile; openTarget: PdfEditTarget | n
 
           {props.openTarget.kind === "clerkSignature" ? (
             <Section title="Sachbearbeiter-Signatur">
-              <p>Die Sachbearbeiter-Signatur wird aus den Stammdaten übernommen. Die direkte Vorschauplatzierung folgt als nächster Schritt.</p>
+              <p>Die Sachbearbeiter-Signatur wird im Admin-Panel gepflegt und danach automatisch im PDF ins Koller-Feld eingesetzt.</p>
             </Section>
           ) : null}
         </div>
@@ -1236,7 +1546,6 @@ function PdfPreviewPage(props: { caseFile: CaseFile }) {
     <div className="preview-page">
       <div className="preview-sheet">
         <div className="preview-sheet__toolbar">
-          <button>Signatur erfassen</button>
           <button>Pflichtfelder prüfen</button>
           <button onClick={() => saveDraft()}>Draft speichern</button>
           <button onClick={() => finalizeCurrentCase()}>Finalisieren</button>

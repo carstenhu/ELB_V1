@@ -205,7 +205,7 @@ async function drawSignatureIntoFields(pdf, pageIndex, form, fieldNames, dataUrl
         return;
     }
     const page = pdf.getPage(pageIndex);
-    const image = await pdf.embedPng(decodeDataUrl(dataUrl));
+    const image = await embedImageFromDataUrl(pdf, dataUrl);
     const imageRatio = image.height / image.width;
     rects.forEach((rect) => {
         const width = rect.width;

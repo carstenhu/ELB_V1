@@ -11,9 +11,9 @@ export const PAGE_IDS = {
   consignor: "consignor",
   objects: "objects",
   internal: "internal",
+  admin: "admin",
   pdfPreview: "pdfPreview",
   wordPreview: "wordPreview",
 } as const;
 
 export const DEFAULT_ADMIN_PIN = "2026";
-

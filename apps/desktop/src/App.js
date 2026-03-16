@@ -62,6 +62,102 @@ async function createOptimizedImageAsset(file) {
 function findAsset(caseFile, assetId) {
     return caseFile.assets.find((asset) => asset.id === assetId);
 }
+function SignaturePadEditor(props) {
+    const canvasRef = useRef(null);
+    const isDrawingRef = useRef(false);
+    const lastPointRef = useRef(null);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        if (!canvas || !context) {
+            return;
+        }
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.lineCap = "round";
+        context.lineJoin = "round";
+        context.lineWidth = 3;
+        context.strokeStyle = "#111111";
+        if (!props.value) {
+            return;
+        }
+        const image = new Image();
+        image.onload = () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        };
+        image.src = props.value;
+    }, [props.value]);
+    function getCanvasPoint(event) {
+        const canvas = canvasRef.current;
+        if (!canvas) {
+            return null;
+        }
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+            y: ((event.clientY - rect.top) / rect.height) * canvas.height
+        };
+    }
+    function start(event) {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        const point = getCanvasPoint(event);
+        if (!canvas || !context || !point) {
+            return;
+        }
+        isDrawingRef.current = true;
+        lastPointRef.current = point;
+        canvas.setPointerCapture(event.pointerId);
+        context.beginPath();
+        context.moveTo(point.x, point.y);
+    }
+    function move(event) {
+        if (!isDrawingRef.current) {
+            return;
+        }
+        const context = canvasRef.current?.getContext("2d");
+        const point = getCanvasPoint(event);
+        const lastPoint = lastPointRef.current;
+        if (!context || !point || !lastPoint) {
+            return;
+        }
+        context.beginPath();
+        context.moveTo(lastPoint.x, lastPoint.y);
+        context.lineTo(point.x, point.y);
+        context.stroke();
+        lastPointRef.current = point;
+    }
+    function end(event) {
+        if (event && canvasRef.current?.hasPointerCapture(event.pointerId)) {
+            canvasRef.current.releasePointerCapture(event.pointerId);
+        }
+        isDrawingRef.current = false;
+        lastPointRef.current = null;
+    }
+    function clear() {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext("2d");
+        if (!canvas || !context) {
+            return;
+        }
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        props.onChange("");
+    }
+    function save() {
+        const canvas = canvasRef.current;
+        if (!canvas) {
+            return;
+        }
+        props.onChange(canvas.toDataURL("image/png"));
+    }
+    return (_jsxs("div", { className: "signature-pad", children: [_jsx("canvas", { ref: canvasRef, className: "signature-pad__canvas", width: 640, height: 220, onPointerDown: start, onPointerMove: move, onPointerUp: end, onPointerLeave: end }), _jsxs("div", { className: "signature-pad__actions", children: [_jsx("button", { type: "button", className: "secondary-button", onClick: clear, children: "L\u00F6schen" }), _jsx("button", { type: "button", className: "primary-button", onClick: save, children: "\u00DCbernehmen" })] })] }));
+}
 function SessionOverlay() {
     const state = useAppState();
     if (state.activeClerkId) {
@@ -115,18 +211,10 @@ function AdminModal(props) {
                                     })) }) }) }), _jsx(Section, { title: "Sachbearbeiter", children: state.masterData.clerks.map((clerk, index) => (_jsxs("div", { className: "admin-clerk", children: [_jsx(Field, { label: `Sachbearbeiter ${index + 1}`, full: true, children: _jsx("input", { value: clerk.name, onChange: (event) => updateMasterData((current) => ({
                                                 ...current,
                                                 clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
-                                            })) }) }), _jsx(Field, { label: "Signatur", full: true, children: _jsx("input", { type: "file", accept: "image/*", onChange: async (event) => {
-                                                const file = event.target.files?.[0];
-                                                if (!file) {
-                                                    return;
-                                                }
-                                                const dataUrl = await readFileAsDataUrl(file);
-                                                updateMasterData((current) => ({
-                                                    ...current,
-                                                    clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
-                                                }));
-                                                event.target.value = "";
-                                            } }) }), clerk.signaturePng ? _jsx("img", { className: "signature-preview", src: clerk.signaturePng, alt: `Signatur ${clerk.name}` }) : null] }, clerk.id))) }), _jsx(Section, { title: "Auktionen", children: state.masterData.auctions.map((auction, index) => (_jsx(Field, { label: `Auktion ${index + 1}`, full: true, children: _jsx("input", { value: auction.number, onChange: (event) => updateMasterData((current) => ({
+                                            })) }) }), _jsx(Field, { label: "Signatur", full: true, children: _jsx(SignaturePadEditor, { value: clerk.signaturePng, onChange: (dataUrl) => updateMasterData((current) => ({
+                                                ...current,
+                                                clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
+                                            })) }) }), clerk.signaturePng ? _jsx("img", { className: "signature-preview", src: clerk.signaturePng, alt: `Signatur ${clerk.name}` }) : null] }, clerk.id))) }), _jsx(Section, { title: "Auktionen", children: state.masterData.auctions.map((auction, index) => (_jsx(Field, { label: `Auktion ${index + 1}`, full: true, children: _jsx("input", { value: auction.number, onChange: (event) => updateMasterData((current) => ({
                                         ...current,
                                         auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
                                     })) }) }, auction.id))) }), _jsx(Section, { title: "Abteilungen / Interessengebiete", children: state.masterData.departments.map((department, index) => (_jsx(Field, { label: `Abteilung ${index + 1}`, full: true, children: _jsx("input", { value: `${department.code} · ${department.name}`, onChange: (event) => updateMasterData((current) => ({
@@ -301,8 +389,9 @@ function PdfEditModal(props) {
     const isDrawingRef = useRef(false);
     const lastPointRef = useRef(null);
     const objectItem = props.openTarget?.kind === "object" ? props.caseFile.objects[props.openTarget.objectIndex] ?? null : null;
+    const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === props.caseFile.meta.clerkId);
     useEffect(() => {
-        if (props.openTarget?.kind !== "consignorSignature") {
+        if (props.openTarget?.kind !== "consignorSignature" && props.openTarget?.kind !== "clerkSignature") {
             return;
         }
         const canvas = signatureCanvasRef.current;
@@ -317,7 +406,10 @@ function PdfEditModal(props) {
         context.lineJoin = "round";
         context.lineWidth = 3;
         context.strokeStyle = "#111111";
-        if (!props.caseFile.signatures.consignorSignaturePng) {
+        const signatureValue = props.openTarget.kind === "consignorSignature"
+            ? props.caseFile.signatures.consignorSignaturePng
+            : activeClerk?.signaturePng ?? "";
+        if (!signatureValue) {
             return;
         }
         const image = new Image();
@@ -327,8 +419,8 @@ function PdfEditModal(props) {
             context.fillRect(0, 0, canvas.width, canvas.height);
             context.drawImage(image, 0, 0, canvas.width, canvas.height);
         };
-        image.src = props.caseFile.signatures.consignorSignaturePng;
-    }, [props.caseFile.signatures.consignorSignaturePng, props.openTarget]);
+        image.src = signatureValue;
+    }, [activeClerk?.signaturePng, props.caseFile.signatures.consignorSignaturePng, props.openTarget]);
     function getCanvasPoint(event) {
         const canvas = signatureCanvasRef.current;
         if (!canvas) {
@@ -385,26 +477,44 @@ function PdfEditModal(props) {
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.fillStyle = "#ffffff";
         context.fillRect(0, 0, canvas.width, canvas.height);
-        updateCurrentCase((current) => ({
-            ...current,
-            signatures: {
-                ...current.signatures,
-                consignorSignaturePng: ""
-            }
-        }));
+        if (props.openTarget?.kind === "consignorSignature") {
+            updateCurrentCase((current) => ({
+                ...current,
+                signatures: {
+                    ...current.signatures,
+                    consignorSignaturePng: ""
+                }
+            }));
+            return;
+        }
+        if (props.openTarget?.kind === "clerkSignature" && activeClerk) {
+            updateMasterData((current) => ({
+                ...current,
+                clerks: current.clerks.map((clerk) => (clerk.id === activeClerk.id ? { ...clerk, signaturePng: "" } : clerk))
+            }));
+        }
     }
     function saveSignature() {
         const canvas = signatureCanvasRef.current;
         if (!canvas) {
             return;
         }
-        updateCurrentCase((current) => ({
-            ...current,
-            signatures: {
-                ...current.signatures,
-                consignorSignaturePng: canvas.toDataURL("image/png")
-            }
-        }));
+        const dataUrl = canvas.toDataURL("image/png");
+        if (props.openTarget?.kind === "consignorSignature") {
+            updateCurrentCase((current) => ({
+                ...current,
+                signatures: {
+                    ...current.signatures,
+                    consignorSignaturePng: dataUrl
+                }
+            }));
+        }
+        if (props.openTarget?.kind === "clerkSignature" && activeClerk) {
+            updateMasterData((current) => ({
+                ...current,
+                clerks: current.clerks.map((clerk) => (clerk.id === activeClerk.id ? { ...clerk, signaturePng: dataUrl } : clerk))
+            }));
+        }
         props.onClose();
     }
     if (!props.openTarget) {
@@ -422,7 +532,7 @@ function PdfEditModal(props) {
                                         })) }) }), props.caseFile.owner.sameAsConsignor ? null : (_jsxs(_Fragment, { children: [_jsx(Field, { label: "Vorname", children: _jsx("input", { value: props.caseFile.owner.firstName, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, firstName: event.target.value } })) }) }), _jsx(Field, { label: "Nachname", children: _jsx("input", { value: props.caseFile.owner.lastName, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } })) }) }), _jsx(Field, { label: "Stra\u00C3\u0178e", children: _jsx("input", { value: props.caseFile.owner.street, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } })) }) }), _jsx(Field, { label: "Nr.", children: _jsx("input", { value: props.caseFile.owner.houseNumber, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, houseNumber: event.target.value } })) }) }), _jsx(Field, { label: "PLZ", children: _jsx("input", { value: props.caseFile.owner.zip, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, zip: event.target.value } })) }) }), _jsx(Field, { label: "Stadt", children: _jsx("input", { value: props.caseFile.owner.city, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, city: event.target.value } })) }) }), _jsx(Field, { label: "Land", children: _jsx("input", { value: props.caseFile.owner.country, onChange: (event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, country: event.target.value } })) }) })] }))] })) : null, props.openTarget.kind === "bank" ? (_jsxs(Section, { title: "Bank", children: [_jsx(Field, { label: "IBAN", children: _jsx("input", { value: props.caseFile.bank.iban, onChange: (event) => updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, iban: event.target.value } })) }) }), _jsx(Field, { label: "BIC", children: _jsx("input", { value: props.caseFile.bank.bic, onChange: (event) => updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, bic: event.target.value } })) }) }), _jsx(Field, { label: "Grund abweichender Beg\u00FCnstigter", children: _jsx("input", { value: props.caseFile.bank.beneficiaryOverride.reason, onChange: (event) => updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, reason: event.target.value } } })) }) }), _jsx(Field, { label: "Name abweichender Beg\u00FCnstigter", children: _jsx("input", { value: props.caseFile.bank.beneficiaryOverride.name, onChange: (event) => updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, name: event.target.value } } })) }) })] })) : null, props.openTarget.kind === "costs" ? (_jsxs(Section, { title: "Konditionen", children: [_jsx(Field, { label: "Kommission", children: _jsx("input", { value: props.caseFile.costs.commission.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Versicherung", children: _jsx("input", { value: props.caseFile.costs.insurance.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Transport", children: _jsx("input", { value: props.caseFile.costs.transport.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Abb.-Kosten", children: _jsx("input", { value: props.caseFile.costs.imaging.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Provenienz / Infos", full: true, children: _jsx("textarea", { value: props.caseFile.costs.provenance, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } })) }) })] })) : null, props.openTarget.kind === "object" && objectItem ? (_jsxs(Section, { title: `Objekt ${objectItem.intNumber}`, children: [_jsx(Field, { label: "Int.-Nr.", children: _jsx("input", { value: objectItem.intNumber, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, intNumber: event.target.value })) }) }), _jsx(Field, { label: "Auktion", children: _jsx("select", { value: objectItem.auctionId, onChange: (event) => {
                                             updateObject(objectItem.id, (current) => ({ ...current, auctionId: event.target.value }));
                                             applyAuctionPricingRules(objectItem.id);
-                                        }, children: state.masterData.auctions.map((auction) => (_jsx("option", { value: auction.id, children: auction.number }, auction.id))) }) }), _jsx(Field, { label: "Abteilung", children: _jsx("select", { value: objectItem.departmentId, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, departmentId: event.target.value })), children: state.masterData.departments.map((department) => (_jsxs("option", { value: department.id, children: [department.code, " \u00B7 ", department.name] }, department.id))) }) }), _jsx(Field, { label: "Kurzbeschrieb", full: true, children: _jsx("input", { value: objectItem.shortDescription, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, shortDescription: event.target.value })) }) }), _jsx(Field, { label: "Beschreibung", full: true, children: _jsx("textarea", { value: objectItem.description, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, description: event.target.value })) }) })] })) : null, props.openTarget.kind === "consignorSignature" ? (_jsxs(Section, { title: "Einlieferer-Signatur", children: [_jsxs("div", { className: "signature-pad", children: [_jsx("canvas", { ref: signatureCanvasRef, className: "signature-pad__canvas", width: 640, height: 220, onPointerDown: startSignature, onPointerMove: moveSignature, onPointerUp: endSignature, onPointerLeave: endSignature }), _jsxs("div", { className: "signature-pad__actions", children: [_jsx("button", { type: "button", className: "secondary-button", onClick: clearSignature, children: "L\u00C3\u00B6schen" }), _jsx("button", { type: "button", className: "secondary-button", onClick: props.onClose, children: "Schlie\u00C3\u0178en" }), _jsx("button", { type: "button", className: "primary-button", onClick: saveSignature, children: "\u00C3\u0153bernehmen" })] })] }), _jsx("p", { children: "Der Signaturbereich ist jetzt pr\u00E4zise auf das PDF gelegt. Die Canvas-Erfassung folgt als n\u00E4chster Schritt." })] })) : null, props.openTarget.kind === "clerkSignature" ? (_jsx(Section, { title: "Sachbearbeiter-Signatur", children: _jsx("p", { children: "Die Sachbearbeiter-Signatur wird aus den Stammdaten \u00FCbernommen. Die direkte Vorschauplatzierung folgt als n\u00E4chster Schritt." }) })) : null] })] }) }));
+                                        }, children: state.masterData.auctions.map((auction) => (_jsx("option", { value: auction.id, children: auction.number }, auction.id))) }) }), _jsx(Field, { label: "Abteilung", children: _jsx("select", { value: objectItem.departmentId, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, departmentId: event.target.value })), children: state.masterData.departments.map((department) => (_jsxs("option", { value: department.id, children: [department.code, " \u00B7 ", department.name] }, department.id))) }) }), _jsx(Field, { label: "Kurzbeschrieb", full: true, children: _jsx("input", { value: objectItem.shortDescription, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, shortDescription: event.target.value })) }) }), _jsx(Field, { label: "Beschreibung", full: true, children: _jsx("textarea", { value: objectItem.description, onChange: (event) => updateObject(objectItem.id, (current) => ({ ...current, description: event.target.value })) }) })] })) : null, props.openTarget.kind === "consignorSignature" ? (_jsxs(Section, { title: "Einlieferer-Signatur", children: [_jsxs("div", { className: "signature-pad", children: [_jsx("canvas", { ref: signatureCanvasRef, className: "signature-pad__canvas", width: 640, height: 220, onPointerDown: startSignature, onPointerMove: moveSignature, onPointerUp: endSignature, onPointerLeave: endSignature }), _jsxs("div", { className: "signature-pad__actions", children: [_jsx("button", { type: "button", className: "secondary-button", onClick: clearSignature, children: "L\u00C3\u00B6schen" }), _jsx("button", { type: "button", className: "secondary-button", onClick: props.onClose, children: "Schlie\u00C3\u0178en" }), _jsx("button", { type: "button", className: "primary-button", onClick: saveSignature, children: "\u00C3\u0153bernehmen" })] })] }), _jsx("p", { children: "Der Signaturbereich ist jetzt pr\u00E4zise auf das PDF gelegt. Die Canvas-Erfassung folgt als n\u00E4chster Schritt." })] })) : null, props.openTarget.kind === "clerkSignature" ? (_jsx(Section, { title: "Sachbearbeiter-Signatur", children: _jsx("p", { children: "Die Sachbearbeiter-Signatur wird im Admin-Panel gepflegt und danach automatisch im PDF ins Koller-Feld eingesetzt." }) })) : null] })] }) }));
 }
 function PdfPreviewPage(props) {
     const state = useAppState();
@@ -446,7 +556,7 @@ function PdfPreviewPage(props) {
             setExportStatus(error instanceof Error ? error.message : "Export fehlgeschlagen.");
         }
     }
-    return (_jsx("div", { className: "preview-page", children: _jsxs("div", { className: "preview-sheet", children: [_jsxs("div", { className: "preview-sheet__toolbar", children: [_jsx("button", { children: "Signatur erfassen" }), _jsx("button", { children: "Pflichtfelder pr\u00FCfen" }), _jsx("button", { onClick: () => saveDraft(), children: "Draft speichern" }), _jsx("button", { onClick: () => finalizeCurrentCase(), children: "Finalisieren" }), _jsx("button", { onClick: () => void handleExportArtifacts(), children: "Artefakte + ZIP erzeugen" })] }), _jsxs("div", { className: "preview-sheet__content", children: [_jsx(PdfCanvasPreview, { caseFile: props.caseFile, masterData: state.masterData, onEdit: setEditTarget }), _jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Exportstatus" }), _jsxs("p", { children: ["Beg\u00FCnstigter: ", model.beneficiary || "Noch nicht gesetzt"] }), _jsxs("p", { children: ["Sachbearbeiter: ", model.clerkLabel || "Noch nicht gesetzt"] }), _jsxs("p", { children: ["ZIP: ", exportPlan.zipFileName] }), _jsx("div", { className: "chip-list", children: exportPlan.artifacts.map((artifact) => (_jsx("span", { className: "chip", children: artifact.fileName }, artifact.fileName))) }), model.missingRequiredFields.length ? (_jsxs(_Fragment, { children: [_jsx("h4", { children: "Fehlende PDF-Pflichtfelder" }), _jsx("ul", { className: "simple-list", children: model.missingRequiredFields.map((item) => (_jsx("li", { children: item }, item))) })] })) : (_jsx("p", { children: "Alle konfigurierten PDF-Pflichtfelder sind aktuell bef\u00FCllt." })), exportStatus ? _jsx("p", { children: exportStatus }) : null] })] }), _jsx(PdfEditModal, { caseFile: props.caseFile, openTarget: editTarget, onClose: () => setEditTarget(null) })] }) }));
+    return (_jsx("div", { className: "preview-page", children: _jsxs("div", { className: "preview-sheet", children: [_jsxs("div", { className: "preview-sheet__toolbar", children: [_jsx("button", { children: "Pflichtfelder pr\u00FCfen" }), _jsx("button", { onClick: () => saveDraft(), children: "Draft speichern" }), _jsx("button", { onClick: () => finalizeCurrentCase(), children: "Finalisieren" }), _jsx("button", { onClick: () => void handleExportArtifacts(), children: "Artefakte + ZIP erzeugen" })] }), _jsxs("div", { className: "preview-sheet__content", children: [_jsx(PdfCanvasPreview, { caseFile: props.caseFile, masterData: state.masterData, onEdit: setEditTarget }), _jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Exportstatus" }), _jsxs("p", { children: ["Beg\u00FCnstigter: ", model.beneficiary || "Noch nicht gesetzt"] }), _jsxs("p", { children: ["Sachbearbeiter: ", model.clerkLabel || "Noch nicht gesetzt"] }), _jsxs("p", { children: ["ZIP: ", exportPlan.zipFileName] }), _jsx("div", { className: "chip-list", children: exportPlan.artifacts.map((artifact) => (_jsx("span", { className: "chip", children: artifact.fileName }, artifact.fileName))) }), model.missingRequiredFields.length ? (_jsxs(_Fragment, { children: [_jsx("h4", { children: "Fehlende PDF-Pflichtfelder" }), _jsx("ul", { className: "simple-list", children: model.missingRequiredFields.map((item) => (_jsx("li", { children: item }, item))) })] })) : (_jsx("p", { children: "Alle konfigurierten PDF-Pflichtfelder sind aktuell bef\u00FCllt." })), exportStatus ? _jsx("p", { children: exportStatus }) : null] })] }), _jsx(PdfEditModal, { caseFile: props.caseFile, openTarget: editTarget, onClose: () => setEditTarget(null) })] }) }));
 }
 function WordPreviewPage(props) {
     const state = useAppState();

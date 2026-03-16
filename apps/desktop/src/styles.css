@@ -358,11 +358,12 @@ textarea {
 
 .pdf-hotspot {
   position: absolute;
-  border: 1px dashed rgba(23, 55, 47, 0.35);
-  background: rgba(23, 55, 47, 0.06);
+  border: 1px dashed transparent;
+  background: transparent;
   color: transparent;
   border-radius: 10px;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  opacity: 0;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 
 .pdf-hotspot span {
@@ -373,6 +374,7 @@ textarea {
 }
 
 .pdf-hotspot:hover {
+  opacity: 1;
   background: rgba(23, 55, 47, 0.16);
   border-color: rgba(23, 55, 47, 0.72);
   color: #17372f;
