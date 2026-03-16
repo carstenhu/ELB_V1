@@ -1,0 +1,86 @@
+[
+  {
+    "code": "AGRA",
+    "name": "Alte Grafik"
+  },
+  {
+    "code": "ANKU",
+    "name": "Angewandte Kunst"
+  },
+  {
+    "code": "ASIA",
+    "name": "Asiatica"
+  },
+  {
+    "code": "AUHR",
+    "name": "Armbanduhren"
+  },
+  {
+    "code": "AUTO",
+    "name": "Autographen"
+  },
+  {
+    "code": "BI19",
+    "name": "Gemälde des 19. Jahrhunderts"
+  },
+  {
+    "code": "BIAM",
+    "name": "Gemälde Alter Meister"
+  },
+  {
+    "code": "BIMO",
+    "name": "Moderne Kunst"
+  },
+  {
+    "code": "BISW",
+    "name": "Schweizer Kunst"
+  },
+  {
+    "code": "BIZG",
+    "name": "Zeitgenössische Kunst"
+  },
+  {
+    "code": "BUCA",
+    "name": "Bücher"
+  },
+  {
+    "code": "BUMA",
+    "name": "Buchmalerei"
+  },
+  {
+    "code": "DESI",
+    "name": "Design"
+  },
+  {
+    "code": "GUHR",
+    "name": "Grossuhren"
+  },
+  {
+    "code": "MGRA",
+    "name": "Moderne Grafik"
+  },
+  {
+    "code": "MINI",
+    "name": "Miniaturen"
+  },
+  {
+    "code": "MOEB",
+    "name": "Möbel"
+  },
+  {
+    "code": "PORZ",
+    "name": "Porzellan & Keramik"
+  },
+  {
+    "code": "SCHM",
+    "name": "Schmuck"
+  },
+  {
+    "code": "SILB",
+    "name": "Silber"
+  },
+  {
+    "code": "VINT",
+    "name": "Handbags & Accessories"
+  }
+]
