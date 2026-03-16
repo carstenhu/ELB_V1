@@ -1,0 +1,9 @@
+{
+  "name": "@elb/export-core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

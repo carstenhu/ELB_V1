@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.turbo/
+.vite/
+coverage/
+*.log
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/.cargo/
+data/
+

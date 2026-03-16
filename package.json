@@ -1,0 +1,20 @@
+{
+  "name": "elb-v1",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "desktop:dev": "npm --workspace apps/desktop run dev",
+    "desktop:build": "npm --workspace apps/desktop run build",
+    "desktop:lint": "npm --workspace apps/desktop run lint"
+  },
+  "devDependencies": {
+    "@types/jszip": "^3.4.0"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  }
+}

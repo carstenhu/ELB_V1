@@ -1,0 +1,9 @@
+{
+  "name": "@elb/pdf-core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  }
+}

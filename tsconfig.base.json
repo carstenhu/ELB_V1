@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "useDefineForClassFields": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@elb/domain/*": ["packages/domain/src/*"],
+      "@elb/export-core/*": ["packages/export-core/src/*"],
+      "@elb/pdf-core/*": ["packages/pdf-core/src/*"],
+      "@elb/shared/*": ["packages/shared/src/*"],
+      "@elb/persistence/*": ["packages/persistence/src/*"],
+      "@elb/ui/*": ["packages/ui/src/*"],
+      "@elb/word-core/*": ["packages/word-core/src/*"]
+    }
+  }
+}
