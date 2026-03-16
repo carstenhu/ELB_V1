@@ -1,0 +1,7 @@
+<type>: <short summary>
+
+Why:
+- business or technical reason
+
+Validation:
+- command or manual check
