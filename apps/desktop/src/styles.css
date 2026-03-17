@@ -268,6 +268,66 @@ textarea {
   border-color: #2f6b3d;
 }
 
+.inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  padding: 0.45rem 0.2rem 0.45rem 0;
+  color: #24352d;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inline-toggle__label {
+  line-height: 1.2;
+}
+
+.inline-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.inline-toggle__box {
+  position: relative;
+  width: 1.55rem;
+  height: 1.55rem;
+  flex: 0 0 1.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid #8c988f;
+  background: linear-gradient(180deg, #ffffff 0%, #dde5dd 52%, #c6d0c7 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96), inset 0 -1px 0 rgba(74, 94, 80, 0.16), 0 5px 12px rgba(29, 48, 40, 0.18);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.inline-toggle__box::after {
+  content: "";
+  position: absolute;
+  inset: 0.18rem;
+  border-radius: 0.32rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.3) 28%, rgba(255, 255, 255, 0) 100%);
+  opacity: 0;
+  transform: scale(0.75);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.inline-toggle:hover .inline-toggle__box {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96), inset 0 -1px 0 rgba(74, 94, 80, 0.16), 0 7px 16px rgba(29, 48, 40, 0.22);
+}
+
+.inline-toggle input:checked + .inline-toggle__box {
+  border-color: #2f6b3d;
+  background: linear-gradient(180deg, #7ac28b 0%, #4d965e 48%, #2f6b3d 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 0 rgba(20, 55, 31, 0.24), 0 5px 12px rgba(31, 67, 42, 0.32);
+}
+
+.inline-toggle input:checked + .inline-toggle__box::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .photo-upload {
   display: grid;
   gap: 0.85rem;
@@ -386,6 +446,12 @@ textarea {
   justify-content: center;
 }
 
+.preview-page--stacked {
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
 .preview-sheet,
 .word-sheet {
   width: min(100%, 1080px);
@@ -455,6 +521,23 @@ textarea {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.86);
   padding: 1rem;
+}
+
+.preview-card__actions {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.preview-card__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.preview-card--bottom {
+  width: 100%;
 }
 
 .word-preview-page {

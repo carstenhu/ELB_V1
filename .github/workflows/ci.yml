@@ -7,14 +7,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  placeholder-checks:
+  checks:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Define project checks
-        run: |
-          echo "Replace this placeholder with your real lint/build/test commands."
-          echo "This workflow exists so branch protection can target a single clear CI job."
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check encoding
+        run: npm run check:encoding
+
+      - name: Lint desktop app
+        run: npm run desktop:lint
+
+      - name: Build desktop app
+        run: npm run desktop:build

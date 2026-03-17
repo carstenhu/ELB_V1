@@ -620,7 +620,7 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
         meta: ["ELB Nr"],
         consignor: ["Adresse EL", "EL Geburtsdatum 1", "EL Nationalität  1", "EL ID/Passnr  1"],
         owner: ["Adresse EG"],
-        bank: ["BIC/SWIFT", "IBAN/Kontonr", "Bankangaben: Begünstigter", "Bankangaben: BegÃ¼nstigter"],
+        bank: ["BIC/SWIFT", "IBAN/Kontonr", "Bankangaben: Begünstigter"],
         costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
         object: ["Int-Nr 1", "Erhalten 1", "Kapitel 1", "Kurzbeschreibung 1", "Schätzung 1"],
         consignorSignature: ["der Einlieferer Sig", "der Einlieferer Sig 2"],

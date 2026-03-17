@@ -55,6 +55,8 @@ export type MasterData = z.infer<typeof masterDataSchema>;
 export const contactAddressSchema = z.object({
   useCompanyAddress: z.boolean(),
   customerNumber: z.string(),
+  vatCategory: z.string(),
+  vatNumber: z.string(),
   company: z.string(),
   title: z.string(),
   firstName: z.string(),

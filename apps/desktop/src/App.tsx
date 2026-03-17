@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { deriveBeneficiary, deriveOwner, formatAmountForDisplay, type Asset, type CaseFile, type PageId } from "@elb/domain/index";
 import { createExportPlan, createExportZip, generateExportBundle, triggerDownload } from "@elb/export-core/index";
 import { hydrateSnapshotFromDisk, persistCaseAssetImmediately, persistSnapshotToDisk } from "@elb/persistence/filesystem";
-import { createPdfPreviewModel } from "@elb/pdf-core/index";
+import { createPdfPreviewModel, generateElbPdf } from "@elb/pdf-core/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { Field, Section } from "@elb/ui/forms";
 import { createWordPreviewModel, loadWordTemplateAssets } from "@elb/word-core/index";
@@ -92,6 +92,11 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const [draftValue, setDraftValue] = useState(props.value);
+
+  useEffect(() => {
+    setDraftValue(props.value);
+  }, [props.value]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -108,7 +113,7 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
     context.lineWidth = 3;
     context.strokeStyle = "#111111";
 
-    if (!props.value) {
+    if (!draftValue) {
       return;
     }
 
@@ -119,8 +124,8 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
     };
-    image.src = props.value;
-  }, [props.value]);
+    image.src = draftValue;
+  }, [draftValue]);
 
   function getCanvasPoint(event: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
@@ -187,6 +192,7 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
+    setDraftValue("");
     props.onChange("");
   }
 
@@ -195,7 +201,10 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
     if (!canvas) {
       return;
     }
-    props.onChange(canvas.toDataURL("image/png"));
+
+    const dataUrl = canvas.toDataURL("image/png");
+    setDraftValue(dataUrl);
+    props.onChange(dataUrl);
   }
 
   return (
@@ -212,13 +221,23 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
       />
       <div className="signature-pad__actions">
         <button type="button" className="secondary-button" onClick={clear}>
-          Löschen
+          L?schen
         </button>
         <button type="button" className="primary-button" onClick={save}>
-          Übernehmen
+          ?bernehmen
         </button>
       </div>
     </div>
+  );
+}
+
+function InlineToggle(props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="inline-toggle">
+      <span className="inline-toggle__label">{props.label}</span>
+      <input type="checkbox" checked={props.checked} onChange={(event) => props.onChange(event.target.checked)} />
+      <span className="inline-toggle__box" aria-hidden="true" />
+    </label>
   );
 }
 
@@ -667,7 +686,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
         </Field>
       </Section>
 
-      <Section title="Einlieferer">
+      <Section title="Adresse">
         <Field label="Firmenadresse">
           <input
             type="checkbox"
@@ -713,7 +732,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                 }))
               }
             >
-              <option value="">Bitte wählen</option>
+              <option value="">Bitte w?hlen</option>
               {state.masterData.titles.map((title) => (
                 <option key={title} value={title}>
                   {title}
@@ -732,7 +751,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
           <input value={props.caseFile.consignor.addressAddon} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, addressAddon: event.target.value } }))} />
         </Field>
         <div className="form-row form-row--double">
-          <Field label="Straße">
+          <Field label="Stra?e">
             <input value={props.caseFile.consignor.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
           </Field>
           <Field label="Nr.">
@@ -750,11 +769,31 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
             <input value={props.caseFile.consignor.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))} />
           </Field>
         </div>
+      </Section>
+
+      <Section title="Einliefererdaten">
+        <div className="form-row form-row--double">
+          <Field label="MwSt-Kategorie">
+            <select
+              value={props.caseFile.consignor.vatCategory}
+              onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatCategory: event.target.value } }))}
+            >
+              {VAT_CATEGORY_OPTIONS.map((option) => (
+                <option key={option || "empty"} value={option}>
+                  {option || "Bitte w?hlen"}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="MwSt-Nr.">
+            <input value={props.caseFile.consignor.vatNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: event.target.value } }))} />
+          </Field>
+        </div>
         <div className="form-row form-row--triple">
           <Field label="Geburtsdatum">
             <input value={props.caseFile.consignor.birthDate} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
           </Field>
-          <Field label="Nationalität">
+          <Field label="Nationalit?t">
             <input value={props.caseFile.consignor.nationality} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
           </Field>
           <Field label="ID/Passnummer">
@@ -787,7 +826,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
             />
             {consignorPhoto ? (
               <div className="photo-preview photo-preview--passport">
-                <img src={consignorPhoto.optimizedPath} alt="Passfoto Einlieferer" />
+                <img src={consignorPhoto.optimizedPath || consignorPhoto.originalPath} alt="Passfoto Einlieferer" />
                 <button
                   type="button"
                   className="photo-preview__remove"
@@ -805,7 +844,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                     })()
                   }
                 >
-                  ×
+                  ?
                 </button>
               </div>
             ) : null}
@@ -813,51 +852,8 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
         </Field>
       </Section>
 
-      <Section title="Eigentümer">
-        <Field label="Eigentümer = Einlieferer">
-          <input
-            type="checkbox"
-            checked={props.caseFile.owner.sameAsConsignor}
-            onChange={(event) =>
-              updateCurrentCase((current) => ({
-                ...current,
-                owner: {
-                  ...current.owner,
-                  sameAsConsignor: event.target.checked
-                }
-              }))
-            }
-          />
-        </Field>
-        {props.caseFile.owner.sameAsConsignor ? null : (
-          <>
-            <Field label="Vorname">
-              <input value={owner.firstName} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, firstName: event.target.value } }))} />
-            </Field>
-            <Field label="Nachname">
-              <input value={owner.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } }))} />
-            </Field>
-            <Field label="Straße">
-              <input value={owner.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } }))} />
-            </Field>
-            <Field label="Nr.">
-              <input value={owner.houseNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, houseNumber: event.target.value } }))} />
-            </Field>
-            <Field label="PLZ">
-              <input value={owner.zip} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, zip: event.target.value } }))} />
-            </Field>
-            <Field label="Stadt">
-              <input value={owner.city} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, city: event.target.value } }))} />
-            </Field>
-            <Field label="Land">
-              <input value={owner.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, country: event.target.value } }))} />
-            </Field>
-          </>
-        )}
-      </Section>
-
       <Section title="Bank">
-        <Field label="Begünstigter" full>
+        <Field label="Beg?nstigter" full>
           <input value={beneficiary} disabled />
         </Field>
         <Field label="IBAN">
@@ -866,24 +862,24 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
         <Field label="BIC">
           <input value={props.caseFile.bank.bic} onChange={(event) => updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, bic: event.target.value } }))} />
         </Field>
-        <Field label="Abweichender Begünstigter">
-          <input
-            type="checkbox"
+        <div className="field field--full">
+          <InlineToggle
+            label="Abweichender Beg?nstigter"
             checked={props.caseFile.bank.beneficiaryOverride.enabled}
-            onChange={(event) =>
+            onChange={(checked) =>
               updateCurrentCase((current) => ({
                 ...current,
                 bank: {
                   ...current.bank,
                   beneficiaryOverride: {
                     ...current.bank.beneficiaryOverride,
-                    enabled: event.target.checked
+                    enabled: checked
                   }
                 }
               }))
             }
           />
-        </Field>
+        </div>
         {props.caseFile.bank.beneficiaryOverride.enabled ? (
           <>
             <Field label="Grund" full>
@@ -925,6 +921,48 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
         ) : null}
       </Section>
 
+      <Section title="Eigent?mer">
+        <div className="field field--full">
+          <InlineToggle
+            label="Eigent?mer = Einlieferer"
+            checked={props.caseFile.owner.sameAsConsignor}
+            onChange={(checked) =>
+              updateCurrentCase((current) => ({
+                ...current,
+                owner: {
+                  ...current.owner,
+                  sameAsConsignor: checked
+                }
+              }))
+            }
+          />
+        </div>
+        {props.caseFile.owner.sameAsConsignor ? null : (
+          <>
+            <Field label="Vorname">
+              <input value={owner.firstName} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, firstName: event.target.value } }))} />
+            </Field>
+            <Field label="Nachname">
+              <input value={owner.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } }))} />
+            </Field>
+            <Field label="Stra?e">
+              <input value={owner.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } }))} />
+            </Field>
+            <Field label="Nr.">
+              <input value={owner.houseNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, houseNumber: event.target.value } }))} />
+            </Field>
+            <Field label="PLZ">
+              <input value={owner.zip} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, zip: event.target.value } }))} />
+            </Field>
+            <Field label="Stadt">
+              <input value={owner.city} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, city: event.target.value } }))} />
+            </Field>
+            <Field label="Land">
+              <input value={owner.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, country: event.target.value } }))} />
+            </Field>
+          </>
+        )}
+      </Section>
     </div>
   );
 }
@@ -1227,7 +1265,13 @@ function PdfEditModal(props: {
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const objectItem = props.openTarget?.kind === "object" ? props.caseFile.objects[props.openTarget.objectIndex] ?? null : null;
+  const objectAssets = objectItem
+    ? objectItem.photoAssetIds
+        .map((assetId) => props.caseFile.assets.find((asset) => asset.id === assetId))
+        .filter((asset): asset is Asset => Boolean(asset))
+    : [];
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === props.caseFile.meta.clerkId);
+  const consignorPhoto = findAsset(props.caseFile, props.caseFile.consignor.photoAssetId);
 
   useEffect(() => {
     if (props.openTarget?.kind !== "consignorSignature" && props.openTarget?.kind !== "clerkSignature") {
@@ -1427,41 +1471,151 @@ function PdfEditModal(props: {
 
           {props.openTarget.kind === "consignor" ? (
             <Section title="Einlieferer">
-              <Field label="Firma">
-                <input value={props.caseFile.consignor.company} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, company: event.target.value } }))} />
-              </Field>
-              <Field label="Vorname">
-                <input value={props.caseFile.consignor.firstName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, firstName: event.target.value } }))} />
-              </Field>
-              <Field label="Nachname">
-                <input value={props.caseFile.consignor.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, lastName: event.target.value } }))} />
-              </Field>
-              <Field label="Straße">
-                <input value={props.caseFile.consignor.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
-              </Field>
-              <Field label="PLZ">
-                <input value={props.caseFile.consignor.zip} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, zip: event.target.value } }))} />
-              </Field>
-              <Field label="Stadt">
-                <input value={props.caseFile.consignor.city} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
-              </Field>
-            </Section>
-          ) : null}
-
-          {props.openTarget.kind === "owner" ? (
-            <Section title="Eigentümer">
-              <Field label="Eigentümer = Einlieferer">
+              <Field label="Firmenadresse">
                 <input
                   type="checkbox"
-                  checked={props.caseFile.owner.sameAsConsignor}
+                  checked={props.caseFile.consignor.useCompanyAddress}
                   onChange={(event) =>
                     updateCurrentCase((current) => ({
                       ...current,
-                      owner: { ...current.owner, sameAsConsignor: event.target.checked }
+                      consignor: {
+                        ...current.consignor,
+                        useCompanyAddress: event.target.checked
+                      }
                     }))
                   }
                 />
               </Field>
+              {props.caseFile.consignor.useCompanyAddress ? (
+                <Field label="Firma" full>
+                  <input value={props.caseFile.consignor.company} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, company: event.target.value } }))} />
+                </Field>
+              ) : null}
+              <div className="form-row form-row--triple">
+                <Field label="Anrede">
+                  <select
+                    value={props.caseFile.consignor.title}
+                    onChange={(event) =>
+                      updateCurrentCase((current) => ({
+                        ...current,
+                        consignor: { ...current.consignor, title: event.target.value }
+                      }))
+                    }
+                  >
+                    <option value="">Bitte wählen</option>
+                    {state.masterData.titles.map((title) => (
+                      <option key={title} value={title}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Vorname">
+                  <input value={props.caseFile.consignor.firstName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, firstName: event.target.value } }))} />
+                </Field>
+                <Field label="Nachname">
+                  <input value={props.caseFile.consignor.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, lastName: event.target.value } }))} />
+                </Field>
+              </div>
+              <Field label="Adresszusatz" full>
+                <input value={props.caseFile.consignor.addressAddon} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, addressAddon: event.target.value } }))} />
+              </Field>
+              <div className="form-row form-row--double">
+                <Field label="Straße">
+                  <input value={props.caseFile.consignor.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
+                </Field>
+                <Field label="Nr.">
+                  <input value={props.caseFile.consignor.houseNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, houseNumber: event.target.value } }))} />
+                </Field>
+              </div>
+              <div className="form-row form-row--triple">
+                <Field label="PLZ">
+                  <input value={props.caseFile.consignor.zip} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, zip: event.target.value } }))} />
+                </Field>
+                <Field label="Stadt">
+                  <input value={props.caseFile.consignor.city} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
+                </Field>
+                <Field label="Land">
+                  <input value={props.caseFile.consignor.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))} />
+                </Field>
+              </div>
+              <div className="form-row form-row--triple">
+                <Field label="Geburtsdatum">
+                  <input value={props.caseFile.consignor.birthDate} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
+                </Field>
+                <Field label="Nationalität">
+                  <input value={props.caseFile.consignor.nationality} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
+                </Field>
+                <Field label="ID/Passnummer">
+                  <input value={props.caseFile.consignor.passportNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, passportNumber: event.target.value } }))} />
+                </Field>
+              </div>
+              <Field label="Passfoto" full>
+                <div className="photo-upload">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) {
+                        return;
+                      }
+
+                      const asset = await persistCaseAssetImmediately(props.caseFile, await createOptimizedImageAsset(file));
+                      updateCurrentCase((current) => ({
+                        ...current,
+                        assets: [...current.assets.filter((item) => item.id !== current.consignor.photoAssetId), asset],
+                        consignor: {
+                          ...current.consignor,
+                          photoAssetId: asset.id
+                        }
+                      }));
+                      void persistSnapshotToDisk(createSnapshot());
+                      event.target.value = "";
+                    }}
+                  />
+                  {consignorPhoto ? (
+                    <div className="photo-preview photo-preview--passport">
+                      <img src={consignorPhoto.optimizedPath || consignorPhoto.originalPath} alt="Passfoto Einlieferer" />
+                      <button
+                        type="button"
+                        className="photo-preview__remove"
+                        onClick={() =>
+                          (() => {
+                            updateCurrentCase((current) => ({
+                              ...current,
+                              assets: current.assets.filter((asset) => asset.id !== current.consignor.photoAssetId),
+                              consignor: {
+                                ...current.consignor,
+                                photoAssetId: ""
+                              }
+                            }));
+                            void persistSnapshotToDisk(createSnapshot());
+                          })()
+                        }
+                      >
+                        ?
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </Field>
+            </Section>
+          ) : null}
+          {props.openTarget.kind === "owner" ? (
+            <Section title="Eigentümer">
+              <div className="field field--full">
+                <InlineToggle
+                  label="Eigentümer = Einlieferer"
+                  checked={props.caseFile.owner.sameAsConsignor}
+                  onChange={(checked) =>
+                    updateCurrentCase((current) => ({
+                      ...current,
+                      owner: { ...current.owner, sameAsConsignor: checked }
+                    }))
+                  }
+                />
+              </div>
               {props.caseFile.owner.sameAsConsignor ? null : (
                 <>
                   <Field label="Vorname">
@@ -1470,7 +1624,7 @@ function PdfEditModal(props: {
                   <Field label="Nachname">
                     <input value={props.caseFile.owner.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } }))} />
                   </Field>
-                  <Field label="StraÃŸe">
+                  <Field label="Straße">
                     <input value={props.caseFile.owner.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } }))} />
                   </Field>
                   <Field label="Nr.">
@@ -1492,6 +1646,24 @@ function PdfEditModal(props: {
 
           {props.openTarget.kind === "bank" ? (
             <Section title="Bank">
+              <div className="field field--full">
+                <InlineToggle
+                  label="Abweichender Begünstigter"
+                  checked={props.caseFile.bank.beneficiaryOverride.enabled}
+                  onChange={(checked) =>
+                    updateCurrentCase((current) => ({
+                      ...current,
+                      bank: {
+                        ...current.bank,
+                        beneficiaryOverride: {
+                          ...current.bank.beneficiaryOverride,
+                          enabled: checked
+                        }
+                      }
+                    }))
+                  }
+                />
+              </div>
               <Field label="IBAN">
                 <input value={props.caseFile.bank.iban} onChange={(event) => updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, iban: event.target.value } }))} />
               </Field>
@@ -1557,57 +1729,128 @@ function PdfEditModal(props: {
                   Objekt löschen
                 </button>
               </div>
-              <Field label="Int.-Nr.">
-                <input value={objectItem.intNumber} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, intNumber: event.target.value }))} />
-              </Field>
-              <Field label="Auktion">
-                <select
-                  value={objectItem.auctionId}
-                  onChange={(event) => {
-                    updateObject(objectItem.id, (current) => ({ ...current, auctionId: event.target.value }));
-                    applyAuctionPricingRules(objectItem.id);
-                  }}
-                >
-                  {state.masterData.auctions.map((auction) => (
-                    <option key={auction.id} value={auction.id}>
-                      {auction.number}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Abteilung">
-                <select value={objectItem.departmentId} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, departmentId: event.target.value }))}>
-                  {state.masterData.departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.code} · {department.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <div className="form-row form-row--triple">
+                <Field label="Int.-Nr.">
+                  <input value={objectItem.intNumber} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, intNumber: event.target.value }))} />
+                </Field>
+                <Field label="Auktion">
+                  <select
+                    value={objectItem.auctionId}
+                    onChange={(event) => {
+                      updateObject(objectItem.id, (current) => ({ ...current, auctionId: event.target.value }));
+                      applyAuctionPricingRules(objectItem.id);
+                    }}
+                  >
+                    {state.masterData.auctions.map((auction) => (
+                      <option key={auction.id} value={auction.id}>
+                        {auction.number} {auction.month}/{auction.year.slice(-2)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Abteilung">
+                  <select value={objectItem.departmentId} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, departmentId: event.target.value }))}>
+                    {state.masterData.departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.code} ? {department.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
               <Field label="Kurzbeschrieb" full>
                 <input value={objectItem.shortDescription} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, shortDescription: event.target.value }))} />
               </Field>
               <Field label="Beschreibung" full>
                 <textarea value={objectItem.description} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, description: event.target.value }))} />
               </Field>
-              <Field label="Referenznr." full>
-                <input value={objectItem.referenceNumber} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
-              </Field>
-              <Field label="Bemerkungen" full>
-                <textarea value={objectItem.remarks} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, remarks: event.target.value }))} />
-              </Field>
-              <Field label="Schätzung von">
-                <input value={formatAmountForDisplay(objectItem.estimate.low)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
-              </Field>
-              <Field label="Schätzung bis">
-                <input value={formatAmountForDisplay(objectItem.estimate.high)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
-              </Field>
-              <Field label="Limite / Startpreis">
-                <input value={formatAmountForDisplay(objectItem.priceValue)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, priceValue: event.target.value }))} />
+              <div className={objectItem.pricingMode === "startPrice" ? "form-row form-row--triple" : "form-row form-row--quad"}>
+                <Field label="Schätzung von">
+                  <input value={formatAmountForDisplay(objectItem.estimate.low)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
+                </Field>
+                <Field label="Schätzung bis">
+                  <input value={formatAmountForDisplay(objectItem.estimate.high)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+                </Field>
+                <Field label={objectItem.pricingMode === "startPrice" ? "Startpreis" : "Limite"}>
+                  <input value={formatAmountForDisplay(objectItem.priceValue)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, priceValue: event.target.value }))} />
+                </Field>
+                {objectItem.pricingMode === "startPrice" ? null : (
+                  <Field label="Nettolimite">
+                    <input
+                      type="checkbox"
+                      checked={objectItem.pricingMode === "netLimit"}
+                      onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" }))}
+                    />
+                  </Field>
+                )}
+              </div>
+              <div className="form-row form-row--double">
+                <Field label="Referenznr.">
+                  <input value={objectItem.referenceNumber} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
+                </Field>
+                <Field label="Bemerkungen">
+                  <input value={objectItem.remarks} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, remarks: event.target.value }))} />
+                </Field>
+              </div>
+              <Field label="Objektfotos" full>
+                <div className="photo-upload">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={async (event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      if (!files.length) {
+                        return;
+                      }
+
+                      const assets = await Promise.all(
+                        files.map(async (file) => persistCaseAssetImmediately(props.caseFile, await createOptimizedImageAsset(file)))
+                      );
+                      updateCurrentCase((current) => ({
+                        ...current,
+                        assets: [...current.assets, ...assets],
+                        objects: current.objects.map((item) =>
+                          item.id === objectItem.id ? { ...item, photoAssetIds: [...item.photoAssetIds, ...assets.map((asset) => asset.id)] } : item
+                        )
+                      }));
+                      void persistSnapshotToDisk(createSnapshot());
+                      event.target.value = "";
+                    }}
+                  />
+                  {objectAssets.length ? (
+                    <div className="photo-grid">
+                      {objectAssets.map((asset) => (
+                        <div key={asset.id} className="photo-preview">
+                          <img src={asset.optimizedPath || asset.originalPath} alt={asset.fileName} />
+                          <button
+                            type="button"
+                            className="photo-preview__remove"
+                            onClick={() =>
+                              (() => {
+                                updateCurrentCase((current) => ({
+                                  ...current,
+                                  assets: current.assets.filter((item) => item.id !== asset.id),
+                                  objects: current.objects.map((item) =>
+                                    item.id === objectItem.id
+                                      ? { ...item, photoAssetIds: item.photoAssetIds.filter((assetId) => assetId !== asset.id) }
+                                      : item
+                                  )
+                                }));
+                                void persistSnapshotToDisk(createSnapshot());
+                              })()
+                            }
+                          >
+                            ?
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </Field>
             </Section>
           ) : null}
-
           {props.openTarget.kind === "consignorSignature" ? (
             <Section title="Einlieferer-Signatur">
               <div className="signature-pad">
@@ -1623,13 +1866,13 @@ function PdfEditModal(props: {
                 />
                 <div className="signature-pad__actions">
                   <button type="button" className="secondary-button" onClick={clearSignature}>
-                    LÃ¶schen
+                    Löschen
                   </button>
                   <button type="button" className="secondary-button" onClick={props.onClose}>
-                    SchlieÃŸen
+                    Schließen
                   </button>
                   <button type="button" className="primary-button" onClick={saveSignature}>
-                    Ãœbernehmen
+                    Übernehmen
                   </button>
                 </div>
               </div>
@@ -1648,16 +1891,211 @@ function PdfEditModal(props: {
   );
 }
 
-function PdfPreviewPage(props: { caseFile: CaseFile }) {
+function ExportStatusCard(props: {
+  beneficiary: string;
+  clerkLabel: string;
+  zipFileName: string;
+  missingRequiredFields: string[];
+  exportStatus: string;
+  actions?: ReactNode;
+  className?: string;
+  onCaptureMissing?: () => void;
+}) {
+  return (
+    <div className={props.className ? `preview-card ${props.className}` : "preview-card"}>
+      <h3>Exportstatus</h3>
+      {props.actions ? <div className="preview-card__actions">{props.actions}</div> : null}
+      <p>Begünstigter: {props.beneficiary || "Noch nicht gesetzt"}</p>
+      <p>Sachbearbeiter: {props.clerkLabel || "Noch nicht gesetzt"}</p>
+      <p>ZIP: {props.zipFileName}</p>
+      {props.missingRequiredFields.length ? (
+        <>
+          <div className="preview-card__section-head">
+            <h4>Fehlende PDF-Pflichtfelder</h4>
+            {props.onCaptureMissing ? (
+              <button type="button" onClick={props.onCaptureMissing}>
+                Angaben erfassen
+              </button>
+            ) : null}
+          </div>
+          <ul className="simple-list">
+            {props.missingRequiredFields.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p>Alle konfigurierten PDF-Pflichtfelder sind aktuell befüllt.</p>
+      )}
+      {props.exportStatus ? <p>{props.exportStatus}</p> : null}
+    </div>
+  );
+}
+
+type RequiredFieldEntry = {
+  key: string;
+  label: string;
+  kind: "text" | "select" | "action";
+  objectIndex?: number;
+};
+
+function getRequiredFieldEntries(caseFile: CaseFile, requiredFields: string[]): RequiredFieldEntry[] {
+  const entries: RequiredFieldEntry[] = [];
+
+  for (const field of requiredFields) {
+    if (field === "meta.receiptNumber" && !caseFile.meta.receiptNumber.trim()) entries.push({ key: field, label: "ELB-Nummer", kind: "text" });
+    if (field === "meta.clerkId" && !caseFile.meta.clerkId.trim()) entries.push({ key: field, label: "Sachbearbeiter", kind: "select" });
+    if (field === "consignor.lastName" && !caseFile.consignor.lastName.trim()) entries.push({ key: field, label: "Nachname Einlieferer", kind: "text" });
+    if (field === "consignor.street" && !caseFile.consignor.street.trim()) entries.push({ key: field, label: "Straße Einlieferer", kind: "text" });
+    if (field === "consignor.zip" && !caseFile.consignor.zip.trim()) entries.push({ key: field, label: "PLZ Einlieferer", kind: "text" });
+    if (field === "consignor.city" && !caseFile.consignor.city.trim()) entries.push({ key: field, label: "Stadt Einlieferer", kind: "text" });
+  }
+
+  caseFile.objects.forEach((item, index) => {
+    if (!item.departmentId.trim()) entries.push({ key: "objects.departmentId", label: `Objekt ${index + 1}: Abteilung`, kind: "select", objectIndex: index });
+    if (!item.shortDescription.trim()) entries.push({ key: "objects.shortDescription", label: `Objekt ${index + 1}: Kurzbeschrieb`, kind: "text", objectIndex: index });
+    if (!item.estimate.low.trim()) entries.push({ key: "objects.estimate.low", label: `Objekt ${index + 1}: Schätzung von`, kind: "text", objectIndex: index });
+    if (!item.estimate.high.trim()) entries.push({ key: "objects.estimate.high", label: `Objekt ${index + 1}: Schätzung bis`, kind: "text", objectIndex: index });
+  });
+
+  if (!caseFile.objects.length) {
+    entries.push({ key: "objects.create", label: "Mindestens ein Objekt", kind: "action" });
+  }
+
+  return entries;
+}
+
+function updateRequiredFieldValue(entry: RequiredFieldEntry, value?: string) {
+  if (entry.key === "objects.create") {
+    addObject();
+    return;
+  }
+
+  updateCurrentCase((current) => {
+    if (entry.objectIndex === undefined) {
+      if (entry.key === "meta.receiptNumber") return { ...current, meta: { ...current.meta, receiptNumber: value ?? "" } };
+      if (entry.key === "meta.clerkId") return { ...current, meta: { ...current.meta, clerkId: value ?? "" } };
+      if (entry.key === "consignor.lastName") return { ...current, consignor: { ...current.consignor, lastName: value ?? "" } };
+      if (entry.key === "consignor.street") return { ...current, consignor: { ...current.consignor, street: value ?? "" } };
+      if (entry.key === "consignor.zip") return { ...current, consignor: { ...current.consignor, zip: value ?? "" } };
+      if (entry.key === "consignor.city") return { ...current, consignor: { ...current.consignor, city: value ?? "" } };
+      return current;
+    }
+
+    return {
+      ...current,
+      objects: current.objects.map((item, index) => {
+        if (index !== entry.objectIndex) {
+          return item;
+        }
+
+        if (entry.key === "objects.departmentId") return { ...item, departmentId: value ?? "" };
+        if (entry.key === "objects.shortDescription") return { ...item, shortDescription: value ?? "" };
+        if (entry.key === "objects.estimate.low") return { ...item, estimate: { ...item.estimate, low: value ?? "" } };
+        if (entry.key === "objects.estimate.high") return { ...item, estimate: { ...item.estimate, high: value ?? "" } };
+        return item;
+      })
+    };
+  });
+}
+
+function RequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void }) {
   const state = useAppState();
-  const model = createPdfPreviewModel(props.caseFile, state.masterData);
-  const exportPlan = createExportPlan(props.caseFile);
-  const [exportStatus, setExportStatus] = useState<string>("");
-  const [editTarget, setEditTarget] = useState<PdfEditTarget | null>(null);
+
+  if (!props.entries.length) {
+    return null;
+  }
+
+  return (
+    <div className="pin-modal">
+      <div className="overlay__card">
+        <div className="admin-header">
+          <h2>Fehlende PDF-Pflichtfelder</h2>
+          <button onClick={props.onClose}>Schließen</button>
+        </div>
+        <div className="page-grid">
+          <Section title="Angaben erfassen">
+            {props.entries.map((entry) => {
+              if (entry.kind === "action") {
+                return (
+                  <div key={entry.label} className="inline-actions">
+                    <span>{entry.label}</span>
+                    <button type="button" className="primary" onClick={() => updateRequiredFieldValue(entry)}>
+                      Objekt hinzufügen
+                    </button>
+                  </div>
+                );
+              }
+
+              if (entry.key === "meta.clerkId") {
+                return (
+                  <Field key={entry.label} label={entry.label} full>
+                    <select value={props.caseFile.meta.clerkId} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
+                      <option value="">Bitte wählen</option>
+                      {state.masterData.clerks.map((clerk) => (
+                        <option key={clerk.id} value={clerk.id}>
+                          {clerk.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                );
+              }
+
+              if (entry.key === "objects.departmentId") {
+                const objectItem = props.caseFile.objects[entry.objectIndex ?? -1];
+                return (
+                  <Field key={entry.label} label={entry.label} full>
+                    <select value={objectItem?.departmentId ?? ""} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
+                      <option value="">Bitte wählen</option>
+                      {state.masterData.departments.map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.code} ? {department.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                );
+              }
+
+              const textValue =
+                entry.key === "meta.receiptNumber"
+                  ? props.caseFile.meta.receiptNumber
+                  : entry.key === "consignor.lastName"
+                    ? props.caseFile.consignor.lastName
+                    : entry.key === "consignor.street"
+                      ? props.caseFile.consignor.street
+                      : entry.key === "consignor.zip"
+                        ? props.caseFile.consignor.zip
+                        : entry.key === "consignor.city"
+                          ? props.caseFile.consignor.city
+                          : entry.key === "objects.shortDescription"
+                            ? props.caseFile.objects[entry.objectIndex ?? -1]?.shortDescription ?? ""
+                            : entry.key === "objects.estimate.low"
+                              ? props.caseFile.objects[entry.objectIndex ?? -1]?.estimate.low ?? ""
+                              : entry.key === "objects.estimate.high"
+                                ? props.caseFile.objects[entry.objectIndex ?? -1]?.estimate.high ?? ""
+                                : "";
+
+              return (
+                <Field key={entry.label} label={entry.label} full>
+                  <input value={textValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)} />
+                </Field>
+              );
+            })}
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewActionButtons(props: { caseFile: CaseFile; onExportStatusChange: (value: string) => void }) {
+  const state = useAppState();
 
   async function handleExportArtifacts(): Promise<void> {
     try {
-      setExportStatus("Artefakte werden erzeugt...");
+      props.onExportStatusChange("ZIP wird erzeugt...");
       const bundle = await generateExportBundle(props.caseFile, state.masterData);
 
       for (const artifact of bundle.artifacts) {
@@ -1667,60 +2105,74 @@ function PdfPreviewPage(props: { caseFile: CaseFile }) {
 
       const zipBlob = await createExportZip(props.caseFile, state.masterData);
       triggerDownload(bundle.plan.zipFileName, zipBlob);
-      setExportStatus("Artefakte und ZIP wurden erzeugt.");
+      finalizeCurrentCase();
+      props.onExportStatusChange("ZIP wurde erzeugt und der Vorgang wurde finalisiert.");
     } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : "Export fehlgeschlagen.");
+      props.onExportStatusChange(error instanceof Error ? error.message : "Export fehlgeschlagen.");
+    }
+  }
+
+  async function handleOpenPdf(): Promise<void> {
+    try {
+      props.onExportStatusChange("PDF wird erzeugt...");
+      const pdfBytes = await generateElbPdf(props.caseFile, state.masterData);
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      props.onExportStatusChange("PDF wurde geöffnet.");
+    } catch (error) {
+      props.onExportStatusChange(error instanceof Error ? error.message : "PDF konnte nicht geöffnet werden.");
     }
   }
 
   return (
+    <>
+      <button onClick={() => saveDraft()}>Entwurf speichern</button>
+      <button onClick={() => void handleOpenPdf()}>PDF anzeigen</button>
+      <button onClick={() => void handleExportArtifacts()}>ZIP finalisieren</button>
+    </>
+  );
+}
+
+function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string; onExportStatusChange: (value: string) => void }) {
+  const state = useAppState();
+  const model = createPdfPreviewModel(props.caseFile, state.masterData);
+  const exportPlan = createExportPlan(props.caseFile);
+  const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalPdfRequiredFields);
+  const [editTarget, setEditTarget] = useState<PdfEditTarget | null>(null);
+  const [requiredFieldsOpen, setRequiredFieldsOpen] = useState(false);
+
+  return (
     <div className="preview-page">
       <div className="preview-sheet">
-        <div className="preview-sheet__toolbar">
-          <button>Pflichtfelder prüfen</button>
-          <button onClick={() => saveDraft()}>Draft speichern</button>
-          <button onClick={() => finalizeCurrentCase()}>Finalisieren</button>
-          <button onClick={() => void handleExportArtifacts()}>Artefakte + ZIP erzeugen</button>
-        </div>
         <div className="preview-sheet__content">
           <PdfCanvasPreview caseFile={props.caseFile} masterData={state.masterData} onEdit={setEditTarget} />
-          <div className="preview-card">
-            <h3>Exportstatus</h3>
-            <p>Begünstigter: {model.beneficiary || "Noch nicht gesetzt"}</p>
-            <p>Sachbearbeiter: {model.clerkLabel || "Noch nicht gesetzt"}</p>
-            <p>ZIP: {exportPlan.zipFileName}</p>
-            <div className="chip-list">
-              {exportPlan.artifacts.map((artifact) => (
-                <span key={artifact.fileName} className="chip">
-                  {artifact.fileName}
-                </span>
-              ))}
-            </div>
-            {model.missingRequiredFields.length ? (
-              <>
-                <h4>Fehlende PDF-Pflichtfelder</h4>
-                <ul className="simple-list">
-                  {model.missingRequiredFields.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <p>Alle konfigurierten PDF-Pflichtfelder sind aktuell befüllt.</p>
-            )}
-            {exportStatus ? <p>{exportStatus}</p> : null}
-          </div>
+          <ExportStatusCard
+            beneficiary={model.beneficiary}
+            clerkLabel={model.clerkLabel}
+            zipFileName={exportPlan.zipFileName}
+            missingRequiredFields={requiredEntries.map((entry) => entry.label)}
+            exportStatus={props.exportStatus}
+            onCaptureMissing={() => setRequiredFieldsOpen(true)}
+            actions={<PreviewActionButtons caseFile={props.caseFile} onExportStatusChange={props.onExportStatusChange} />}
+          />
         </div>
         <PdfEditModal caseFile={props.caseFile} openTarget={editTarget} onClose={() => setEditTarget(null)} onTargetChange={setEditTarget} />
+        {requiredFieldsOpen ? <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} /> : null}
       </div>
     </div>
   );
 }
 
-function WordTemplatePreviewPage(props: { caseFile: CaseFile }) {
+function WordTemplatePreviewPage(props: { caseFile: CaseFile; exportStatus: string; onExportStatusChange: (value: string) => void }) {
   const state = useAppState();
   const model = createWordPreviewModel(props.caseFile, state.masterData);
+  const pdfModel = createPdfPreviewModel(props.caseFile, state.masterData);
+  const exportPlan = createExportPlan(props.caseFile);
+  const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalPdfRequiredFields);
   const [backgroundImageSrc, setBackgroundImageSrc] = useState("");
+  const [requiredFieldsOpen, setRequiredFieldsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1743,7 +2195,7 @@ function WordTemplatePreviewPage(props: { caseFile: CaseFile }) {
   }, []);
 
   return (
-    <div className="preview-page">
+    <div className="preview-page preview-page--stacked">
       <div className="word-sheet-stack">
         {model.pages.map((page) => (
           <div key={page.pageNumber} className="word-sheet word-sheet--template">
@@ -1810,7 +2262,18 @@ function WordTemplatePreviewPage(props: { caseFile: CaseFile }) {
             </div>
           </div>
         ))}
+        <ExportStatusCard
+          className="preview-card--bottom"
+          beneficiary={pdfModel.beneficiary}
+          clerkLabel={pdfModel.clerkLabel}
+          zipFileName={exportPlan.zipFileName}
+          missingRequiredFields={requiredEntries.map((entry) => entry.label)}
+          exportStatus={props.exportStatus}
+          onCaptureMissing={() => setRequiredFieldsOpen(true)}
+          actions={<PreviewActionButtons caseFile={props.caseFile} onExportStatusChange={props.onExportStatusChange} />}
+        />
       </div>
+      {requiredFieldsOpen ? <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} /> : null}
     </div>
   );
 }
@@ -1819,6 +2282,7 @@ export function App() {
   const state = useAppState();
   const [page, setPage] = useState<PageId>("consignor");
   const [hydrated, setHydrated] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
   const firstSaveRef = useRef(true);
   const caseFile = state.currentCase;
 
@@ -1872,8 +2336,8 @@ export function App() {
           {page === "consignor" && caseFile ? <ConsignorPage caseFile={caseFile} /> : null}
           {page === "objects" && caseFile ? <ObjectsPage caseFile={caseFile} /> : null}
           {page === "internal" && caseFile ? <InternalPage caseFile={caseFile} /> : null}
-          {page === "pdfPreview" && caseFile ? <PdfPreviewPage caseFile={caseFile} /> : null}
-          {page === "wordPreview" && caseFile ? <WordTemplatePreviewPage caseFile={caseFile} /> : null}
+          {page === "pdfPreview" && caseFile ? <PdfPreviewPage caseFile={caseFile} exportStatus={exportStatus} onExportStatusChange={setExportStatus} /> : null}
+          {page === "wordPreview" && caseFile ? <WordTemplatePreviewPage caseFile={caseFile} exportStatus={exportStatus} onExportStatusChange={setExportStatus} /> : null}
         </main>
       )}
     </div>

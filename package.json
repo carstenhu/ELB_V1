@@ -9,7 +9,8 @@
   "scripts": {
     "desktop:dev": "npm --workspace apps/desktop run dev",
     "desktop:build": "npm --workspace apps/desktop run build",
-    "desktop:lint": "npm --workspace apps/desktop run lint"
+    "desktop:lint": "npm --workspace apps/desktop run lint",
+    "check:encoding": "node scripts/check-mojibake.mjs"
   },
   "devDependencies": {
     "@types/jszip": "^3.4.0"

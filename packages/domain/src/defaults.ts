@@ -62,6 +62,8 @@ export function createEmptyCase(seed: {
     consignor: {
       useCompanyAddress: false,
       customerNumber: "",
+      vatCategory: "",
+      vatNumber: "",
       company: "",
       title: "",
       firstName: "",
@@ -120,4 +122,3 @@ export function createEmptyCase(seed: {
     assets: [],
   };
 }
-
