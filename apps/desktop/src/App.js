@@ -2,7 +2,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { deriveBeneficiary, deriveOwner, formatAmountForDisplay } from "@elb/domain/index";
 import { createExportPlan, createExportZip, generateExportBundle, triggerDownload } from "@elb/export-core/index";
-import { hydrateSnapshotFromDisk, persistSnapshotToDisk } from "@elb/persistence/filesystem";
+import { hydrateSnapshotFromDisk, persistCaseAssetImmediately, persistSnapshotToDisk } from "@elb/persistence/filesystem";
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { Field, Section } from "@elb/ui/forms";
@@ -361,7 +361,7 @@ function ConsignorPage(props) {
                                         if (!file) {
                                             return;
                                         }
-                                        const asset = await createOptimizedImageAsset(file);
+                                        const asset = await persistCaseAssetImmediately(props.caseFile, await createOptimizedImageAsset(file));
                                         updateCurrentCase((current) => ({
                                             ...current,
                                             assets: [...current.assets.filter((item) => item.id !== current.consignor.photoAssetId), asset],
@@ -370,15 +370,19 @@ function ConsignorPage(props) {
                                                 photoAssetId: asset.id
                                             }
                                         }));
+                                        void persistSnapshotToDisk(createSnapshot());
                                         event.target.value = "";
-                                    } }), consignorPhoto ? (_jsxs("div", { className: "photo-preview photo-preview--passport", children: [_jsx("img", { src: consignorPhoto.optimizedPath, alt: "Passfoto Einlieferer" }), _jsx("button", { type: "button", className: "photo-preview__remove", onClick: () => updateCurrentCase((current) => ({
-                                                ...current,
-                                                assets: current.assets.filter((asset) => asset.id !== current.consignor.photoAssetId),
-                                                consignor: {
-                                                    ...current.consignor,
-                                                    photoAssetId: ""
-                                                }
-                                            })), children: "\u00D7" })] })) : null] }) })] }), _jsxs(Section, { title: "Eigent\u00FCmer", children: [_jsx(Field, { label: "Eigent\u00FCmer = Einlieferer", children: _jsx("input", { type: "checkbox", checked: props.caseFile.owner.sameAsConsignor, onChange: (event) => updateCurrentCase((current) => ({
+                                    } }), consignorPhoto ? (_jsxs("div", { className: "photo-preview photo-preview--passport", children: [_jsx("img", { src: consignorPhoto.optimizedPath, alt: "Passfoto Einlieferer" }), _jsx("button", { type: "button", className: "photo-preview__remove", onClick: () => (() => {
+                                                updateCurrentCase((current) => ({
+                                                    ...current,
+                                                    assets: current.assets.filter((asset) => asset.id !== current.consignor.photoAssetId),
+                                                    consignor: {
+                                                        ...current.consignor,
+                                                        photoAssetId: ""
+                                                    }
+                                                }));
+                                                void persistSnapshotToDisk(createSnapshot());
+                                            })(), children: "\u00D7" })] })) : null] }) })] }), _jsxs(Section, { title: "Eigent\u00FCmer", children: [_jsx(Field, { label: "Eigent\u00FCmer = Einlieferer", children: _jsx("input", { type: "checkbox", checked: props.caseFile.owner.sameAsConsignor, onChange: (event) => updateCurrentCase((current) => ({
                                 ...current,
                                 owner: {
                                     ...current.owner,
@@ -436,12 +440,7 @@ function ObjectsPage(props) {
             .map((assetId) => props.caseFile.assets.find((asset) => asset.id === assetId))
             .filter((asset) => Boolean(asset))
         : [];
-    return (_jsxs("div", { className: "page-grid", children: [_jsxs(Section, { title: "Objekte", children: [_jsx(Field, { label: "Objektauswahl", full: true, children: _jsxs("select", { value: selectedObjectId, onChange: (event) => setSelectedObjectId(event.target.value), children: [!props.caseFile.objects.length ? _jsx("option", { value: "", children: "Noch keine Objekte" }) : null, props.caseFile.objects.map((item, index) => (_jsxs("option", { value: item.id, children: [index + 1, "/", props.caseFile.objects.length, " - ", item.intNumber, " - ", item.shortDescription || "Ohne Kurzbeschrieb"] }, item.id)))] }) }), _jsxs("div", { className: "inline-actions", children: [_jsx("button", { className: "primary", onClick: () => {
-                                    const objectId = addObject();
-                                    if (objectId) {
-                                        setSelectedObjectId(objectId);
-                                    }
-                                }, children: "Objekt hinzuf\u00FCgen" }), selectedObject ? _jsx("button", { onClick: () => deleteObject(selectedObject.id), children: "Objekt l\u00F6schen" }) : null] }), !selectedObject ? _jsx("p", { children: "Noch keine Objekte erfasst." }) : null, selectedObject ? (() => {
+    return (_jsxs("div", { className: "page-grid", children: [_jsxs(Section, { title: "", children: [_jsx("div", { className: "field field--full", children: _jsxs("select", { value: selectedObjectId, onChange: (event) => setSelectedObjectId(event.target.value), children: [!props.caseFile.objects.length ? _jsx("option", { value: "", children: "Noch keine Objekte" }) : null, props.caseFile.objects.map((item, index) => (_jsxs("option", { value: item.id, children: [index + 1, "/", props.caseFile.objects.length, " - ", item.intNumber, " - ", item.shortDescription || "Ohne Kurzbeschrieb"] }, item.id)))] }) }), !selectedObject ? _jsx("p", { children: "Noch keine Objekte erfasst." }) : null, selectedObject ? (() => {
                         const auction = state.masterData.auctions.find((candidate) => candidate.id === selectedObject.auctionId);
                         const ibid = auction ? auction.number.toLowerCase().startsWith("ibid") : false;
                         return (_jsxs(_Fragment, { children: [_jsxs("div", { className: "form-row form-row--triple", children: [_jsx(Field, { label: "Int.-Nr.", children: _jsx("input", { value: selectedObject.intNumber, onChange: (event) => updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value })) }) }), _jsx(Field, { label: "Auktion", children: _jsx("select", { value: selectedObject.auctionId, onChange: (event) => {
@@ -452,7 +451,7 @@ function ObjectsPage(props) {
                                                     if (!files.length) {
                                                         return;
                                                     }
-                                                    const assets = await Promise.all(files.map((file) => createOptimizedImageAsset(file)));
+                                                    const assets = await Promise.all(files.map(async (file) => persistCaseAssetImmediately(props.caseFile, await createOptimizedImageAsset(file))));
                                                     updateCurrentCase((current) => ({
                                                         ...current,
                                                         assets: [...current.assets, ...assets],
@@ -460,14 +459,23 @@ function ObjectsPage(props) {
                                                             ? { ...item, photoAssetIds: [...item.photoAssetIds, ...assets.map((asset) => asset.id)] }
                                                             : item)
                                                     }));
+                                                    void persistSnapshotToDisk(createSnapshot());
                                                     event.target.value = "";
-                                                } }), selectedObjectAssets.length ? (_jsx("div", { className: "photo-grid", children: selectedObjectAssets.map((asset) => (_jsxs("div", { className: "photo-preview", children: [_jsx("img", { src: asset.optimizedPath || asset.originalPath, alt: asset.fileName }), _jsx("button", { type: "button", className: "photo-preview__remove", onClick: () => updateCurrentCase((current) => ({
-                                                                ...current,
-                                                                assets: current.assets.filter((item) => item.id !== asset.id),
-                                                                objects: current.objects.map((item) => item.id === selectedObject.id
-                                                                    ? { ...item, photoAssetIds: item.photoAssetIds.filter((assetId) => assetId !== asset.id) }
-                                                                    : item)
-                                                            })), children: "\u00D7" })] }, asset.id))) })) : null] }) })] }));
+                                                } }), selectedObjectAssets.length ? (_jsx("div", { className: "photo-grid", children: selectedObjectAssets.map((asset) => (_jsxs("div", { className: "photo-preview", children: [_jsx("img", { src: asset.optimizedPath || asset.originalPath, alt: asset.fileName }), _jsx("button", { type: "button", className: "photo-preview__remove", onClick: () => (() => {
+                                                                updateCurrentCase((current) => ({
+                                                                    ...current,
+                                                                    assets: current.assets.filter((item) => item.id !== asset.id),
+                                                                    objects: current.objects.map((item) => item.id === selectedObject.id
+                                                                        ? { ...item, photoAssetIds: item.photoAssetIds.filter((assetId) => assetId !== asset.id) }
+                                                                        : item)
+                                                                }));
+                                                                void persistSnapshotToDisk(createSnapshot());
+                                                            })(), children: "\u00D7" })] }, asset.id))) })) : null] }) }), _jsxs("div", { className: "inline-actions object-actions object-actions--bottom", children: [_jsx("button", { className: "primary", onClick: () => {
+                                                const objectId = addObject();
+                                                if (objectId) {
+                                                    setSelectedObjectId(objectId);
+                                                }
+                                            }, children: "Objekt hinzuf\u00FCgen" }), selectedObject ? _jsx("button", { onClick: () => deleteObject(selectedObject.id), children: "Objekt l\u00F6schen" }) : null] })] }));
                     })() : null] }), _jsxs(Section, { title: "Konditionen f\u00FCr alle Objekte", children: [_jsxs("div", { className: "form-row form-row--six", children: [_jsx(Field, { label: "Kommission", children: _jsx("input", { value: props.caseFile.costs.commission.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Versicherung", children: _jsx("input", { value: props.caseFile.costs.insurance.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Transport", children: _jsx("input", { value: props.caseFile.costs.transport.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Abb.-Kosten", children: _jsx("input", { value: props.caseFile.costs.imaging.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Kosten Expertisen", children: _jsx("input", { value: props.caseFile.costs.expertise.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } })) }) }), _jsx(Field, { label: "Internet", children: _jsx("input", { value: props.caseFile.costs.internet.amount, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } })) }) })] }), _jsx(Field, { label: "Provenienz / Infos", full: true, children: _jsx("textarea", { value: props.caseFile.costs.provenance, onChange: (event) => updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } })) }) })] })] }));
 }
 function InternalPage(props) {

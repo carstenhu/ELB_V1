@@ -1,20 +1,3 @@
-import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  Footer,
-  ImageRun,
-  Packer,
-  PageNumber,
-  Paragraph,
-  Table,
-  TableCell,
-  TableLayoutType,
-  TableRow,
-  TextRun,
-  WidthType,
-  type ISectionOptions
-} from "docx";
 import JSZip from "jszip";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { deriveAddressLines, formatAmountForDisplay, type Asset, type CaseFile, type MasterData } from "@elb/domain/index";
@@ -46,7 +29,6 @@ export interface WordPreviewPageModel {
   addressLines: string[];
   headerRightText: string;
   footerLabel: string;
-  templateBackgroundSrc: string;
   rows: WordPreviewRow[];
 }
 
@@ -368,256 +350,6 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string 
   return { bytes, mimeType };
 }
 
-function createDocxPhotoRuns(photos: WordPreviewPhoto[]): Table | null {
-  if (!photos.length) {
-    return null;
-  }
-
-  const columns = 4;
-  const rows: TableRow[] = [];
-
-  for (let index = 0; index < photos.length; index += columns) {
-    const slice = photos.slice(index, index + columns);
-    rows.push(
-      new TableRow({
-        children: Array.from({ length: columns }).map((_, cellIndex) => {
-          const photo = slice[cellIndex];
-          const parsed = photo ? dataUrlToBytes(photo.src) : null;
-
-          return new TableCell({
-            width: { size: 25, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-            },
-            margins: { top: 60, bottom: 60, left: 40, right: 40 },
-            children: parsed
-              ? [
-                  new Paragraph({
-                    children: [
-                      new ImageRun({
-                        data: parsed.bytes,
-                        transformation: {
-                          width: 108,
-                          height: 108
-                        },
-                        type: parsed.mimeType.includes("png") ? "png" : "jpg"
-                      })
-                    ]
-                  })
-                ]
-              : [new Paragraph("")]
-          });
-        })
-      })
-    );
-  }
-
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED,
-    borders: {
-      top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-    },
-    rows
-  });
-}
-
-function createDocxRow(row: WordPreviewRow): Array<Paragraph | Table> {
-  const children: Array<Paragraph | Table> = [];
-
-  children.push(
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      layout: TableLayoutType.FIXED,
-      borders: {
-        top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-      },
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({
-              width: { size: 16, type: WidthType.PERCENTAGE },
-              borders: {
-                top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-              },
-              children: [
-                new Paragraph({
-                  spacing: { after: 100 },
-                  children: [new TextRun({ text: row.intNumber, bold: true, font: "Neue Haas Grotesk" })]
-                })
-              ]
-            }),
-            new TableCell({
-              width: { size: 60, type: WidthType.PERCENTAGE },
-              borders: {
-                top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-              },
-              children: [
-                new Paragraph({
-                  spacing: { after: 100 },
-                  children: [new TextRun({ text: row.title, font: "Neue Haas Grotesk" })]
-                })
-              ]
-            }),
-            new TableCell({
-              width: { size: 24, type: WidthType.PERCENTAGE },
-              borders: {
-                top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-                right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-              },
-              children: [
-                new Paragraph({
-                  alignment: AlignmentType.RIGHT,
-                  spacing: { after: 100 },
-                  children: [new TextRun({ text: row.estimate || "Schätzung offen", font: "Neue Haas Grotesk" })]
-                })
-              ]
-            })
-          ]
-        })
-      ]
-    })
-  );
-
-  row.details.forEach((detail) => {
-    children.push(
-      new Paragraph({
-        indent: { left: 920 },
-        spacing: { after: 90 },
-        children: [new TextRun({ text: detail, color: "4F6259", font: "Neue Haas Grotesk" })]
-      })
-    );
-  });
-
-  const photoTable = createDocxPhotoRuns(row.photos);
-  if (photoTable) {
-    children.push(photoTable);
-  }
-
-  children.push(
-    new Paragraph({
-      border: {
-        bottom: { color: "E3E7E1", style: BorderStyle.SINGLE, size: 1 }
-      },
-      spacing: { after: 120 }
-    })
-  );
-
-  return children;
-}
-
-function createDocxSections(model: WordPreviewModel): ISectionOptions[] {
-  return model.pages.map((page) => {
-    const children: Array<Paragraph | Table> = [];
-
-    children.push(
-      new Paragraph({
-        spacing: { after: 220 },
-        children: [
-          new TextRun({
-            text: "Schätzliste",
-            bold: true,
-            size: 24,
-            font: "Neue Haas Grotesk"
-          }),
-          new TextRun({
-            text: page.showAddress ? "  Einlieferer + Objekte" : `  Seite ${page.pageNumber}/${page.totalPages}`,
-            size: 20,
-            color: "586C62",
-            font: "Neue Haas Grotesk"
-          })
-        ]
-      })
-    );
-
-    if (page.showAddress) {
-      page.addressLines.forEach((line) => {
-        children.push(
-          new Paragraph({
-            spacing: { after: 70 },
-            children: [new TextRun({ text: line, font: "Neue Haas Grotesk" })]
-          })
-        );
-      });
-      children.push(new Paragraph({ spacing: { after: 260 } }));
-    } else {
-      children.push(
-        new Paragraph({
-          alignment: AlignmentType.RIGHT,
-          spacing: { after: 240 },
-          children: [new TextRun({ text: `Seite ${page.pageNumber}/${page.totalPages}`, color: "5F7067", font: "Neue Haas Grotesk" })]
-        })
-      );
-    }
-
-    page.rows.forEach((row) => {
-      children.push(...createDocxRow(row));
-    });
-
-    children.push(
-      new Paragraph({
-        spacing: { before: 220, after: 80 },
-        border: {
-          top: { color: "D6DCD5", style: BorderStyle.SINGLE, size: 1 }
-        }
-      })
-    );
-    children.push(
-      new Paragraph({
-        children: [new TextRun({ text: "Hinweis- und Footerbereich bleibt frei", color: "6A786F", font: "Neue Haas Grotesk" })]
-      })
-    );
-
-    return {
-      properties: {
-        page: {
-          margin: {
-            top: 900,
-            right: 900,
-            bottom: 900,
-            left: 900
-          }
-        }
-      },
-      footers: {
-        default: new Footer({
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new TextRun({ text: "Seite ", color: "7A867E", font: "Neue Haas Grotesk" }),
-                new TextRun({ children: [PageNumber.CURRENT] })
-              ]
-            })
-          ]
-        })
-      },
-      children
-    };
-  });
-}
-
 function drawWrappedText(page: PDFPage, font: PDFFont, text: string, x: number, y: number, maxWidth: number, lineHeight: number, size: number, color = rgb(0.15, 0.21, 0.18)) {
   const words = text.split(/\s+/).filter(Boolean);
   let currentLine = "";
@@ -736,7 +468,6 @@ export function createWordPreviewModel(caseFile: CaseFile, _masterData: MasterDa
       addressLines: index === 0 ? deriveAddressLines(caseFile.consignor) : [],
       headerRightText: index === 0 ? formatSwissDate(caseFile.meta.updatedAt || caseFile.meta.createdAt) : `Seite ${index + 1}/${totalPages}`,
       footerLabel: _masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen",
-      templateBackgroundSrc: "",
       rows: chunk
     })),
     typography: {
@@ -904,3 +635,4 @@ export async function generateWordPdf(caseFile: CaseFile, masterData: MasterData
 
   return pdfDocument.save();
 }
+

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { deriveBeneficiary, deriveOwner, formatAmountForDisplay, type Asset, type CaseFile, type PageId } from "@elb/domain/index";
 import { createExportPlan, createExportZip, generateExportBundle, triggerDownload } from "@elb/export-core/index";
-import { hydrateSnapshotFromDisk, persistSnapshotToDisk } from "@elb/persistence/filesystem";
+import { hydrateSnapshotFromDisk, persistCaseAssetImmediately, persistSnapshotToDisk } from "@elb/persistence/filesystem";
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { Field, Section } from "@elb/ui/forms";
@@ -276,10 +276,6 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
             if (value === "new-case") {
               createNewCase();
             }
-            if (value === "new-object") {
-              addObject();
-              props.onPageChange("objects");
-            }
             if (value.startsWith("case:")) {
               loadCaseById(value.replace("case:", ""));
             }
@@ -291,7 +287,6 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
         >
           <option value="">Menü</option>
           <option value="new-case">Neuer Vorgang</option>
-          <option value="new-object">Objekt hinzufügen</option>
           <option value="admin">Admin</option>
           {state.drafts.map((draft) => (
             <option key={draft.meta.id} value={`case:${draft.meta.id}`}>
@@ -308,149 +303,6 @@ function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
     </header>
   );
 }
-
-function AdminModal(props: { open: boolean; onClose: () => void }) {
-  const state = useAppState();
-  const [pinInput, setPinInput] = useState("");
-  const [unlocked, setUnlocked] = useState(false);
-
-  if (!props.open) {
-    return null;
-  }
-
-  if (!unlocked) {
-    return (
-      <div className="pin-modal">
-        <div className="pin-modal__card">
-          <h2>Admin-PIN</h2>
-          <input type="password" value={pinInput} onChange={(event) => setPinInput(event.target.value)} />
-          <div className="pin-modal__actions">
-            <button onClick={props.onClose}>Schließen</button>
-            <button
-              onClick={() => {
-                if (pinInput === state.masterData.adminPin) {
-                  setUnlocked(true);
-                }
-              }}
-            >
-              Öffnen
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="pin-modal">
-      <div className="overlay__card">
-        <div className="admin-header">
-          <h2>Admin-Panel</h2>
-          <button onClick={props.onClose}>Schließen</button>
-        </div>
-        <div className="page-grid">
-          <Section title="Lokale PIN">
-            <Field label="Admin-PIN">
-              <input
-                value={state.masterData.adminPin}
-                onChange={(event) =>
-                  updateMasterData((current) => ({
-                    ...current,
-                    adminPin: event.target.value
-                  }))
-                }
-              />
-            </Field>
-          </Section>
-          <Section title="PDF-Pflichtfelder">
-            <Field label="Feldliste" full>
-              <textarea
-                value={state.masterData.globalPdfRequiredFields.join("\n")}
-                onChange={(event) =>
-                  updateMasterData((current) => ({
-                    ...current,
-                    globalPdfRequiredFields: event.target.value
-                      .split("\n")
-                      .map((value) => value.trim())
-                      .filter(Boolean)
-                  }))
-                }
-              />
-            </Field>
-          </Section>
-          <Section title="Sachbearbeiter">
-            {state.masterData.clerks.map((clerk, index) => (
-              <div key={clerk.id} className="admin-clerk">
-                <Field label={`Sachbearbeiter ${index + 1}`} full>
-                  <input
-                    value={clerk.name}
-                    onChange={(event) =>
-                      updateMasterData((current) => ({
-                        ...current,
-                        clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item))
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Signatur" full>
-                  <SignaturePadEditor
-                    value={clerk.signaturePng}
-                    onChange={(dataUrl) =>
-                      updateMasterData((current) => ({
-                        ...current,
-                        clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
-                      }))
-                    }
-                  />
-                </Field>
-                {clerk.signaturePng ? <img className="signature-preview" src={clerk.signaturePng} alt={`Signatur ${clerk.name}`} /> : null}
-              </div>
-            ))}
-          </Section>
-          <Section title="Auktionen">
-            {state.masterData.auctions.map((auction, index) => (
-              <Field key={auction.id} label={`Auktion ${index + 1}`} full>
-                <input
-                  value={auction.number}
-                  onChange={(event) =>
-                    updateMasterData((current) => ({
-                      ...current,
-                      auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item))
-                    }))
-                  }
-                />
-              </Field>
-            ))}
-          </Section>
-          <Section title="Abteilungen / Interessengebiete">
-            {state.masterData.departments.map((department, index) => (
-              <Field key={department.id} label={`Abteilung ${index + 1}`} full>
-                <input
-                  value={`${department.code} · ${department.name}`}
-                  onChange={(event) =>
-                    updateMasterData((current) => ({
-                      ...current,
-                      departments: current.departments.map((item) =>
-                        item.id === department.id
-                          ? {
-                              ...item,
-                              name: event.target.value
-                            }
-                          : item
-                      )
-                    }))
-                  }
-                />
-              </Field>
-            ))}
-          </Section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-void AdminModal;
 
 function AdminPage() {
   const state = useAppState();
@@ -847,57 +699,68 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
             />
           </Field>
         ) : null}
-        <Field label="Anrede">
-          <select
-            value={props.caseFile.consignor.title}
-            onChange={(event) =>
-              updateCurrentCase((current) => ({
-                ...current,
-                consignor: {
-                  ...current.consignor,
-                  title: event.target.value
-                }
-              }))
-            }
-          >
-            <option value="">Bitte wählen</option>
-            {state.masterData.titles.map((title) => (
-              <option key={title} value={title}>
-                {title}
-              </option>
-            ))}
-          </select>
+        <div className="form-row form-row--triple">
+          <Field label="Anrede">
+            <select
+              value={props.caseFile.consignor.title}
+              onChange={(event) =>
+                updateCurrentCase((current) => ({
+                  ...current,
+                  consignor: {
+                    ...current.consignor,
+                    title: event.target.value
+                  }
+                }))
+              }
+            >
+              <option value="">Bitte wählen</option>
+              {state.masterData.titles.map((title) => (
+                <option key={title} value={title}>
+                  {title}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Vorname">
+            <input value={props.caseFile.consignor.firstName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, firstName: event.target.value } }))} />
+          </Field>
+          <Field label="Nachname">
+            <input value={props.caseFile.consignor.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, lastName: event.target.value } }))} />
+          </Field>
+        </div>
+        <Field label="Adresszusatz" full>
+          <input value={props.caseFile.consignor.addressAddon} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, addressAddon: event.target.value } }))} />
         </Field>
-        <Field label="Vorname">
-          <input value={props.caseFile.consignor.firstName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, firstName: event.target.value } }))} />
-        </Field>
-        <Field label="Nachname">
-          <input value={props.caseFile.consignor.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, lastName: event.target.value } }))} />
-        </Field>
-        <Field label="Straße">
-          <input value={props.caseFile.consignor.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
-        </Field>
-        <Field label="Nr.">
-          <input value={props.caseFile.consignor.houseNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, houseNumber: event.target.value } }))} />
-        </Field>
-        <Field label="PLZ">
-          <input value={props.caseFile.consignor.zip} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, zip: event.target.value } }))} />
-        </Field>
-        <Field label="Stadt">
-          <input value={props.caseFile.consignor.city} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
-        </Field>
-        <Field label="Land">
-          <input value={props.caseFile.consignor.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))} />
-        </Field>
-        <Field label="Geburtsdatum">
-          <input value={props.caseFile.consignor.birthDate} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
-        </Field>
-        <Field label="Nationalität">
-          <input value={props.caseFile.consignor.nationality} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
-        </Field>
-        <Field label="ID/Passnummer">
-          <input value={props.caseFile.consignor.passportNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, passportNumber: event.target.value } }))} />
-        </Field>
+        <div className="form-row form-row--double">
+          <Field label="Straße">
+            <input value={props.caseFile.consignor.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
+          </Field>
+          <Field label="Nr.">
+            <input value={props.caseFile.consignor.houseNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, houseNumber: event.target.value } }))} />
+          </Field>
+        </div>
+        <div className="form-row form-row--triple">
+          <Field label="PLZ">
+            <input value={props.caseFile.consignor.zip} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, zip: event.target.value } }))} />
+          </Field>
+          <Field label="Stadt">
+            <input value={props.caseFile.consignor.city} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
+          </Field>
+          <Field label="Land">
+            <input value={props.caseFile.consignor.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))} />
+          </Field>
+        </div>
+        <div className="form-row form-row--triple">
+          <Field label="Geburtsdatum">
+            <input value={props.caseFile.consignor.birthDate} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
+          </Field>
+          <Field label="Nationalität">
+            <input value={props.caseFile.consignor.nationality} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
+          </Field>
+          <Field label="ID/Passnummer">
+            <input value={props.caseFile.consignor.passportNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, passportNumber: event.target.value } }))} />
+          </Field>
+        </div>
         <Field label="Passfoto" full>
           <div className="photo-upload">
             <input
@@ -909,7 +772,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                   return;
                 }
 
-                const asset = await createOptimizedImageAsset(file);
+                const asset = await persistCaseAssetImmediately(props.caseFile, await createOptimizedImageAsset(file));
                 updateCurrentCase((current) => ({
                   ...current,
                   assets: [...current.assets.filter((item) => item.id !== current.consignor.photoAssetId), asset],
@@ -918,6 +781,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                     photoAssetId: asset.id
                   }
                 }));
+                void persistSnapshotToDisk(createSnapshot());
                 event.target.value = "";
               }}
             />
@@ -928,14 +792,17 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                   type="button"
                   className="photo-preview__remove"
                   onClick={() =>
-                    updateCurrentCase((current) => ({
-                      ...current,
-                      assets: current.assets.filter((asset) => asset.id !== current.consignor.photoAssetId),
-                      consignor: {
-                        ...current.consignor,
-                        photoAssetId: ""
-                      }
-                    }))
+                    (() => {
+                      updateCurrentCase((current) => ({
+                        ...current,
+                        assets: current.assets.filter((asset) => asset.id !== current.consignor.photoAssetId),
+                        consignor: {
+                          ...current.consignor,
+                          photoAssetId: ""
+                        }
+                      }));
+                      void persistSnapshotToDisk(createSnapshot());
+                    })()
                   }
                 >
                   ×
@@ -1092,30 +959,30 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
 
   return (
     <div className="page-grid">
-      <Section title="Objekte">
-        <Field label="Objektauswahl" full>
-          <select value={selectedObjectId} onChange={(event) => setSelectedObjectId(event.target.value)}>
+      <Section title="">
+        <div className="field field--full">
+          <select
+            value={selectedObjectId}
+            onChange={(event) => {
+              if (event.target.value === "new-object") {
+                const objectId = addObject();
+                if (objectId) {
+                  setSelectedObjectId(objectId);
+                }
+                return;
+              }
+
+              setSelectedObjectId(event.target.value);
+            }}
+          >
             {!props.caseFile.objects.length ? <option value="">Noch keine Objekte</option> : null}
             {props.caseFile.objects.map((item, index) => (
               <option key={item.id} value={item.id}>
                 {index + 1}/{props.caseFile.objects.length} - {item.intNumber} - {item.shortDescription || "Ohne Kurzbeschrieb"}
               </option>
             ))}
+            <option value="new-object">+ Objekt hinzufügen</option>
           </select>
-        </Field>
-        <div className="inline-actions">
-          <button
-            className="primary"
-            onClick={() => {
-              const objectId = addObject();
-              if (objectId) {
-                setSelectedObjectId(objectId);
-              }
-            }}
-          >
-            Objekt hinzufügen
-          </button>
-          {selectedObject ? <button onClick={() => deleteObject(selectedObject.id)}>Objekt löschen</button> : null}
         </div>
         {!selectedObject ? <p>Noch keine Objekte erfasst.</p> : null}
         {selectedObject ? (() => {
@@ -1199,7 +1066,9 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                         return;
                       }
 
-                      const assets = await Promise.all(files.map((file) => createOptimizedImageAsset(file)));
+                      const assets = await Promise.all(
+                        files.map(async (file) => persistCaseAssetImmediately(props.caseFile, await createOptimizedImageAsset(file)))
+                      );
                       updateCurrentCase((current) => ({
                         ...current,
                         assets: [...current.assets, ...assets],
@@ -1209,6 +1078,7 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                             : item
                         )
                       }));
+                      void persistSnapshotToDisk(createSnapshot());
                       event.target.value = "";
                     }}
                   />
@@ -1221,15 +1091,18 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                             type="button"
                             className="photo-preview__remove"
                             onClick={() =>
-                              updateCurrentCase((current) => ({
-                                ...current,
-                                assets: current.assets.filter((item) => item.id !== asset.id),
-                                objects: current.objects.map((item) =>
-                                  item.id === selectedObject.id
-                                    ? { ...item, photoAssetIds: item.photoAssetIds.filter((assetId) => assetId !== asset.id) }
-                                    : item
-                                )
-                              }))
+                              (() => {
+                                updateCurrentCase((current) => ({
+                                  ...current,
+                                  assets: current.assets.filter((item) => item.id !== asset.id),
+                                  objects: current.objects.map((item) =>
+                                    item.id === selectedObject.id
+                                      ? { ...item, photoAssetIds: item.photoAssetIds.filter((assetId) => assetId !== asset.id) }
+                                      : item
+                                  )
+                                }));
+                                void persistSnapshotToDisk(createSnapshot());
+                              })()
                             }
                           >
                             ×
@@ -1240,6 +1113,20 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                   ) : null}
                 </div>
               </Field>
+              <div className="inline-actions object-actions object-actions--bottom">
+                <button
+                  className="primary"
+                  onClick={() => {
+                    const objectId = addObject();
+                    if (objectId) {
+                      setSelectedObjectId(objectId);
+                    }
+                  }}
+                >
+                  Objekt hinzufügen
+                </button>
+                {selectedObject ? <button onClick={() => deleteObject(selectedObject.id)}>Objekt löschen</button> : null}
+              </div>
             </>
           );
         })() : null}
@@ -1830,79 +1717,6 @@ function PdfPreviewPage(props: { caseFile: CaseFile }) {
   );
 }
 
-function WordPreviewPage(props: { caseFile: CaseFile }) {
-  const state = useAppState();
-  const model = createWordPreviewModel(props.caseFile, state.masterData);
-  return <WordTemplatePreviewPage caseFile={props.caseFile} />;
-  return (
-    <div className="preview-page">
-      <div className="word-sheet-stack">
-        {model.pages.map((page) => (
-          <div key={page.pageNumber} className="word-sheet">
-            <header className="word-sheet__header">
-              <div className="word-sheet__eyebrow">Schätzliste</div>
-              <div>{page.showAddress ? "Einlieferer + Objekte" : `Seite ${page.pageNumber}/${page.totalPages}`}</div>
-            </header>
-            <div className="word-sheet__body">
-              <div className="word-preview-page">
-                <div className="word-preview-page__top">
-                  {page.showAddress ? (
-                    <div className="word-address-block">
-                      {page.addressLines.map((line) => (
-                        <div key={line}>{line}</div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="word-page-indicator">
-                      Seite {page.pageNumber}/{page.totalPages}
-                    </div>
-                  )}
-                </div>
-                <div className="word-preview-list">
-                  {page.rows.map((item) => (
-                    <article key={item.id} className="word-preview-row">
-                      <div className="word-preview-row__head">
-                        <strong>{item.intNumber}</strong>
-                        <span>{item.title}</span>
-                        <span>{item.estimate || "Schätzung offen"}</span>
-                      </div>
-                      {item.details.length ? (
-                        <div className="word-preview-row__details">
-                          {item.details.map((detail) => (
-                            <div key={detail}>{detail}</div>
-                          ))}
-                        </div>
-                      ) : null}
-                      {item.photos.length ? (
-                        <div className="word-preview-row__photos">
-                          {item.photos.map((photo) => (
-                            <figure key={photo.id} className="word-preview-photo">
-                              <img src={photo.src} alt={photo.alt} />
-                            </figure>
-                          ))}
-                        </div>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-                <div className="word-preview-footer">
-                  <div className="word-preview-footer__line" />
-                  <div>Hinweis- und Footerbereich bleibt frei</div>
-                </div>
-              </div>
-              <div className="preview-card">
-                <h3>Typografie</h3>
-                <p>{model.typography.family}</p>
-                <p>{model.typography.note}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function WordTemplatePreviewPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
   const model = createWordPreviewModel(props.caseFile, state.masterData);
@@ -2059,9 +1873,11 @@ export function App() {
           {page === "objects" && caseFile ? <ObjectsPage caseFile={caseFile} /> : null}
           {page === "internal" && caseFile ? <InternalPage caseFile={caseFile} /> : null}
           {page === "pdfPreview" && caseFile ? <PdfPreviewPage caseFile={caseFile} /> : null}
-          {page === "wordPreview" && caseFile ? <WordPreviewPage caseFile={caseFile} /> : null}
+          {page === "wordPreview" && caseFile ? <WordTemplatePreviewPage caseFile={caseFile} /> : null}
         </main>
       )}
     </div>
   );
 }
+
+
