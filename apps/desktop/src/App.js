@@ -6,7 +6,7 @@ import { hydrateSnapshotFromDisk, persistSnapshotToDisk } from "@elb/persistence
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { Field, Section } from "@elb/ui/forms";
-import { createWordPreviewModel } from "@elb/word-core/index";
+import { createWordPreviewModel, loadWordTemplateAssets } from "@elb/word-core/index";
 import { PdfCanvasPreview } from "./pdfPreview";
 import { addObject, applyAuctionPricingRules, consumePendingObjectSelectionId, createNewCase, createSnapshot, deleteObject, finalizeCurrentCase, getState, loadCaseById, saveDraft, selectClerk, subscribe, replaceState, updateCurrentCase, updateMasterData, updateObject } from "./appState";
 const pages = [
@@ -431,7 +431,11 @@ function ObjectsPage(props) {
         }
     }, [props.caseFile.objects, selectedObjectId]);
     const selectedObject = props.caseFile.objects.find((item) => item.id === selectedObjectId) ?? props.caseFile.objects[0] ?? null;
-    const selectedObjectAssets = selectedObject ? props.caseFile.assets.filter((asset) => selectedObject.photoAssetIds.includes(asset.id)) : [];
+    const selectedObjectAssets = selectedObject
+        ? selectedObject.photoAssetIds
+            .map((assetId) => props.caseFile.assets.find((asset) => asset.id === assetId))
+            .filter((asset) => Boolean(asset))
+        : [];
     return (_jsxs("div", { className: "page-grid", children: [_jsxs(Section, { title: "Objekte", children: [_jsx(Field, { label: "Objektauswahl", full: true, children: _jsxs("select", { value: selectedObjectId, onChange: (event) => setSelectedObjectId(event.target.value), children: [!props.caseFile.objects.length ? _jsx("option", { value: "", children: "Noch keine Objekte" }) : null, props.caseFile.objects.map((item, index) => (_jsxs("option", { value: item.id, children: [index + 1, "/", props.caseFile.objects.length, " - ", item.intNumber, " - ", item.shortDescription || "Ohne Kurzbeschrieb"] }, item.id)))] }) }), _jsxs("div", { className: "inline-actions", children: [_jsx("button", { className: "primary", onClick: () => {
                                     const objectId = addObject();
                                     if (objectId) {
@@ -457,7 +461,7 @@ function ObjectsPage(props) {
                                                             : item)
                                                     }));
                                                     event.target.value = "";
-                                                } }), selectedObjectAssets.length ? (_jsx("div", { className: "photo-grid", children: selectedObjectAssets.map((asset) => (_jsxs("div", { className: "photo-preview", children: [_jsx("img", { src: asset.optimizedPath, alt: asset.fileName }), _jsx("button", { type: "button", className: "photo-preview__remove", onClick: () => updateCurrentCase((current) => ({
+                                                } }), selectedObjectAssets.length ? (_jsx("div", { className: "photo-grid", children: selectedObjectAssets.map((asset) => (_jsxs("div", { className: "photo-preview", children: [_jsx("img", { src: asset.optimizedPath || asset.originalPath, alt: asset.fileName }), _jsx("button", { type: "button", className: "photo-preview__remove", onClick: () => updateCurrentCase((current) => ({
                                                                 ...current,
                                                                 assets: current.assets.filter((item) => item.id !== asset.id),
                                                                 objects: current.objects.map((item) => item.id === selectedObject.id
@@ -677,7 +681,31 @@ function PdfPreviewPage(props) {
 function WordPreviewPage(props) {
     const state = useAppState();
     const model = createWordPreviewModel(props.caseFile, state.masterData);
-    return (_jsx("div", { className: "preview-page", children: _jsx("div", { className: "word-sheet-stack", children: model.pages.map((page) => (_jsxs("div", { className: "word-sheet", children: [_jsxs("header", { className: "word-sheet__header", children: [_jsx("div", { children: "Word-Sch\u00E4tzliste" }), _jsxs("div", { children: ["Seite ", page.pageNumber, "/", page.totalPages] })] }), _jsxs("div", { className: "word-sheet__body", children: [_jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Einliefereradresse" }), page.showAddress ? page.addressLines.map((line) => _jsx("div", { children: line }, line)) : _jsx("div", { children: "Keine Adresse auf Folgeseite" })] }), _jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Objektinfos" }), page.rows.map((item) => (_jsxs("div", { className: "word-row", children: [_jsx("strong", { children: item.intNumber }), _jsx("span", { children: item.title }), _jsx("span", { children: item.estimate })] }, item.id)))] }), _jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Typografie" }), _jsx("p", { children: model.typography.family }), _jsx("p", { children: model.typography.note })] })] })] }, page.pageNumber))) }) }));
+    return _jsx(WordTemplatePreviewPage, { caseFile: props.caseFile });
+    return (_jsx("div", { className: "preview-page", children: _jsx("div", { className: "word-sheet-stack", children: model.pages.map((page) => (_jsxs("div", { className: "word-sheet", children: [_jsxs("header", { className: "word-sheet__header", children: [_jsx("div", { className: "word-sheet__eyebrow", children: "Sch\u00E4tzliste" }), _jsx("div", { children: page.showAddress ? "Einlieferer + Objekte" : `Seite ${page.pageNumber}/${page.totalPages}` })] }), _jsxs("div", { className: "word-sheet__body", children: [_jsxs("div", { className: "word-preview-page", children: [_jsx("div", { className: "word-preview-page__top", children: page.showAddress ? (_jsx("div", { className: "word-address-block", children: page.addressLines.map((line) => (_jsx("div", { children: line }, line))) })) : (_jsxs("div", { className: "word-page-indicator", children: ["Seite ", page.pageNumber, "/", page.totalPages] })) }), _jsx("div", { className: "word-preview-list", children: page.rows.map((item) => (_jsxs("article", { className: "word-preview-row", children: [_jsxs("div", { className: "word-preview-row__head", children: [_jsx("strong", { children: item.intNumber }), _jsx("span", { children: item.title }), _jsx("span", { children: item.estimate || "Schätzung offen" })] }), item.details.length ? (_jsx("div", { className: "word-preview-row__details", children: item.details.map((detail) => (_jsx("div", { children: detail }, detail))) })) : null, item.photos.length ? (_jsx("div", { className: "word-preview-row__photos", children: item.photos.map((photo) => (_jsx("figure", { className: "word-preview-photo", children: _jsx("img", { src: photo.src, alt: photo.alt }) }, photo.id))) })) : null] }, item.id))) }), _jsxs("div", { className: "word-preview-footer", children: [_jsx("div", { className: "word-preview-footer__line" }), _jsx("div", { children: "Hinweis- und Footerbereich bleibt frei" })] })] }), _jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Typografie" }), _jsx("p", { children: model.typography.family }), _jsx("p", { children: model.typography.note })] })] })] }, page.pageNumber))) }) }));
+}
+function WordTemplatePreviewPage(props) {
+    const state = useAppState();
+    const model = createWordPreviewModel(props.caseFile, state.masterData);
+    const [backgroundImageSrc, setBackgroundImageSrc] = useState("");
+    useEffect(() => {
+        let cancelled = false;
+        loadWordTemplateAssets()
+            .then((assets) => {
+            if (!cancelled) {
+                setBackgroundImageSrc(assets.backgroundImageSrc);
+            }
+        })
+            .catch(() => {
+            if (!cancelled) {
+                setBackgroundImageSrc("");
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+    return (_jsx("div", { className: "preview-page", children: _jsx("div", { className: "word-sheet-stack", children: model.pages.map((page) => (_jsxs("div", { className: "word-sheet word-sheet--template", children: [_jsxs("header", { className: "word-sheet__header", children: [_jsx("div", { className: "word-sheet__eyebrow", children: "Sch\u00E4tzliste" }), _jsx("div", { children: "Koller-Vorlage" })] }), _jsxs("div", { className: "word-sheet__body word-sheet__body--template", children: [_jsxs("div", { className: "word-preview-page word-preview-page--template", children: [backgroundImageSrc ? _jsx("img", { className: "word-preview-page__background", src: backgroundImageSrc, alt: "" }) : null, _jsxs("div", { className: "word-preview-page__top word-preview-page__top--template", children: [page.showAddress ? (_jsx("div", { className: "word-address-block word-address-block--template", children: page.addressLines.map((line) => (_jsx("div", { children: line }, line))) })) : (_jsx("div", { className: "word-address-block word-address-block--template word-address-block--empty" })), _jsx("div", { className: "word-date-block", children: _jsx("div", { className: "word-date-block__value", children: page.headerRightText }) })] }), _jsx("div", { className: "word-preview-list word-preview-list--template", children: page.rows.map((item) => (_jsxs("article", { className: "word-template-row", children: [_jsx("div", { className: "word-template-row__int", children: item.intNumber }), _jsx("div", { className: "word-template-row__photo", children: item.primaryPhoto ? _jsx("img", { src: item.primaryPhoto.src, alt: item.primaryPhoto.alt }) : null }), _jsxs("div", { className: "word-template-row__text", children: [_jsx("div", { className: "word-template-row__title", children: item.title }), item.details.map((detail) => (_jsx("div", { className: "word-template-row__line", children: detail }, detail))), _jsx("div", { className: "word-template-row__line", children: item.estimate ? `Schätzung: CHF ${item.estimate}` : "Schätzung offen" }), item.priceValue ? (_jsxs("div", { className: "word-template-row__line word-template-row__line--accent", children: [item.priceLabel, ": CHF ", item.priceValue] })) : null] })] }, item.id))) }), _jsxs("div", { className: "word-template-footer", children: [_jsx("div", { children: "KOLLER AUKTIONEN" }), _jsx("div", { children: page.footerLabel })] })] }), _jsxs("div", { className: "preview-card", children: [_jsx("h3", { children: "Vorlagenbasis" }), _jsx("p", { children: model.typography.family }), _jsx("p", { children: model.typography.note }), _jsx("p", { children: "Adressblock links, Datum oder Seitenz\u00E4hlung rechts, Objektblock als 3-Spalten-Tabelle." })] })] })] }, page.pageNumber))) }) }));
 }
 export function App() {
     const state = useAppState();

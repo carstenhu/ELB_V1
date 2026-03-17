@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { buildFolderName } from "@elb/domain/index";
-import { createPdfPreviewModel, generateElbPdf, generateSupplementPdf } from "@elb/pdf-core/index";
-import { createWordPreviewModel } from "@elb/word-core/index";
+import { generateElbPdf, generateSupplementPdf } from "@elb/pdf-core/index";
+import { generateWordDocx, generateWordPdf } from "@elb/word-core/index";
 function toArrayBuffer(bytes) {
     return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
@@ -35,34 +35,6 @@ export function createExportMetadata(caseFile) {
         imageCount: caseFile.assets.length
     };
 }
-function createStubText(title, lines) {
-    return [title, "", ...lines].join("\n");
-}
-function createPdfStub(caseFile, masterData, kind) {
-    const pdfModel = createPdfPreviewModel(caseFile, masterData);
-    const header = kind === "zusatz" ? "Zusatz-PDF Platzhalter" : "Schätzlisten-PDF Platzhalter";
-    const lines = [
-        `ELB-Nummer: ${caseFile.meta.receiptNumber}`,
-        `Sachbearbeiter: ${pdfModel.clerkLabel || "n/a"}`,
-        `Objekte: ${pdfModel.objectRows.length}`,
-        "Diese Datei ist ein technischer Stub fuer die End-to-End-Pipeline.",
-        "Die finale PDF-Erzeugung wird im naechsten Schritt auf Basis der Vorlagen implementiert."
-    ];
-    if (kind === "zusatz" && caseFile.internalInfo.notes.trim()) {
-        lines.push("", "Interne Notizen:", caseFile.internalInfo.notes.trim());
-    }
-    return createStubText(header, lines);
-}
-function createDocxStub(caseFile, masterData) {
-    const wordModel = createWordPreviewModel(caseFile, masterData);
-    return createStubText("Schätzliste DOCX Platzhalter", [
-        `ELB-Nummer: ${caseFile.meta.receiptNumber}`,
-        `Seiten: ${wordModel.pages.length}`,
-        `Typografie-Ziel: ${wordModel.typography.family}`,
-        "Diese Datei ist ein technischer Stub fuer die End-to-End-Pipeline.",
-        "Die finale DOCX-Erzeugung wird im naechsten Schritt implementiert."
-    ]);
-}
 function createImageManifest(caseFile) {
     return JSON.stringify({
         count: caseFile.assets.length,
@@ -80,6 +52,8 @@ export async function generateExportBundle(caseFile, masterData) {
     const metadata = createExportMetadata(caseFile);
     const elbPdfBytes = await generateElbPdf(caseFile, masterData);
     const supplementPdfBytes = await generateSupplementPdf(caseFile, masterData);
+    const wordDocxBlob = await generateWordDocx(caseFile, masterData);
+    const wordPdfBytes = await generateWordPdf(caseFile, masterData);
     return {
         plan,
         metadata,
@@ -107,12 +81,12 @@ export async function generateExportBundle(caseFile, masterData) {
             {
                 fileName: "schaetzliste.docx",
                 mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                content: createDocxStub(caseFile, masterData)
+                content: wordDocxBlob
             },
             {
                 fileName: "schaetzliste.pdf",
                 mimeType: "application/pdf",
-                content: createPdfStub(caseFile, masterData, "schaetzliste")
+                content: toArrayBuffer(wordPdfBytes)
             },
             {
                 fileName: "bilder/manifest.json",

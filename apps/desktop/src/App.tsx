@@ -5,7 +5,7 @@ import { hydrateSnapshotFromDisk, persistSnapshotToDisk } from "@elb/persistence
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { Field, Section } from "@elb/ui/forms";
-import { createWordPreviewModel } from "@elb/word-core/index";
+import { createWordPreviewModel, loadWordTemplateAssets } from "@elb/word-core/index";
 import { PdfCanvasPreview, type PdfEditTarget } from "./pdfPreview";
 import {
   addObject,
@@ -1084,7 +1084,11 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
   }, [props.caseFile.objects, selectedObjectId]);
 
   const selectedObject = props.caseFile.objects.find((item) => item.id === selectedObjectId) ?? props.caseFile.objects[0] ?? null;
-  const selectedObjectAssets = selectedObject ? props.caseFile.assets.filter((asset) => selectedObject.photoAssetIds.includes(asset.id)) : [];
+  const selectedObjectAssets = selectedObject
+    ? selectedObject.photoAssetIds
+        .map((assetId) => props.caseFile.assets.find((asset) => asset.id === assetId))
+        .filter((asset): asset is Asset => Boolean(asset))
+    : [];
 
   return (
     <div className="page-grid">
@@ -1212,7 +1216,7 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                     <div className="photo-grid">
                       {selectedObjectAssets.map((asset) => (
                         <div key={asset.id} className="photo-preview">
-                          <img src={asset.optimizedPath} alt={asset.fileName} />
+                          <img src={asset.optimizedPath || asset.originalPath} alt={asset.fileName} />
                           <button
                             type="button"
                             className="photo-preview__remove"
@@ -1829,36 +1833,165 @@ function PdfPreviewPage(props: { caseFile: CaseFile }) {
 function WordPreviewPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
   const model = createWordPreviewModel(props.caseFile, state.masterData);
+  return <WordTemplatePreviewPage caseFile={props.caseFile} />;
   return (
     <div className="preview-page">
       <div className="word-sheet-stack">
         {model.pages.map((page) => (
           <div key={page.pageNumber} className="word-sheet">
             <header className="word-sheet__header">
-              <div>Word-Schätzliste</div>
-              <div>
-                Seite {page.pageNumber}/{page.totalPages}
-              </div>
+              <div className="word-sheet__eyebrow">Schätzliste</div>
+              <div>{page.showAddress ? "Einlieferer + Objekte" : `Seite ${page.pageNumber}/${page.totalPages}`}</div>
             </header>
             <div className="word-sheet__body">
-              <div className="preview-card">
-                <h3>Einliefereradresse</h3>
-                {page.showAddress ? page.addressLines.map((line) => <div key={line}>{line}</div>) : <div>Keine Adresse auf Folgeseite</div>}
-              </div>
-              <div className="preview-card">
-                <h3>Objektinfos</h3>
-                {page.rows.map((item) => (
-                  <div key={item.id} className="word-row">
-                    <strong>{item.intNumber}</strong>
-                    <span>{item.title}</span>
-                    <span>{item.estimate}</span>
-                  </div>
-                ))}
+              <div className="word-preview-page">
+                <div className="word-preview-page__top">
+                  {page.showAddress ? (
+                    <div className="word-address-block">
+                      {page.addressLines.map((line) => (
+                        <div key={line}>{line}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="word-page-indicator">
+                      Seite {page.pageNumber}/{page.totalPages}
+                    </div>
+                  )}
+                </div>
+                <div className="word-preview-list">
+                  {page.rows.map((item) => (
+                    <article key={item.id} className="word-preview-row">
+                      <div className="word-preview-row__head">
+                        <strong>{item.intNumber}</strong>
+                        <span>{item.title}</span>
+                        <span>{item.estimate || "Schätzung offen"}</span>
+                      </div>
+                      {item.details.length ? (
+                        <div className="word-preview-row__details">
+                          {item.details.map((detail) => (
+                            <div key={detail}>{detail}</div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {item.photos.length ? (
+                        <div className="word-preview-row__photos">
+                          {item.photos.map((photo) => (
+                            <figure key={photo.id} className="word-preview-photo">
+                              <img src={photo.src} alt={photo.alt} />
+                            </figure>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+                <div className="word-preview-footer">
+                  <div className="word-preview-footer__line" />
+                  <div>Hinweis- und Footerbereich bleibt frei</div>
+                </div>
               </div>
               <div className="preview-card">
                 <h3>Typografie</h3>
                 <p>{model.typography.family}</p>
                 <p>{model.typography.note}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WordTemplatePreviewPage(props: { caseFile: CaseFile }) {
+  const state = useAppState();
+  const model = createWordPreviewModel(props.caseFile, state.masterData);
+  const [backgroundImageSrc, setBackgroundImageSrc] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadWordTemplateAssets()
+      .then((assets) => {
+        if (!cancelled) {
+          setBackgroundImageSrc(assets.backgroundImageSrc);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBackgroundImageSrc("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="preview-page">
+      <div className="word-sheet-stack">
+        {model.pages.map((page) => (
+          <div key={page.pageNumber} className="word-sheet word-sheet--template">
+            <header className="word-sheet__header">
+              <div className="word-sheet__eyebrow">Schätzliste</div>
+              <div>Koller-Vorlage</div>
+            </header>
+            <div className="word-sheet__body word-sheet__body--template">
+              <div className="word-preview-page word-preview-page--template">
+                {backgroundImageSrc ? <img className="word-preview-page__background" src={backgroundImageSrc} alt="" /> : null}
+                <div className="word-preview-page__top word-preview-page__top--template">
+                  {page.showAddress ? (
+                    <div className="word-address-block word-address-block--template">
+                      {page.addressLines.map((line) => (
+                        <div key={line}>{line}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="word-address-block word-address-block--template word-address-block--empty" />
+                  )}
+                  <div className="word-date-block">
+                    <div className="word-date-block__value">{page.headerRightText}</div>
+                  </div>
+                </div>
+
+                <div className="word-preview-list word-preview-list--template">
+                  {page.rows.map((item) => (
+                    <article key={item.id} className="word-template-row">
+                      <div className="word-template-row__int">{item.intNumber}</div>
+                      <div className="word-template-row__photo">
+                        {item.primaryPhoto ? <img src={item.primaryPhoto.src} alt={item.primaryPhoto.alt} /> : null}
+                      </div>
+                      <div className="word-template-row__text">
+                        <div className="word-template-row__title">{item.title}</div>
+                        {item.details.map((detail) => (
+                          <div key={detail} className="word-template-row__line">
+                            {detail}
+                          </div>
+                        ))}
+                        <div className="word-template-row__line">
+                          {item.estimate ? `Schätzung: CHF ${item.estimate}` : "Schätzung offen"}
+                        </div>
+                        {item.priceValue ? (
+                          <div className="word-template-row__line word-template-row__line--accent">
+                            {item.priceLabel}: CHF {item.priceValue}
+                          </div>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="word-template-footer">
+                  <div>KOLLER AUKTIONEN</div>
+                  <div>{page.footerLabel}</div>
+                </div>
+              </div>
+              <div className="preview-card">
+                <h3>Vorlagenbasis</h3>
+                <p>{model.typography.family}</p>
+                <p>{model.typography.note}</p>
+                <p>Adressblock links, Datum oder Seitenzählung rechts, Objektblock als 3-Spalten-Tabelle.</p>
               </div>
             </div>
           </div>

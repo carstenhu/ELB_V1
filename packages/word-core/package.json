@@ -2,6 +2,10 @@
   "name": "@elb/word-core",
   "private": true,
   "version": "0.1.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "docx": "^9.6.1",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1"
+  }
 }
-

@@ -24,7 +24,12 @@ function emit() {
         drafts: state.drafts,
         finalized: state.finalized
     };
-    saveSnapshot(snapshot);
+    try {
+        saveSnapshot(snapshot);
+    }
+    catch (error) {
+        console.warn("Snapshot konnte nicht lokal gespeichert werden.", error);
+    }
     listeners.forEach((listener) => listener());
 }
 export function subscribe(listener) {

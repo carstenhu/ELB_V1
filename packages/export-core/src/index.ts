@@ -1,8 +1,8 @@
 import JSZip from "jszip";
 import type { CaseFile, MasterData } from "@elb/domain/index";
 import { buildFolderName } from "@elb/domain/index";
-import { createPdfPreviewModel, generateElbPdf, generateSupplementPdf } from "@elb/pdf-core/index";
-import { createWordPreviewModel } from "@elb/word-core/index";
+import { generateElbPdf, generateSupplementPdf } from "@elb/pdf-core/index";
+import { generateWordDocx, generateWordPdf } from "@elb/word-core/index";
 
 export interface ExportArtifactPlan {
   fileName: string;
@@ -30,7 +30,7 @@ export interface ExportMetadata {
 export interface GeneratedArtifact {
   fileName: string;
   mimeType: string;
-  content: BlobPart;
+  content: string | ArrayBuffer | Blob;
 }
 
 export interface GeneratedExportBundle {
@@ -76,41 +76,6 @@ export function createExportMetadata(caseFile: CaseFile): ExportMetadata {
   };
 }
 
-function createStubText(title: string, lines: string[]): string {
-  return [title, "", ...lines].join("\n");
-}
-
-function createPdfStub(caseFile: CaseFile, masterData: MasterData, kind: "zusatz" | "schaetzliste"): string {
-  const pdfModel = createPdfPreviewModel(caseFile, masterData);
-  const header =
-    kind === "zusatz" ? "Zusatz-PDF Platzhalter" : "Schätzlisten-PDF Platzhalter";
-
-  const lines = [
-    `ELB-Nummer: ${caseFile.meta.receiptNumber}`,
-    `Sachbearbeiter: ${pdfModel.clerkLabel || "n/a"}`,
-    `Objekte: ${pdfModel.objectRows.length}`,
-    "Diese Datei ist ein technischer Stub fuer die End-to-End-Pipeline.",
-    "Die finale PDF-Erzeugung wird im naechsten Schritt auf Basis der Vorlagen implementiert."
-  ];
-
-  if (kind === "zusatz" && caseFile.internalInfo.notes.trim()) {
-    lines.push("", "Interne Notizen:", caseFile.internalInfo.notes.trim());
-  }
-
-  return createStubText(header, lines);
-}
-
-function createDocxStub(caseFile: CaseFile, masterData: MasterData): string {
-  const wordModel = createWordPreviewModel(caseFile, masterData);
-  return createStubText("Schätzliste DOCX Platzhalter", [
-    `ELB-Nummer: ${caseFile.meta.receiptNumber}`,
-    `Seiten: ${wordModel.pages.length}`,
-    `Typografie-Ziel: ${wordModel.typography.family}`,
-    "Diese Datei ist ein technischer Stub fuer die End-to-End-Pipeline.",
-    "Die finale DOCX-Erzeugung wird im naechsten Schritt implementiert."
-  ]);
-}
-
 function createImageManifest(caseFile: CaseFile): string {
   return JSON.stringify(
     {
@@ -133,6 +98,8 @@ export async function generateExportBundle(caseFile: CaseFile, masterData: Maste
   const metadata = createExportMetadata(caseFile);
   const elbPdfBytes = await generateElbPdf(caseFile, masterData);
   const supplementPdfBytes = await generateSupplementPdf(caseFile, masterData);
+  const wordDocxBlob = await generateWordDocx(caseFile, masterData);
+  const wordPdfBytes = await generateWordPdf(caseFile, masterData);
 
   return {
     plan,
@@ -161,12 +128,12 @@ export async function generateExportBundle(caseFile: CaseFile, masterData: Maste
       {
         fileName: "schaetzliste.docx",
         mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        content: createDocxStub(caseFile, masterData)
+        content: wordDocxBlob
       },
       {
         fileName: "schaetzliste.pdf",
         mimeType: "application/pdf",
-        content: createPdfStub(caseFile, masterData, "schaetzliste")
+        content: toArrayBuffer(wordPdfBytes)
       },
       {
         fileName: "bilder/manifest.json",
