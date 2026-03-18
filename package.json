@@ -10,10 +10,12 @@
     "desktop:dev": "npm --workspace apps/desktop run dev",
     "desktop:build": "npm --workspace apps/desktop run build",
     "desktop:lint": "npm --workspace apps/desktop run lint",
-    "check:encoding": "node scripts/check-mojibake.mjs"
+    "check:encoding": "node scripts/check-mojibake.mjs",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@types/jszip": "^3.4.0"
+    "@types/jszip": "^3.4.0",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1"

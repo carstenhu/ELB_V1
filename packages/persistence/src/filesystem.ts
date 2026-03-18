@@ -1,4 +1,5 @@
 import { buildFolderName, type Asset, type CaseFile } from "@elb/domain/index";
+import type { AuditEntry } from "@elb/app-core/index";
 import type { AppStorageSnapshot } from "./storage";
 
 interface FileSystemModule {
@@ -14,6 +15,7 @@ interface FileSystemModule {
 const ROOT_DIR = "elb-v1-data";
 const SNAPSHOT_FILE = `${ROOT_DIR}/snapshot.json`;
 const MASTER_DATA_FILE = `${ROOT_DIR}/master-data/master-data.json`;
+const AUDIT_FILE = `${ROOT_DIR}/audit/audit-log.json`;
 const ASSET_REF_PREFIX = "stored://";
 const INDEXED_DB_NAME = "elb-v1-storage";
 const INDEXED_DB_STORE = "files";
@@ -248,6 +250,7 @@ export async function persistSnapshotToDisk(snapshot: AppStorageSnapshot): Promi
 
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, `${ROOT_DIR}/master-data`);
+  await ensureDir(fsModule, `${ROOT_DIR}/audit`);
   await ensureDir(fsModule, `${ROOT_DIR}/cases`);
   await ensureDir(fsModule, `${ROOT_DIR}/archive`);
 
@@ -282,4 +285,18 @@ export async function persistCaseAssetImmediately(caseFile: CaseFile, asset: Ass
     originalPath: asset.originalPath,
     optimizedPath: asset.optimizedPath
   };
+}
+
+export async function loadAuditLogFromDisk(): Promise<AuditEntry[]> {
+  const fsModule = await loadTauriFs();
+  return (await readJsonFile<AuditEntry[]>(fsModule, AUDIT_FILE)) ?? [];
+}
+
+export async function appendAuditEntryToDisk(entry: AuditEntry): Promise<void> {
+  const fsModule = await loadTauriFs();
+  await ensureDir(fsModule, ROOT_DIR);
+  await ensureDir(fsModule, `${ROOT_DIR}/audit`);
+  const currentEntries = (await readJsonFile<AuditEntry[]>(fsModule, AUDIT_FILE)) ?? [];
+  currentEntries.push(entry);
+  await writeJsonFile(fsModule, AUDIT_FILE, currentEntries);
 }

@@ -1,23 +1,25 @@
 # AGENTS.md
 
 ## Ziel
-Dieses Repository arbeitet mit einem einfachen, kontrollierten Workflow:
+Dieses Repository arbeitet mit einem einfachen, direkten Workflow:
 
-- `main` bleibt stabil.
-- Aenderungen laufen ueber kurze Feature-Branches und Pull Requests.
-- Vor einem Merge werden mindestens `lint` und `build` geprueft.
-- Direkte Commits auf `main` sind zu vermeiden.
+- `main` ist der aktive Entwicklungsbranch.
+- Änderungen dürfen direkt auf `main` committed werden.
+- Vor oder direkt nach einem Commit auf `main` sollen mindestens `lint` und `build` geprüft werden.
+- Die CI bleibt als Sicherheitsnetz aktiv.
 
 ## Arbeitsweise
-- Kleine, nachvollziehbare Aenderungen bevorzugen.
-- Keine unnoetige Komplexitaet.
+- Kleine, nachvollziehbare Änderungen bevorzugen.
+- Keine unnötige Komplexität.
 - Konfigurationen und Automationen bewusst schlank halten.
+- Änderungen möglichst in einem klar abgegrenzten Commit halten.
 
-## Vor jedem PR
-- Die in CI definierten Checks lokal oder im PR erfolgreich durchlaufen lassen.
+## Vor einem Push nach `main`
+- Die in CI definierten Checks lokal oder spätestens direkt nach dem Push erfolgreich durchlaufen lassen.
+- Keine halbfertigen oder bewusst kaputten Zwischenstände auf `main` legen.
 
 ## Commit-Regeln
-- Ein Commit soll genau eine klar verstaendliche Aenderung enthalten.
+- Ein Commit soll genau eine klar verständliche Änderung enthalten.
 - Commit-Nachrichten im Imperativ formulieren.
 - Format bevorzugt: `<typ>: <kurze beschreibung>`
 
@@ -28,14 +30,14 @@ Geeignete Typen:
 - `docs`
 - `chore`
 
-## Pull-Request-Regeln
-- Kein Direkt-Merge nach `main` ohne Review.
-- PRs klein halten und mit kurzer Validierung versehen.
-- Im PR kurz festhalten:
-  - was sich aendert
-  - warum sich das aendert
-  - wie es geprueft wurde
+## Pull Requests
+- Pull Requests sind optional, nicht verpflichtend.
+- Für größere, riskantere oder externe Änderungen sind PRs weiterhin sinnvoll.
+- Wenn ein PR verwendet wird, kurz festhalten:
+  - was sich ändert
+  - warum sich das ändert
+  - wie es geprüft wurde
 
 ## Codex-Nutzung
-- Codex fuer klar abgegrenzte Aenderungen, Reviews und CI-nahe Aufgaben nutzen.
-- Keine breit angelegten automatischen Massen-Aenderungen ohne klaren Grund.
+- Codex für klar abgegrenzte Änderungen, Refactorings, Reviews und CI-nahe Aufgaben nutzen.
+- Keine breit angelegten automatischen Massen-Änderungen ohne klaren Grund.

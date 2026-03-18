@@ -1,34 +1,47 @@
 # Empfohlene Workflow-Konfiguration
 
-Diese Datei dokumentiert den bewusst einfachen Zielzustand fuer dieses Repository.
+Diese Datei dokumentiert den bewusst einfachen Zielzustand für dieses Repository.
 
-## 1. Branch Protection fuer `main`
-In GitHub unter `Settings -> Branches -> Add branch protection rule`:
+## 1. Direkt auf `main` arbeiten
+
+Empfohlener Zielzustand:
+
+- direkte Commits auf `main` sind erlaubt
+- Pull Requests sind optional
+- `lint`, `build` und `check:encoding` bleiben Pflicht als Qualitätsnetz
+- Force Push auf `main` bleibt deaktiviert
+
+## 2. GitHub Branch Protection für `main`
+
+In GitHub unter `Settings -> Branches -> Add branch protection rule` oder durch Bearbeiten der bestehenden Regel:
 
 - Branch name pattern: `main`
-- Require a pull request before merging: `on`
-- Require approvals: `1`
-- Dismiss stale approvals when new commits are pushed: `on`
-- Require status checks to pass before merging: `on`
-- Status check `CI / placeholder-checks` auswaehlen, sobald der Workflow einmal gelaufen ist
-- Require branches to be up to date before merging: `on`
+- Require a pull request before merging: `off`
+- Require status checks to pass before merging: optional `on`
+- Wenn Status Checks aktiv bleiben:
+  - `CI / checks` auswählen
 - Allow force pushes: `off`
 - Allow deletions: `off`
 
-## 2. Nur PR-Merges nach `main`
-Empfehlung unter `Settings -> General`:
+Hinweis:
+Wenn du wirklich ohne jede GitHub-Sperre arbeiten willst, kannst du die Protection-Regel auch ganz entfernen. Die robustere Variante ist aber:
 
-- `Squash merge` aktiv lassen
-- `Merge commit` und `Rebase merge` optional deaktivieren, wenn du einen klaren Verlauf willst
+- direkte Pushes erlauben
+- Force Push weiterhin verbieten
+- CI weiterlaufen lassen
 
-## 3. Codex Review aktivieren
-- Codex Review fuer Pull Requests auf `main` aktivieren, falls in deinem GitHub-Setup verfuegbar
-- Codex als zusaetzliche Review-Instanz nutzen, nicht als Ersatz fuer fachliche Freigabe
+## 3. CI für Direkt-Commits
 
-## 4. Automatic Reviews optional
-- Nur aktivieren, wenn du bei jedem PR fruehes Feedback willst
+Die CI sollte sowohl bei Pull Requests als auch bei direkten Pushes auf `main` laufen.
 
-## 5. Commit- und PR-Prompts
+Aktuell prüft die CI:
+
+- `npm run check:encoding`
+- `npm run desktop:lint`
+- `npm run desktop:build`
+
+## 4. Commit- und PR-Vorlagen
+
 Im Repo vorhanden:
 
 - Commit-Template: `.github/commit-template.txt`
@@ -41,17 +54,13 @@ Lokale Aktivierung des Commit-Templates:
 git config commit.template .github/commit-template.txt
 ```
 
-## 6. Codex Action nur fuer klare CI-Aufgaben
-- Nur klar definierte Pruefungen laufen lassen
-- Keine offenen Autofix-Automationen
-- Die aktuelle CI ist absichtlich ein Platzhalter und soll durch deine echten Projektchecks ersetzt werden
+Die PR-Vorlage bleibt als Option für größere Änderungen erhalten, ist aber nicht mehr Teil eines Pflicht-Workflows.
 
-## 7. Meine konkrete Empfehlung
-- Repo mit Branch Protection absichern
-- `AGENTS.md` anlegen
-- Codex Review aktivieren
-- Automatic reviews optional einschalten
-- Force push aus
-- Commit-/PR-Prompts definieren
-- Nur PR-Merges auf `main`
-- Codex Action nur fuer klar definierte CI-Aufgaben
+## 5. Meine konkrete Empfehlung
+
+- direkt auf `main` committen
+- kleine, saubere Commits halten
+- kein Force Push auf `main`
+- CI auf `main` weiterlaufen lassen
+- PRs nur noch für größere oder riskantere Änderungen verwenden
+- Codex weiter nur für klar definierte Aufgaben einsetzen

@@ -1,11 +1,12 @@
 {
-  "name": "@elb/export-core",
+  "name": "@elb/app-core",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
-    "@elb/app-core": "0.1.0",
+    "@elb/domain": "0.1.0",
     "@elb/shared": "0.1.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "zod": "^4.1.5"
   }
 }

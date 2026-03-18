@@ -1,7 +1,10 @@
-<type>: <short summary>
+<type>: <kurze beschreibung>
 
-Why:
-- business or technical reason
+Kontext:
+- warum war die Änderung nötig?
 
-Validation:
-- command or manual check
+Validierung:
+- lokaler Check oder manueller Test
+
+Hinweis:
+- kleine, klar abgegrenzte Commits direkt auf `main`

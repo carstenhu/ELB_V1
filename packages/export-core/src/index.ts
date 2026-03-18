@@ -1,7 +1,9 @@
 import JSZip from "jszip";
+import { createCaseEnvelope } from "@elb/app-core/index";
 import type { CaseFile, MasterData } from "@elb/domain/index";
 import { buildFolderName } from "@elb/domain/index";
 import { generateElbPdf, generateSupplementPdf } from "@elb/pdf-core/index";
+import { getRuntimeConfig } from "@elb/shared/config";
 import { generateWordDocx, generateWordPdf } from "@elb/word-core/index";
 
 export interface ExportArtifactPlan {
@@ -64,8 +66,9 @@ export function createExportPlan(caseFile: CaseFile): ExportPlan {
 }
 
 export function createExportMetadata(caseFile: CaseFile): ExportMetadata {
+  const config = getRuntimeConfig();
   return {
-    appVersion: "0.1.0",
+    appVersion: config.appVersion,
     exportedAt: new Date().toISOString(),
     receiptNumber: caseFile.meta.receiptNumber,
     caseId: caseFile.meta.id,
@@ -108,7 +111,7 @@ export async function generateExportBundle(caseFile: CaseFile, masterData: Maste
       {
         fileName: "payload.json",
         mimeType: "application/json",
-        content: JSON.stringify(caseFile, null, 2)
+        content: JSON.stringify(createCaseEnvelope(caseFile), null, 2)
       },
       {
         fileName: "metadata.json",

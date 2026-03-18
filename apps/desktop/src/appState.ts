@@ -1,5 +1,16 @@
-import { createEmptyCase, createEmptyObject, formatReceiptNumber, isIbidAuction, loadSeedMasterData, type CaseFile, type MasterData } from "@elb/domain/index";
-import { loadSnapshot, saveSnapshot, type AppStorageSnapshot } from "@elb/persistence/storage";
+import {
+  addObjectToCase,
+  type AuditSink,
+  assignAuction,
+  createAuditEntry,
+  createCase,
+  finalizeCase,
+  saveDraftCase,
+  type WorkspaceStateLike
+} from "@elb/app-core/index";
+import { loadSeedMasterData, type CaseFile, type MasterData } from "@elb/domain/index";
+import type { AppStorageSnapshot } from "@elb/persistence/storage";
+import { createLogger } from "@elb/shared/logger";
 
 export interface AppState {
   masterData: MasterData;
@@ -10,11 +21,6 @@ export interface AppState {
 }
 
 function createInitialState(): AppState {
-  const persisted = loadSnapshot();
-  if (persisted) {
-    return persisted;
-  }
-
   return {
     masterData: loadSeedMasterData(),
     activeClerkId: null,
@@ -27,20 +33,25 @@ function createInitialState(): AppState {
 let state = createInitialState();
 const listeners = new Set<() => void>();
 let pendingObjectSelectionId: string | null = null;
+const logger = createLogger("app-state");
+let auditSink: AuditSink | null = null;
+
+export function configureStateServices(services: { auditSink?: AuditSink | null }): void {
+  auditSink = services.auditSink ?? null;
+}
+
+function appendAudit(entry: ReturnType<typeof createAuditEntry>): void {
+  logger.info(entry.summary, entry);
+  if (!auditSink) {
+    return;
+  }
+
+  void auditSink.append(entry).catch((error) => {
+    logger.warn("Audit-Eintrag konnte nicht persistiert werden.", error);
+  });
+}
 
 function emit(): void {
-  const snapshot: AppStorageSnapshot = {
-    masterData: state.masterData,
-    activeClerkId: state.activeClerkId,
-    currentCase: state.currentCase,
-    drafts: state.drafts,
-    finalized: state.finalized
-  };
-  try {
-    saveSnapshot(snapshot);
-  } catch (error) {
-    console.warn("Snapshot konnte nicht lokal gespeichert werden.", error);
-  }
   listeners.forEach((listener) => listener());
 }
 
@@ -74,16 +85,6 @@ export function replaceState(nextState: AppState): void {
   emit();
 }
 
-function nextReceiptNumberForClerk(clerkId: string): string {
-  const allCases = [...state.drafts, ...state.finalized].filter((caseFile) => caseFile.meta.clerkId === clerkId);
-  const maxValue = allCases.reduce((current, caseFile) => {
-    const value = Number.parseInt(caseFile.meta.receiptNumber, 10);
-    return Number.isFinite(value) ? Math.max(current, value) : current;
-  }, 0);
-
-  return formatReceiptNumber(maxValue + 1);
-}
-
 export function selectClerk(clerkId: string): void {
   state = {
     ...state,
@@ -103,26 +104,41 @@ export function createNewCase(): void {
     return;
   }
 
-  const now = new Date().toISOString();
-  const nextCase = createEmptyCase({
-    id: crypto.randomUUID(),
-    clerkId: state.activeClerkId,
-    receiptNumber: nextReceiptNumberForClerk(state.activeClerkId),
-    createdAt: now
-  });
+  const nextCase = createCase(state as WorkspaceStateLike);
 
   state = {
     ...state,
     currentCase: nextCase
   };
+  appendAudit(createAuditEntry({
+    actorId: state.activeClerkId,
+    action: "case.created",
+    entityType: "case",
+    entityId: nextCase.meta.id,
+    summary: `Vorgang ${nextCase.meta.receiptNumber} wurde erstellt.`
+  }));
   emit();
 }
 
 export function updateMasterData(updater: (current: MasterData) => MasterData): void {
+  const previous = state.masterData;
   state = {
     ...state,
     masterData: updater(state.masterData)
   };
+  appendAudit(createAuditEntry({
+    actorId: state.activeClerkId,
+    action: "master-data.updated",
+    entityType: "masterData",
+    entityId: "master-data",
+    summary: "Stammdaten wurden aktualisiert.",
+    metadata: {
+      clerkCount: String(state.masterData.clerks.length),
+      auctionCount: String(state.masterData.auctions.length),
+      departmentCount: String(state.masterData.departments.length),
+      previousClerkCount: String(previous.clerks.length)
+    }
+  }));
   emit();
 }
 
@@ -149,11 +165,19 @@ export function saveDraft(): void {
     return;
   }
 
-  const others = state.drafts.filter((draft) => draft.meta.id !== state.currentCase?.meta.id);
+  const currentCase = state.currentCase;
+
   state = {
     ...state,
-    drafts: [...others, state.currentCase]
+    drafts: saveDraftCase(currentCase, state.drafts)
   };
+  appendAudit(createAuditEntry({
+    actorId: state.activeClerkId,
+    action: "case.draft-saved",
+    entityType: "case",
+    entityId: currentCase.meta.id,
+    summary: `Vorgang ${currentCase.meta.receiptNumber} wurde als Entwurf gespeichert.`
+  }));
   emit();
 }
 
@@ -162,14 +186,7 @@ export function finalizeCurrentCase(): void {
     return;
   }
 
-  const finalizedCase: CaseFile = {
-    ...state.currentCase,
-    meta: {
-      ...state.currentCase.meta,
-      status: "finalized",
-      updatedAt: new Date().toISOString()
-    }
-  };
+  const finalizedCase: CaseFile = finalizeCase(state.currentCase);
 
   state = {
     ...state,
@@ -177,6 +194,13 @@ export function finalizeCurrentCase(): void {
     drafts: state.drafts.filter((draft) => draft.meta.id !== finalizedCase.meta.id),
     finalized: [...state.finalized.filter((item) => item.meta.id !== finalizedCase.meta.id), finalizedCase]
   };
+  appendAudit(createAuditEntry({
+    actorId: state.activeClerkId,
+    action: "case.finalized",
+    entityType: "case",
+    entityId: finalizedCase.meta.id,
+    summary: `Vorgang ${finalizedCase.meta.receiptNumber} wurde finalisiert.`
+  }));
   emit();
 }
 
@@ -187,6 +211,15 @@ export function loadCaseById(id: string): void {
     currentCase: found,
     activeClerkId: found?.meta.clerkId ?? state.activeClerkId
   };
+  if (found) {
+    appendAudit(createAuditEntry({
+      actorId: state.activeClerkId,
+      action: "case.loaded",
+      entityType: "case",
+      entityId: found.meta.id,
+      summary: `Vorgang ${found.meta.receiptNumber} wurde geladen.`
+    }));
+  }
   emit();
 }
 
@@ -195,27 +228,15 @@ export function addObject(): string | null {
     return null;
   }
 
-  const lastObject = state.currentCase.objects.at(-1);
-  const nextAuctionId = lastObject?.auctionId ?? state.masterData.auctions[0]?.id ?? "";
-  const nextDepartmentId = lastObject?.departmentId ?? state.masterData.departments[0]?.id ?? "";
+  const result = addObjectToCase(state.currentCase, state.masterData);
+  pendingObjectSelectionId = result.objectId;
+  state = {
+    ...state,
+    currentCase: result.caseFile
+  };
+  emit();
 
-  const objectId = crypto.randomUUID();
-  pendingObjectSelectionId = objectId;
-
-  updateCurrentCase((current) => ({
-    ...current,
-    objects: [
-      ...current.objects,
-      createEmptyObject({
-        id: objectId,
-        intNumber: formatReceiptNumber(current.objects.length + 1),
-        auctionId: nextAuctionId,
-        departmentId: nextDepartmentId
-      })
-    ]
-  }));
-
-  return objectId;
+  return result.objectId;
 }
 
 export function updateObject(objectId: string, updater: (current: CaseFile["objects"][number]) => CaseFile["objects"][number]): void {
@@ -243,11 +264,9 @@ export function applyAuctionPricingRules(objectId: string): void {
     return;
   }
 
-  const auction = state.masterData.auctions.find((item) => item.id === objectItem.auctionId);
-  const ibid = auction ? isIbidAuction(auction.number) : false;
-
-  updateObject(objectId, (item) => ({
-    ...item,
-    pricingMode: ibid ? "startPrice" : item.pricingMode === "startPrice" ? "limit" : item.pricingMode
-  }));
+  state = {
+    ...state,
+    currentCase: assignAuction(current, state.masterData, objectId, objectItem.auctionId)
+  };
+  emit();
 }

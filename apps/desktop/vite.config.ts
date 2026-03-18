@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@elb/app-core": path.resolve(__dirname, "../../packages/app-core/src"),
       "@elb/domain": path.resolve(__dirname, "../../packages/domain/src"),
       "@elb/export-core": path.resolve(__dirname, "../../packages/export-core/src"),
       "@elb/persistence": path.resolve(__dirname, "../../packages/persistence/src"),

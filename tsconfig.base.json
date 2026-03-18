@@ -15,6 +15,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@elb/app-core/*": ["packages/app-core/src/*"],
       "@elb/domain/*": ["packages/domain/src/*"],
       "@elb/export-core/*": ["packages/export-core/src/*"],
       "@elb/pdf-core/*": ["packages/pdf-core/src/*"],

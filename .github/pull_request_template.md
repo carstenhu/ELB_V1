@@ -1,13 +1,15 @@
-## Summary
-- What changed?
-- Why was it needed?
+## Zusammenfassung
+- Was ändert sich?
+- Warum ist die Änderung nötig?
 
-## Validation
-- [ ] Relevant checks passed
-- [ ] Manual check completed
+## Validierung
+- [ ] Relevante Checks sind gelaufen
+- [ ] Manueller Test wurde durchgeführt
 
-## Review Focus
-- Anything reviewers should pay special attention to?
+## Fokus für Review
+- Worauf sollte besonders geachtet werden?
 
-## Notes
-- Risks, follow-ups, or limitations
+## Hinweise
+- Risiken, offene Punkte oder Follow-ups
+
+> Pull Requests sind in diesem Repo optional und vor allem für größere oder riskantere Änderungen gedacht.

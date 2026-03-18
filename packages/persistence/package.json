@@ -2,6 +2,8 @@
   "name": "@elb/persistence",
   "private": true,
   "version": "0.1.0",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@elb/app-core": "0.1.0"
+  }
 }
-

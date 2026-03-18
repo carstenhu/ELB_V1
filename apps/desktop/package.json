@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@elb/app-core": "0.1.0",
     "@elb/domain": "0.1.0",
     "@elb/export-core": "0.1.0",
     "@elb/persistence": "0.1.0",

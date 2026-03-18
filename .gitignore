@@ -8,4 +8,6 @@ apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/.cargo/
 data/
-
+tmp_koller/
+tmp_koller.zip
+*.tsbuildinfo
