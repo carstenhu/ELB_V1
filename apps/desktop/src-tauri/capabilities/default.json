@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Erlaubt dem Hauptfenster lokalen Zugriff auf App-Daten für Persistenz, Bilder und Exporte.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "fs:default",
+    "fs:allow-applocaldata-read-recursive",
+    "fs:allow-applocaldata-write-recursive"
+  ]
+}

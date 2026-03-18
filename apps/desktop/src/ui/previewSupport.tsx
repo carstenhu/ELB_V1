@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { invoke } from "@tauri-apps/api/core";
 import type { ReactNode } from "react";
 import { requireCaseReadyForExport } from "@elb/app-core/index";
 import { createExportZip, generateExportBundle } from "@elb/export-core/index";
@@ -217,6 +218,15 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
 export function PreviewActionButtons(props: { caseFile: CaseFile; onExportStatusChange: (value: string) => void }) {
   const state = useAppState();
 
+  async function handleOpenDataFolder(): Promise<void> {
+    try {
+      const path = await invoke<string>("open_data_directory");
+      props.onExportStatusChange(`Datenordner geöffnet: ${path}`);
+    } catch {
+      props.onExportStatusChange("Datenordner kann nur in der echten Tauri-App geöffnet werden.");
+    }
+  }
+
   async function handleExportArtifacts(): Promise<void> {
     try {
       requireCaseReadyForExport(props.caseFile, state.masterData);
@@ -253,6 +263,7 @@ export function PreviewActionButtons(props: { caseFile: CaseFile; onExportStatus
 
   return (
     <>
+      <button onClick={() => void handleOpenDataFolder()}>Datenordner öffnen</button>
       <button onClick={() => saveDraft()}>Entwurf speichern</button>
       <button onClick={() => void handleOpenPdf()}>PDF anzeigen</button>
       <button onClick={() => void handleExportArtifacts()}>ZIP finalisieren</button>

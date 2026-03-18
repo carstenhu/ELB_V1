@@ -383,7 +383,7 @@ export async function loadAuditLogFromDisk(): Promise<AuditEntry[]> {
 export async function appendAuditEntryToDisk(entry: AuditEntry): Promise<void> {
   const fsModule = await loadTauriFs();
   await ensureDir(fsModule, ROOT_DIR);
-  await ensureDir(fsModule, `${ROOT_DIR}/audit`);
+  await ensureDir(fsModule, `${ROOT_DIR}/Audit`);
   const currentEntries = (await readJsonFile<AuditEntry[]>(fsModule, AUDIT_FILE)) ?? [];
   currentEntries.push(entry);
   await writeJsonFile(fsModule, AUDIT_FILE, currentEntries);
