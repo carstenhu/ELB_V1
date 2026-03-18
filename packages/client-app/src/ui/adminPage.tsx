@@ -1,8 +1,8 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
+import { normalizeRequiredFieldKeys } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
-import { createSnapshot, hasAdminAccess, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
-import { persistSnapshotToDisk } from "@elb/persistence/filesystem";
-import { SignaturePadEditor } from "./formSupport";
+import { hasAdminAccess, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
+import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
 import { useAppState } from "../useAppState";
 import { useState } from "react";
 
@@ -67,7 +67,7 @@ export function AdminPage() {
               onChange={(event) =>
                 updateMasterData((current) => ({
                   ...current,
-                  globalPdfRequiredFields: event.target.value.split("\n").map((value) => value.trim()).filter(Boolean)
+                  globalPdfRequiredFields: normalizeRequiredFieldKeys(event.target.value.split("\n"))
                 }))
               }
             />
@@ -92,15 +92,24 @@ export function AdminPage() {
                     <input value={clerk.phone} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, phone: event.target.value } : item)) }))} />
                   </Field>
                 </div>
-                <Field label="Signatur" full>
-                  <SignaturePadEditor
-                    value={clerk.signaturePng}
-                    onChange={(dataUrl) => {
-                      updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item)) }));
-                      void persistSnapshotToDisk(createSnapshot());
-                    }}
-                  />
-                </Field>
+                <PdfSignatureEditor
+                  title="Signatur"
+                  value={clerk.signaturePng}
+                  description="Die Signatur wird beim Uebernehmen im Sachbearbeiter gespeichert und danach automatisch in PDFs verwendet."
+                  onClose={() => {}}
+                  onClear={() =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: "" } : item))
+                    }))
+                  }
+                  onSave={(dataUrl) =>
+                    updateMasterData((current) => ({
+                      ...current,
+                      clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
+                    }))
+                  }
+                />
                 {references.length ? <p className="field-warning">{buildReferenceHint(references.map((item) => item.receiptNumber))}</p> : null}
                 <div className="inline-actions">
                   <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, clerks: current.clerks.filter((item) => item.id !== clerk.id) }))}>

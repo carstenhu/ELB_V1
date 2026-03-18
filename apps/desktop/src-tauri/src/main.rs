@@ -20,6 +20,30 @@ fn get_data_directory_path(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn open_app_local_data_path(app: AppHandle, relative_path: String) -> Result<String, String> {
+    let target_path = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| format!("App-Datenpfad konnte nicht ermittelt werden: {error}"))?
+        .join(&relative_path);
+
+    if !target_path.exists() {
+        return Err(format!(
+            "Datei konnte nicht geoeffnet werden, weil sie nicht existiert: {}",
+            target_path.to_string_lossy()
+        ));
+    }
+
+    Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(&target_path)
+        .spawn()
+        .map_err(|error| format!("Datei konnte nicht geoeffnet werden: {error}"))?;
+
+    Ok(target_path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
 fn open_data_directory(app: AppHandle) -> Result<String, String> {
     let data_dir = resolve_data_dir(&app)?;
     fs::create_dir_all(&data_dir)
@@ -39,6 +63,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             get_data_directory_path,
+            open_app_local_data_path,
             open_data_directory
         ])
         .run(tauri::generate_context!())

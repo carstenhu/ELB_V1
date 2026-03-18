@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   caseFileSchema,
+  collectMissingRequiredFields,
   deriveBeneficiary,
   deriveOwner,
   type CaseFile,
   type MasterData,
+  type MissingRequiredField,
   type ObjectItem
 } from "@elb/domain/index";
 import { validateCaseReferenceIntegrity } from "./references";
@@ -40,7 +42,7 @@ export function validateMasterDataConsistency(masterData: MasterData): Validatio
         scope: "domain",
         severity: "error",
         path: `clerks.${index}.id`,
-        message: "Sachbearbeiter-IDs müssen eindeutig sein."
+        message: "Sachbearbeiter-IDs muessen eindeutig sein."
       });
     }
     clerkIds.add(clerk.id);
@@ -53,7 +55,7 @@ export function validateMasterDataConsistency(masterData: MasterData): Validatio
         scope: "domain",
         severity: "error",
         path: `auctions.${index}.id`,
-        message: "Auktions-IDs müssen eindeutig sein."
+        message: "Auktions-IDs muessen eindeutig sein."
       });
     }
     auctionIds.add(auction.id);
@@ -66,7 +68,7 @@ export function validateMasterDataConsistency(masterData: MasterData): Validatio
         scope: "domain",
         severity: "error",
         path: `departments.${index}.id`,
-        message: "Abteilungs-IDs müssen eindeutig sein."
+        message: "Abteilungs-IDs muessen eindeutig sein."
       });
     }
     departmentIds.add(department.id);
@@ -116,7 +118,7 @@ function validateConsignor(caseFile: CaseFile): ValidationIssue[] {
       scope: "domain",
       severity: "error",
       path: "consignor",
-      message: "Für Privatadressen muss ein Vor- oder Nachname vorhanden sein."
+      message: "Fuer Privatadressen muss ein Vor- oder Nachname vorhanden sein."
     });
   }
 
@@ -136,7 +138,7 @@ function validateConsignor(caseFile: CaseFile): ValidationIssue[] {
       scope: "domain",
       severity: "error",
       path: "consignor.vatNumber",
-      message: "Für MwSt-Kategorie C ist eine MwSt-Nr. erforderlich."
+      message: "Fuer MwSt-Kategorie C ist eine MwSt-Nr. erforderlich."
     });
   }
 
@@ -155,7 +157,7 @@ function validateOwner(caseFile: CaseFile): ValidationIssue[] {
         scope: "domain",
         severity: "error",
         path: "owner.lastName",
-        message: "Für einen separaten Eigentümer ist der Nachname erforderlich."
+        message: "Fuer einen separaten Eigentuemer ist der Nachname erforderlich."
       });
     }
   }
@@ -173,7 +175,7 @@ function validateBank(caseFile: CaseFile): ValidationIssue[] {
       scope: "domain",
       severity: "error",
       path: "bank.beneficiaryOverride.reason",
-      message: "Für einen abweichenden Begünstigten muss ein Grund erfasst werden."
+      message: "Fuer einen abweichenden Beguenstigten muss ein Grund erfasst werden."
     });
   }
 
@@ -183,7 +185,7 @@ function validateBank(caseFile: CaseFile): ValidationIssue[] {
       scope: "domain",
       severity: "error",
       path: "bank.beneficiaryOverride.name",
-      message: "Sobald ein Grund erfasst ist, muss auch der Name des Begünstigten gesetzt werden."
+      message: "Sobald ein Grund erfasst ist, muss auch der Name des Beguenstigten gesetzt werden."
     });
   }
 
@@ -193,7 +195,7 @@ function validateBank(caseFile: CaseFile): ValidationIssue[] {
       scope: "domain",
       severity: "warning",
       path: "bank.beneficiary",
-      message: "Es konnte kein Begünstigter aus den erfassten Daten abgeleitet werden."
+      message: "Es konnte kein Beguenstigter aus den erfassten Daten abgeleitet werden."
     });
   }
 
@@ -209,7 +211,7 @@ function validateObject(objectItem: ObjectItem, index: number): ValidationIssue[
       scope: "domain",
       severity: "error",
       path: `objects.${index}.intNumber`,
-      message: `Objekt ${index + 1} benötigt eine Int.-Nr.`
+      message: `Objekt ${index + 1} benoetigt eine Int.-Nr.`
     });
   }
 
@@ -219,7 +221,7 @@ function validateObject(objectItem: ObjectItem, index: number): ValidationIssue[
       scope: "domain",
       severity: "error",
       path: `objects.${index}.auctionId`,
-      message: `Objekt ${index + 1} benötigt eine Auktion.`
+      message: `Objekt ${index + 1} benoetigt eine Auktion.`
     });
   }
 
@@ -229,7 +231,7 @@ function validateObject(objectItem: ObjectItem, index: number): ValidationIssue[
       scope: "domain",
       severity: "error",
       path: `objects.${index}.departmentId`,
-      message: `Objekt ${index + 1} benötigt eine Abteilung.`
+      message: `Objekt ${index + 1} benoetigt eine Abteilung.`
     });
   }
 
@@ -252,67 +254,61 @@ export function validateCaseBusinessRules(caseFile: CaseFile): ValidationReport 
 
 export function validateCaseForExport(caseFile: CaseFile, masterData: MasterData): ValidationReport {
   const issues: ValidationIssue[] = [...validateMasterDataConsistency(masterData).issues, ...validateCaseReferenceIntegrity(caseFile, masterData)];
-
-  for (const field of masterData.globalPdfRequiredFields) {
-    if (field === "meta.receiptNumber" && !caseFile.meta.receiptNumber.trim()) {
-      issues.push({ code: "RECEIPT_REQUIRED", scope: "export", severity: "error", path: field, message: "Die ELB-Nummer fehlt." });
-    }
-    if (field === "meta.clerkId" && !caseFile.meta.clerkId.trim()) {
-      issues.push({ code: "CLERK_REQUIRED", scope: "export", severity: "error", path: field, message: "Ein Sachbearbeiter ist erforderlich." });
-    }
-    if (field === "consignor.lastName" && !caseFile.consignor.lastName.trim() && !caseFile.consignor.company.trim()) {
-      issues.push({ code: "CONSIGNOR_IDENTITY_REQUIRED", scope: "export", severity: "error", path: field, message: "Einlieferername oder Firma fehlt." });
-    }
-    if (field === "consignor.street" && !caseFile.consignor.street.trim()) {
-      issues.push({ code: "CONSIGNOR_STREET_REQUIRED", scope: "export", severity: "error", path: field, message: "Die Straße des Einlieferers fehlt." });
-    }
-    if (field === "consignor.zip" && !caseFile.consignor.zip.trim()) {
-      issues.push({ code: "CONSIGNOR_ZIP_REQUIRED", scope: "export", severity: "error", path: field, message: "Die PLZ des Einlieferers fehlt." });
-    }
-    if (field === "consignor.city" && !caseFile.consignor.city.trim()) {
-      issues.push({ code: "CONSIGNOR_CITY_REQUIRED", scope: "export", severity: "error", path: field, message: "Die Stadt des Einlieferers fehlt." });
-    }
-    if (field === "bank.beneficiaryOverride.reason" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.reason.trim()) {
-      issues.push({ code: "BENEFICIARY_OVERRIDE_REASON_REQUIRED", scope: "export", severity: "error", path: field, message: "Der Grund für den abweichenden Begünstigten fehlt." });
-    }
-    if (field === "bank.beneficiaryOverride.name" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.name.trim()) {
-      issues.push({ code: "BENEFICIARY_OVERRIDE_NAME_REQUIRED", scope: "export", severity: "error", path: field, message: "Der Name des abweichenden Begünstigten fehlt." });
-    }
+  issues.push(...collectMissingRequiredFields(caseFile, masterData.globalPdfRequiredFields).map(toExportValidationIssue));
+  if (!caseFile.objects.length && !issues.some((issue) => issue.path === "objects")) {
+    issues.push(toExportValidationIssue({ key: "objects[].create", label: "Mindestens ein Objekt", inputKind: "action" }));
   }
-
-  if (!caseFile.objects.length) {
-    issues.push({
-      code: "AT_LEAST_ONE_OBJECT_REQUIRED",
-      scope: "export",
-      severity: "error",
-      path: "objects",
-      message: "Für den Export ist mindestens ein Objekt erforderlich."
-    });
-  }
-
-  caseFile.objects.forEach((objectItem, index) => {
-    if (!objectItem.shortDescription.trim()) {
-      issues.push({
-        code: "OBJECT_SHORT_DESCRIPTION_REQUIRED",
-        scope: "export",
-        severity: "error",
-        path: `objects.${index}.shortDescription`,
-        message: `Objekt ${index + 1} benötigt einen Kurzbeschrieb.`
-      });
-    }
-    if (!objectItem.estimate.low.trim() || !objectItem.estimate.high.trim()) {
-      issues.push({
-        code: "OBJECT_ESTIMATE_REQUIRED",
-        scope: "export",
-        severity: "error",
-        path: `objects.${index}.estimate`,
-        message: `Objekt ${index + 1} benötigt eine vollständige Schätzung.`
-      });
-    }
-  });
 
   return {
     isValid: issues.every((issue) => issue.severity !== "error"),
     issues
   };
+}
+
+function toExportValidationIssue(entry: MissingRequiredField): ValidationIssue {
+  if (entry.key === "objects[].create") {
+    return {
+      code: "AT_LEAST_ONE_OBJECT_REQUIRED",
+      scope: "export",
+      severity: "error",
+      path: "objects",
+      message: "Fuer den Export ist mindestens ein Objekt erforderlich."
+    };
+  }
+
+  if (entry.key === "meta.receiptNumber") {
+    return { code: "RECEIPT_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die ELB-Nummer fehlt." };
+  }
+  if (entry.key === "meta.clerkId") {
+    return { code: "CLERK_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Ein Sachbearbeiter ist erforderlich." };
+  }
+  if (entry.key === "consignor.lastName") {
+    return { code: "CONSIGNOR_IDENTITY_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Einlieferername oder Firma fehlt." };
+  }
+  if (entry.key === "consignor.street") {
+    return { code: "CONSIGNOR_STREET_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die Strasse des Einlieferers fehlt." };
+  }
+  if (entry.key === "consignor.zip") {
+    return { code: "CONSIGNOR_ZIP_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die PLZ des Einlieferers fehlt." };
+  }
+  if (entry.key === "consignor.city") {
+    return { code: "CONSIGNOR_CITY_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die Stadt des Einlieferers fehlt." };
+  }
+  if (entry.key === "bank.beneficiaryOverride.reason") {
+    return { code: "BENEFICIARY_OVERRIDE_REASON_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Der Grund fuer den abweichenden Beguenstigten fehlt." };
+  }
+  if (entry.key === "bank.beneficiaryOverride.name") {
+    return { code: "BENEFICIARY_OVERRIDE_NAME_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Der Name des abweichenden Beguenstigten fehlt." };
+  }
+  if (entry.key === "objects[].departmentId") {
+    return { code: "OBJECT_DEPARTMENT_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.departmentId`, message: `${entry.label} fehlt.` };
+  }
+  if (entry.key === "objects[].shortDescription") {
+    return { code: "OBJECT_SHORT_DESCRIPTION_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.shortDescription`, message: `${entry.label} fehlt.` };
+  }
+  if (entry.key === "objects[].estimate.low") {
+    return { code: "OBJECT_ESTIMATE_LOW_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.estimate.low`, message: `${entry.label} fehlt.` };
+  }
+
+  return { code: "OBJECT_ESTIMATE_HIGH_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.estimate.high`, message: `${entry.label} fehlt.` };
 }

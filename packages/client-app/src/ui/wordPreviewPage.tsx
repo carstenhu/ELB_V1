@@ -1,10 +1,35 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { type CaseFile } from "@elb/domain/index";
 import { createExportPlan } from "@elb/export-core/index";
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { createWordPreviewModel, loadWordTemplateAssets } from "@elb/word-core/index";
+import { getRequiredFieldEntries } from "../features/preview/requiredFields";
 import { useAppState } from "../useAppState";
-import { ExportStatusCard, getRequiredFieldEntries, PreviewActionButtons, RequiredFieldsModal } from "./previewSupport";
+import { ExportStatusCard } from "./ExportStatusCard";
+
+const PreviewActionButtons = lazy(async () => {
+  const module = await import("../features/preview/PreviewActionButtons");
+  return { default: module.PreviewActionButtons };
+});
+
+const RequiredFieldsModal = lazy(async () => {
+  const module = await import("../features/preview/RequiredFieldsModal");
+  return { default: module.RequiredFieldsModal };
+});
+
+function PreviewActionsFallback() {
+  return <span>Aktionen werden geladen...</span>;
+}
+
+function RequiredFieldsFallback() {
+  return (
+    <div className="pin-modal">
+      <div className="overlay__card">
+        <p>Pflichtfelder werden geladen...</p>
+      </div>
+    </div>
+  );
+}
 
 function WordTemplatePageView(props: {
   headerImageSrc: string;
@@ -122,10 +147,18 @@ export function WordTemplatePreviewPage(props: {
           missingRequiredFields={requiredEntries.map((entry) => entry.label)}
           exportStatus={props.exportStatus}
           onCaptureMissing={() => setRequiredFieldsOpen(true)}
-          actions={<PreviewActionButtons caseFile={props.caseFile} onExportStatusChange={props.onExportStatusChange} />}
+          actions={
+            <Suspense fallback={<PreviewActionsFallback />}>
+              <PreviewActionButtons caseFile={props.caseFile} onExportStatusChange={props.onExportStatusChange} />
+            </Suspense>
+          }
         />
       </div>
-      {requiredFieldsOpen ? <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} /> : null}
+      {requiredFieldsOpen ? (
+        <Suspense fallback={<RequiredFieldsFallback />}>
+          <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

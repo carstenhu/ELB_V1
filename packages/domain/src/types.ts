@@ -9,6 +9,7 @@ import {
   receiptNumberSchema,
   vatCategorySchema
 } from "./valueObjects";
+import { requiredFieldKeySchema } from "./requiredFields";
 
 export const pageIdSchema = z.enum([
   "consignor",
@@ -56,7 +57,11 @@ export const masterDataSchema = z.object({
   auctions: z.array(auctionSchema),
   departments: z.array(departmentSchema),
   titles: z.array(z.string()),
-  globalPdfRequiredFields: z.array(z.string()),
+  globalPdfRequiredFields: z.array(z.string()).transform((values) =>
+    values
+      .map((value) => value.trim())
+      .filter((value): value is z.infer<typeof requiredFieldKeySchema> => requiredFieldKeySchema.safeParse(value).success)
+  ),
   adminPin: adminPinSchema,
 });
 

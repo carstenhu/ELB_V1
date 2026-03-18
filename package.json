@@ -13,6 +13,10 @@
     "desktop:tauri:build": "npm exec tauri build -- --config apps/desktop/src-tauri/tauri.conf.json",
     "desktop:build": "npm --workspace apps/desktop run build",
     "desktop:lint": "npm --workspace apps/desktop run lint",
+    "web:dev": "npm --workspace apps/web run dev",
+    "web:build": "npm --workspace apps/web run build",
+    "web:preview": "npm --workspace apps/web run preview",
+    "web:lint": "npm --workspace apps/web run lint",
     "check:encoding": "node scripts/check-mojibake.mjs",
     "test": "vitest run --passWithNoTests=false",
     "verify": "npm run check:encoding && npm run desktop:lint && npm run test && npm run desktop:build"

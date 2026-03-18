@@ -1,9 +1,3 @@
-import type { CaseFile, MasterData } from "@elb/domain/index";
+import type { WorkspaceSnapshot } from "@elb/app-core/index";
 
-export interface AppStorageSnapshot {
-  masterData: MasterData;
-  activeClerkId: string | null;
-  currentCase: CaseFile | null;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
-}
+export type AppStorageSnapshot = WorkspaceSnapshot;

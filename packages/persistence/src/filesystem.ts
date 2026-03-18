@@ -45,6 +45,27 @@ function getCaseFolder(caseFile: CaseFile): string {
   return `${ROOT_DIR}/Sachbearbeiter/${getClerkFolderSegment(caseFile.meta.clerkId)}/Vorgaenge/${buildFolderName(caseFile.consignor.lastName, caseFile.consignor.firstName, caseFile.meta.receiptNumber)}`;
 }
 
+function createTimestampSegment(): string {
+  return new Date()
+    .toISOString()
+    .replaceAll(":", "-")
+    .replaceAll(".", "-")
+    .replace("T", "_")
+    .replace("Z", "");
+}
+
+function splitFileName(fileName: string): { name: string; extension: string } {
+  const lastDotIndex = fileName.lastIndexOf(".");
+  if (lastDotIndex <= 0) {
+    return { name: fileName, extension: "" };
+  }
+
+  return {
+    name: fileName.slice(0, lastDotIndex),
+    extension: fileName.slice(lastDotIndex)
+  };
+}
+
 async function loadTauriFs(): Promise<FileSystemModule | null> {
   const tauriFlag = Reflect.get(globalThis as object, "__TAURI_INTERNALS__");
   if (!tauriFlag) {
@@ -350,18 +371,20 @@ export async function persistExportArtifactsToDisk(args: {
   artifacts: Array<{ fileName: string; content: string | ArrayBuffer | Blob | Uint8Array }>;
   zipFileName: string;
   zipContent: Blob | ArrayBuffer | Uint8Array;
-}): Promise<void> {
+}): Promise<string> {
   const fsModule = await loadTauriFs();
   const caseFolder = getCaseFolder(args.caseFile);
   const exportsFolder = `${caseFolder}/Exporte`;
+  const exportRunFolder = `${exportsFolder}/Export_${createTimestampSegment()}`;
 
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, `${ROOT_DIR}/Sachbearbeiter`);
   await ensureDir(fsModule, caseFolder);
   await ensureDir(fsModule, exportsFolder);
+  await ensureDir(fsModule, exportRunFolder);
 
   for (const artifact of args.artifacts) {
-    const targetPath = `${exportsFolder}/${artifact.fileName}`;
+    const targetPath = `${exportRunFolder}/${artifact.fileName}`;
     await ensureParentDir(fsModule, targetPath);
 
     if (typeof artifact.content === "string") {
@@ -372,7 +395,29 @@ export async function persistExportArtifactsToDisk(args: {
     await writeBinaryData(fsModule, targetPath, await toBytes(artifact.content));
   }
 
-  await writeBinaryData(fsModule, `${exportsFolder}/${args.zipFileName}`, await toBytes(args.zipContent));
+  await writeBinaryData(fsModule, `${exportRunFolder}/${args.zipFileName}`, await toBytes(args.zipContent));
+
+  return exportRunFolder;
+}
+
+export async function persistGeneratedPdfToDisk(args: {
+  caseFile: CaseFile;
+  fileName: string;
+  pdfContent: Blob | ArrayBuffer | Uint8Array;
+}): Promise<string> {
+  const fsModule = await loadTauriFs();
+  const caseFolder = getCaseFolder(args.caseFile);
+  const previewFolder = `${caseFolder}/Vorschau`;
+  const parsedFileName = splitFileName(args.fileName);
+  const targetPath = `${previewFolder}/${parsedFileName.name}-${createTimestampSegment()}${parsedFileName.extension}`;
+
+  await ensureDir(fsModule, ROOT_DIR);
+  await ensureDir(fsModule, `${ROOT_DIR}/Sachbearbeiter`);
+  await ensureDir(fsModule, caseFolder);
+  await ensureDir(fsModule, previewFolder);
+  await writeBinaryData(fsModule, targetPath, await toBytes(args.pdfContent));
+
+  return targetPath;
 }
 
 export async function loadAuditLogFromDisk(): Promise<AuditEntry[]> {

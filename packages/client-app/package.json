@@ -1,0 +1,18 @@
+{
+  "name": "@elb/client-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@elb/app-core": "0.1.0",
+    "@elb/domain": "0.1.0",
+    "@elb/export-core": "0.1.0",
+    "@elb/pdf-core": "0.1.0",
+    "@elb/shared": "0.1.0",
+    "@elb/ui": "0.1.0",
+    "@elb/word-core": "0.1.0",
+    "pdfjs-dist": "^5.4.296",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

@@ -1,11 +1,12 @@
 {
-  "name": "desktop",
+  "name": "web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && vite build",
+    "preview": "vite preview",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -18,9 +19,6 @@
     "@elb/shared": "0.1.0",
     "@elb/ui": "0.1.0",
     "@elb/word-core": "0.1.0",
-    "@tauri-apps/api": "^2.8.0",
-    "@tauri-apps/plugin-dialog": "^2.4.2",
-    "@tauri-apps/plugin-fs": "^2.4.1",
     "pdfjs-dist": "^5.4.296",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

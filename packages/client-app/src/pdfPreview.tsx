@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { type CaseFile, type MasterData } from "@elb/domain/index";
 import { buildObjectPageChunks, createPdfPreviewModel, generateElbPdf, getPdfHotspotMap, type ObjectPageChunk, type PdfHotspotMap } from "@elb/pdf-core/index";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface RenderedPage {
   pageNumber: number;
@@ -33,6 +30,21 @@ interface HotspotDefinition {
   width: string;
   height: string;
   target: PdfEditTarget;
+}
+
+type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+
+let pdfJsLoader: Promise<PdfJsModule> | null = null;
+
+async function loadPdfJs(): Promise<PdfJsModule> {
+  if (!pdfJsLoader) {
+    pdfJsLoader = import("pdfjs-dist/legacy/build/pdf.mjs").then((module) => {
+      module.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+      return module;
+    });
+  }
+
+  return pdfJsLoader;
 }
 
 function toCssRect(rect: PdfHotspotMap[keyof PdfHotspotMap]) {
@@ -113,6 +125,7 @@ export function PdfCanvasPreview(props: {
     async function renderPreview(): Promise<void> {
       try {
         setStatus("PDF-Vorschau wird erzeugt...");
+        const pdfjsLib = await loadPdfJs();
         const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
         const chunks = await buildObjectPageChunks(previewModel.objectRows);
         const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
