@@ -61,7 +61,7 @@ const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
-let templateAssetsPromise: Promise<{ backgroundImageSrc: string }> | null = null;
+let templateAssetsPromise: Promise<{ headerImageSrc: string }> | null = null;
 
 function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, followPageBudget: number): WordPreviewRow[][] {
   const pages: WordPreviewRow[][] = [];
@@ -108,7 +108,7 @@ function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPrev
     .join(" - ");
 
   const detailLines = Math.max(details.length, 1);
-  const photoRows = photos.length ? Math.ceil(photos.length / 4) : 0;
+  const photoRows = photos[0] ? 1 : 0;
   const heightUnits = BASE_ROW_UNITS + detailLines * DETAIL_LINE_UNITS + photoRows * PHOTO_ROW_UNITS;
 
   return {
@@ -154,14 +154,14 @@ async function readZipDataUrl(zip: JSZip, path: string): Promise<string> {
   return `data:${mimeType};base64,${base64}`;
 }
 
-export async function loadWordTemplateAssets(): Promise<{ backgroundImageSrc: string }> {
+export async function loadWordTemplateAssets(): Promise<{ headerImageSrc: string }> {
   if (!templateAssetsPromise) {
     templateAssetsPromise = (async () => {
       const response = await fetch(templateDocxUrl);
       const buffer = await response.arrayBuffer();
       const zip = await JSZip.loadAsync(buffer);
-      const backgroundImageSrc = await readZipDataUrl(zip, "word/media/image2.jpg");
-      return { backgroundImageSrc };
+      const headerImageSrc = await readZipDataUrl(zip, "word/media/image2.jpg");
+      return { headerImageSrc };
     })();
   }
 
@@ -418,31 +418,20 @@ async function drawPdfRow(page: PDFPage, pdfDocument: PDFDocument, font: PDFFont
     cursorY = drawWrappedText(page, font, detail, titleX, cursorY, titleWidth, 11, 9, rgb(0.32, 0.39, 0.36));
   });
 
-  if (row.photos.length) {
+  if (row.primaryPhoto) {
     const photoSize = 72;
-    const gap = 10;
     let photoY = cursorY - photoSize - 4;
-    for (let index = 0; index < row.photos.length; index += 1) {
-      const photo = row.photos[index];
-      if (!photo) {
-        continue;
-      }
-      const column = index % 4;
-      const rowIndex = Math.floor(index / 4);
-      const photoX = titleX + column * (photoSize + gap);
-      const currentY = photoY - rowIndex * (photoSize + gap);
-      // eslint-disable-next-line no-await-in-loop
-      await drawPdfPhoto(page, pdfDocument, photo, photoX, currentY, photoSize);
-      page.drawRectangle({
-        x: photoX,
-        y: currentY,
-        width: photoSize,
-        height: photoSize,
-        borderColor: rgb(0.84, 0.86, 0.83),
-        borderWidth: 0.6
-      });
-    }
-    cursorY = photoY - Math.floor((row.photos.length - 1) / 4) * (photoSize + gap) - 18;
+    const photoX = titleX;
+    await drawPdfPhoto(page, pdfDocument, row.primaryPhoto, photoX, photoY, photoSize);
+    page.drawRectangle({
+      x: photoX,
+      y: photoY,
+      width: photoSize,
+      height: photoSize,
+      borderColor: rgb(0.84, 0.86, 0.83),
+      borderWidth: 0.6
+    });
+    cursorY = photoY - 18;
   }
 
   page.drawLine({

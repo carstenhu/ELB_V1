@@ -10,18 +10,23 @@ interface FileSystemModule {
   mkdir(path: string, options?: { baseDir?: number | string; recursive?: boolean }): Promise<void>;
   readTextFile(path: string, options?: { baseDir?: number | string }): Promise<string>;
   writeTextFile(path: string, data: string, options?: { baseDir?: number | string }): Promise<void>;
+  writeFile?(path: string, data: Uint8Array, options?: { baseDir?: number | string }): Promise<void>;
 }
 
-const ROOT_DIR = "elb-v1-data";
+const ROOT_DIR = "Daten";
 const SNAPSHOT_FILE = `${ROOT_DIR}/snapshot.json`;
-const MASTER_DATA_FILE = `${ROOT_DIR}/master-data/master-data.json`;
-const AUDIT_FILE = `${ROOT_DIR}/audit/audit-log.json`;
+const MASTER_DATA_FILE = `${ROOT_DIR}/Stammdaten/master-data.json`;
+const AUDIT_FILE = `${ROOT_DIR}/Audit/audit-log.json`;
 const ASSET_REF_PREFIX = "stored://";
 const INDEXED_DB_NAME = "elb-v1-storage";
 const INDEXED_DB_STORE = "files";
 
 function getBrowserStorageKey(path: string): string {
   return `elb.v1.fs.${path}`;
+}
+
+function getClerkFolderSegment(clerkId: string): string {
+  return clerkId.trim() || "unassigned";
 }
 
 function toStoredRef(path: string): string {
@@ -37,7 +42,7 @@ function fromStoredRef(path: string): string {
 }
 
 function getCaseFolder(caseFile: CaseFile): string {
-  return `${ROOT_DIR}/cases/${buildFolderName(caseFile.consignor.lastName, caseFile.consignor.firstName, caseFile.meta.receiptNumber)}`;
+  return `${ROOT_DIR}/Sachbearbeiter/${getClerkFolderSegment(caseFile.meta.clerkId)}/Vorgaenge/${buildFolderName(caseFile.consignor.lastName, caseFile.consignor.firstName, caseFile.meta.receiptNumber)}`;
 }
 
 async function loadTauriFs(): Promise<FileSystemModule | null> {
@@ -127,6 +132,29 @@ async function writeTextData(fsModule: FileSystemModule | null, path: string, da
   await indexedDbWrite(path, data);
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, Math.min(index + chunkSize, bytes.length));
+    binary += String.fromCharCode(...chunk);
+  }
+
+  return btoa(binary);
+}
+
+async function writeBinaryData(fsModule: FileSystemModule | null, path: string, data: Uint8Array): Promise<void> {
+  if (fsModule?.writeFile) {
+    await fsModule.writeFile(path, data, {
+      baseDir: fsModule.BaseDirectory.AppLocalData
+    });
+    return;
+  }
+
+  await indexedDbWrite(path, `base64:${bytesToBase64(data)}`);
+}
+
 async function readTextData(fsModule: FileSystemModule | null, path: string): Promise<string | null> {
   if (fsModule) {
     const exists = await fsModule.exists(path, {
@@ -153,10 +181,35 @@ async function readJsonFile<T>(fsModule: FileSystemModule | null, path: string):
   return raw ? (JSON.parse(raw) as T) : null;
 }
 
+async function ensureParentDir(fsModule: FileSystemModule | null, path: string): Promise<void> {
+  const parts = path.split("/").slice(0, -1);
+  if (!parts.length) {
+    return;
+  }
+
+  let currentPath = "";
+  for (const part of parts) {
+    currentPath = currentPath ? `${currentPath}/${part}` : part;
+    await ensureDir(fsModule, currentPath);
+  }
+}
+
+async function toBytes(content: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {
+  if (content instanceof Uint8Array) {
+    return content;
+  }
+
+  if (content instanceof ArrayBuffer) {
+    return new Uint8Array(content);
+  }
+
+  return new Uint8Array(await content.arrayBuffer());
+}
+
 function getAssetStoragePaths(caseFolder: string, assetId: string): { originalPath: string; optimizedPath: string } {
   return {
-    originalPath: `${caseFolder}/images/${assetId}.original.txt`,
-    optimizedPath: `${caseFolder}/images/${assetId}.optimized.txt`
+    originalPath: `${caseFolder}/Bilder/${assetId}.original.txt`,
+    optimizedPath: `${caseFolder}/Bilder/${assetId}.optimized.txt`
   };
 }
 
@@ -249,19 +302,24 @@ export async function persistSnapshotToDisk(snapshot: AppStorageSnapshot): Promi
   const fsModule = await loadTauriFs();
 
   await ensureDir(fsModule, ROOT_DIR);
-  await ensureDir(fsModule, `${ROOT_DIR}/master-data`);
-  await ensureDir(fsModule, `${ROOT_DIR}/audit`);
-  await ensureDir(fsModule, `${ROOT_DIR}/cases`);
-  await ensureDir(fsModule, `${ROOT_DIR}/archive`);
+  await ensureDir(fsModule, `${ROOT_DIR}/Stammdaten`);
+  await ensureDir(fsModule, `${ROOT_DIR}/Audit`);
+  await ensureDir(fsModule, `${ROOT_DIR}/Sachbearbeiter`);
+  await ensureDir(fsModule, `${ROOT_DIR}/Archiv`);
 
   const serializedSnapshot = await serializeSnapshot(snapshot, fsModule);
 
   for (const caseFile of [...serializedSnapshot.drafts, ...serializedSnapshot.finalized, ...(serializedSnapshot.currentCase ? [serializedSnapshot.currentCase] : [])]) {
     const caseFolder = getCaseFolder(caseFile);
     await ensureDir(fsModule, caseFolder);
-    await ensureDir(fsModule, `${caseFolder}/images`);
-    await ensureDir(fsModule, `${caseFolder}/exports`);
-    await writeJsonFile(fsModule, `${caseFolder}/payload.json`, caseFile);
+    await ensureDir(fsModule, `${caseFolder}/Bilder`);
+    await ensureDir(fsModule, `${caseFolder}/Exporte`);
+    await ensureDir(fsModule, `${caseFolder}/Payload`);
+    await ensureDir(fsModule, `${caseFolder}/Entwurf`);
+    await writeJsonFile(fsModule, `${caseFolder}/Payload/payload.json`, caseFile);
+    if (caseFile.meta.status === "draft") {
+      await writeJsonFile(fsModule, `${caseFolder}/Entwurf/entwurf.json`, caseFile);
+    }
   }
 
   await writeJsonFile(fsModule, MASTER_DATA_FILE, serializedSnapshot.masterData);
@@ -272,9 +330,9 @@ export async function persistCaseAssetImmediately(caseFile: CaseFile, asset: Ass
   const fsModule = await loadTauriFs();
   const caseFolder = getCaseFolder(caseFile);
   await ensureDir(fsModule, ROOT_DIR);
-  await ensureDir(fsModule, `${ROOT_DIR}/cases`);
+  await ensureDir(fsModule, `${ROOT_DIR}/Sachbearbeiter`);
   await ensureDir(fsModule, caseFolder);
-  await ensureDir(fsModule, `${caseFolder}/images`);
+  await ensureDir(fsModule, `${caseFolder}/Bilder`);
 
   const storagePaths = getAssetStoragePaths(caseFolder, asset.id);
   await writeTextData(fsModule, storagePaths.originalPath, asset.originalPath);
@@ -285,6 +343,36 @@ export async function persistCaseAssetImmediately(caseFile: CaseFile, asset: Ass
     originalPath: asset.originalPath,
     optimizedPath: asset.optimizedPath
   };
+}
+
+export async function persistExportArtifactsToDisk(args: {
+  caseFile: CaseFile;
+  artifacts: Array<{ fileName: string; content: string | ArrayBuffer | Blob | Uint8Array }>;
+  zipFileName: string;
+  zipContent: Blob | ArrayBuffer | Uint8Array;
+}): Promise<void> {
+  const fsModule = await loadTauriFs();
+  const caseFolder = getCaseFolder(args.caseFile);
+  const exportsFolder = `${caseFolder}/Exporte`;
+
+  await ensureDir(fsModule, ROOT_DIR);
+  await ensureDir(fsModule, `${ROOT_DIR}/Sachbearbeiter`);
+  await ensureDir(fsModule, caseFolder);
+  await ensureDir(fsModule, exportsFolder);
+
+  for (const artifact of args.artifacts) {
+    const targetPath = `${exportsFolder}/${artifact.fileName}`;
+    await ensureParentDir(fsModule, targetPath);
+
+    if (typeof artifact.content === "string") {
+      await writeTextData(fsModule, targetPath, artifact.content);
+      continue;
+    }
+
+    await writeBinaryData(fsModule, targetPath, await toBytes(artifact.content));
+  }
+
+  await writeBinaryData(fsModule, `${exportsFolder}/${args.zipFileName}`, await toBytes(args.zipContent));
 }
 
 export async function loadAuditLogFromDisk(): Promise<AuditEntry[]> {

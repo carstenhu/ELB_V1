@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "ch.koller.elb-v1",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run desktop:dev",
+    "beforeBuildCommand": "npm run desktop:build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },

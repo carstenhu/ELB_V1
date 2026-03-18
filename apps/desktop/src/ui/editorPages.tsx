@@ -23,7 +23,7 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
   const consignorPhoto = findAsset(props.caseFile, props.caseFile.consignor.photoAssetId);
   const [vatModalOpen, setVatModalOpen] = useState(false);
 
-  function applyVatCategory(value: string) {
+  function applyVatCategory(value: CaseFile["consignor"]["vatCategory"]) {
     updateCurrentCase((current) => ({
       ...current,
       consignor: {
@@ -117,7 +117,7 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
         <Section title="Einliefererdaten">
           <div className="form-row form-row--double">
             <Field label="MwSt-Kategorie">
-              <select value={props.caseFile.consignor.vatCategory} onChange={(event) => applyVatCategory(event.target.value)}>
+              <select value={props.caseFile.consignor.vatCategory} onChange={(event) => applyVatCategory(event.target.value as CaseFile["consignor"]["vatCategory"])}>
                 {VAT_CATEGORY_OPTIONS.map((option) => (
                   <option key={option.value || "empty"} value={option.value}>
                     {option.label}

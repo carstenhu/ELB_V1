@@ -7,13 +7,18 @@
     "packages/*"
   ],
   "scripts": {
+    "clean": "node scripts/clean.mjs",
     "desktop:dev": "npm --workspace apps/desktop run dev",
+    "desktop:tauri": "npm exec tauri dev -- --config apps/desktop/src-tauri/tauri.conf.json",
+    "desktop:tauri:build": "npm exec tauri build -- --config apps/desktop/src-tauri/tauri.conf.json",
     "desktop:build": "npm --workspace apps/desktop run build",
     "desktop:lint": "npm --workspace apps/desktop run lint",
     "check:encoding": "node scripts/check-mojibake.mjs",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests=false",
+    "verify": "npm run check:encoding && npm run desktop:lint && npm run test && npm run desktop:build"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
     "@types/jszip": "^3.4.0",
     "vitest": "^3.2.4"
   },

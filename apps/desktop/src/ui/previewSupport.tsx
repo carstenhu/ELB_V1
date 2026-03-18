@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ReactNode } from "react";
 import { requireCaseReadyForExport } from "@elb/app-core/index";
-import { createExportZip, generateExportBundle, triggerDownload } from "@elb/export-core/index";
+import { createExportZip, generateExportBundle } from "@elb/export-core/index";
 import type { CaseFile } from "@elb/domain/index";
+import { persistExportArtifactsToDisk } from "@elb/persistence/filesystem";
 import { Field, Section } from "@elb/ui/forms";
 import { generateElbPdf } from "@elb/pdf-core/index";
 import { addObject, finalizeCurrentCase, saveDraft, updateCurrentCase } from "../appState";
@@ -97,6 +98,8 @@ export function updateRequiredFieldValue(entry: RequiredFieldEntry, value?: stri
       if (entry.key === "consignor.street") return { ...current, consignor: { ...current.consignor, street: value ?? "" } };
       if (entry.key === "consignor.zip") return { ...current, consignor: { ...current.consignor, zip: value ?? "" } };
       if (entry.key === "consignor.city") return { ...current, consignor: { ...current.consignor, city: value ?? "" } };
+      if (entry.key === "bank.beneficiaryOverride.reason") return { ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, reason: value ?? "" } } };
+      if (entry.key === "bank.beneficiaryOverride.name") return { ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, name: value ?? "" } } };
       return current;
     }
 
@@ -124,6 +127,8 @@ function getRequiredFieldCurrentValue(caseFile: CaseFile, entry: RequiredFieldEn
   if (entry.key === "consignor.street") return caseFile.consignor.street;
   if (entry.key === "consignor.zip") return caseFile.consignor.zip;
   if (entry.key === "consignor.city") return caseFile.consignor.city;
+  if (entry.key === "bank.beneficiaryOverride.reason") return caseFile.bank.beneficiaryOverride.reason;
+  if (entry.key === "bank.beneficiaryOverride.name") return caseFile.bank.beneficiaryOverride.name;
   if (entry.key === "objects.departmentId") return caseFile.objects[entry.objectIndex ?? -1]?.departmentId ?? "";
   if (entry.key === "objects.shortDescription") return caseFile.objects[entry.objectIndex ?? -1]?.shortDescription ?? "";
   if (entry.key === "objects.estimate.low") return caseFile.objects[entry.objectIndex ?? -1]?.estimate.low ?? "";
@@ -217,16 +222,15 @@ export function PreviewActionButtons(props: { caseFile: CaseFile; onExportStatus
       requireCaseReadyForExport(props.caseFile, state.masterData);
       props.onExportStatusChange("ZIP wird erzeugt...");
       const bundle = await generateExportBundle(props.caseFile, state.masterData);
-
-      for (const artifact of bundle.artifacts) {
-        const blob = new Blob([artifact.content], { type: artifact.mimeType });
-        triggerDownload(artifact.fileName.replace("bilder/", "bilder_"), blob);
-      }
-
       const zipBlob = await createExportZip(props.caseFile, state.masterData);
-      triggerDownload(bundle.plan.zipFileName, zipBlob);
+      await persistExportArtifactsToDisk({
+        caseFile: props.caseFile,
+        artifacts: bundle.artifacts,
+        zipFileName: bundle.plan.zipFileName,
+        zipContent: zipBlob
+      });
       finalizeCurrentCase();
-      props.onExportStatusChange("ZIP wurde erzeugt und der Vorgang wurde finalisiert.");
+      props.onExportStatusChange(`ZIP wurde lokal unter Daten gespeichert und der Vorgang wurde finalisiert.`);
     } catch (error) {
       props.onExportStatusChange(error instanceof Error ? error.message : "Export fehlgeschlagen.");
     }

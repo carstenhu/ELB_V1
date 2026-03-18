@@ -1,10 +1,13 @@
 import {
   addObjectToCase,
+  createAdminSession,
   type AuditSink,
+  type AdminSession,
   assignAuction,
   createAuditEntry,
   createCase,
   finalizeCase,
+  isAdminSessionActive,
   saveDraftCase,
   type WorkspaceStateLike
 } from "@elb/app-core/index";
@@ -18,6 +21,7 @@ export interface AppState {
   currentCase: CaseFile | null;
   drafts: CaseFile[];
   finalized: CaseFile[];
+  adminSession: AdminSession | null;
 }
 
 function createInitialState(): AppState {
@@ -26,7 +30,8 @@ function createInitialState(): AppState {
     activeClerkId: null,
     currentCase: null,
     drafts: [],
-    finalized: []
+    finalized: [],
+    adminSession: null
   };
 }
 
@@ -80,9 +85,37 @@ export function createSnapshot(): AppStorageSnapshot {
   };
 }
 
-export function replaceState(nextState: AppState): void {
-  state = nextState;
+export function replaceState(nextState: AppStorageSnapshot): void {
+  state = {
+    ...nextState,
+    adminSession: state.adminSession
+  };
   emit();
+}
+
+export function unlockAdmin(inputPin: string): boolean {
+  if (inputPin.trim() !== state.masterData.adminPin.trim()) {
+    return false;
+  }
+
+  state = {
+    ...state,
+    adminSession: createAdminSession(new Date().toISOString())
+  };
+  emit();
+  return true;
+}
+
+export function lockAdmin(): void {
+  state = {
+    ...state,
+    adminSession: null
+  };
+  emit();
+}
+
+export function hasAdminAccess(): boolean {
+  return isAdminSessionActive(state.adminSession, new Date().toISOString());
 }
 
 export function selectClerk(clerkId: string): void {

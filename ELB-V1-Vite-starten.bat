@@ -9,12 +9,12 @@ if not exist "node_modules" (
   exit /b 1
 )
 
-echo Starte ELB V1 im Entwicklungsmodus...
+echo Starte ELB V1 im Vite-/Browsermodus...
 call npm run desktop:dev
 
 if errorlevel 1 (
   echo.
-  echo Der Start ist fehlgeschlagen.
+  echo Der Vite-Start ist fehlgeschlagen.
   pause
   exit /b 1
 )

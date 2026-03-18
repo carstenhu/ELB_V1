@@ -11,6 +11,8 @@ interface RenderedPage {
   dataUrl: string;
   width: number;
   height: number;
+  displayWidth: number;
+  displayHeight: number;
 }
 
 export type PdfEditTarget =
@@ -119,18 +121,23 @@ export function PdfCanvasPreview(props: {
         });
         const pdfDocument = await loadingTask.promise;
         const rendered: RenderedPage[] = [];
+        const deviceScale = typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1.5) : 1.5;
+        const previewScale = 2.2;
 
         for (let index = 1; index <= pdfDocument.numPages; index += 1) {
           const page = await pdfDocument.getPage(index);
-          const viewport = page.getViewport({ scale: 1.6 });
+          const viewport = page.getViewport({ scale: previewScale });
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
           if (!context) {
             throw new Error("Canvas-Kontext konnte nicht erstellt werden.");
           }
 
-          canvas.width = Math.ceil(viewport.width);
-          canvas.height = Math.ceil(viewport.height);
+          canvas.width = Math.ceil(viewport.width * deviceScale);
+          canvas.height = Math.ceil(viewport.height * deviceScale);
+          canvas.style.width = `${viewport.width}px`;
+          canvas.style.height = `${viewport.height}px`;
+          context.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
 
           await page.render({
             canvas,
@@ -142,7 +149,9 @@ export function PdfCanvasPreview(props: {
             pageNumber: index,
             dataUrl: canvas.toDataURL("image/png"),
             width: canvas.width,
-            height: canvas.height
+            height: canvas.height,
+            displayWidth: Math.ceil(viewport.width),
+            displayHeight: Math.ceil(viewport.height)
           });
         }
 
@@ -194,7 +203,7 @@ export function PdfCanvasPreview(props: {
         <figure key={page.pageNumber} className="pdf-page">
           <div className="pdf-page__meta">Seite {page.pageNumber}</div>
           <div className="pdf-page__canvas">
-            <img src={page.dataUrl} alt={`ELB-PDF Seite ${page.pageNumber}`} width={page.width} height={page.height} />
+            <img src={page.dataUrl} alt={`ELB-PDF Seite ${page.pageNumber}`} width={page.displayWidth} height={page.displayHeight} />
             <div className="pdf-hotspots">
               {getHotspots(page.pageNumber, layouts, objectPages).map((hotspot) => (
                 <button

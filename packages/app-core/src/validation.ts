@@ -7,6 +7,7 @@ import {
   type MasterData,
   type ObjectItem
 } from "@elb/domain/index";
+import { validateCaseReferenceIntegrity } from "./references";
 
 export type ValidationSeverity = "error" | "warning";
 export type ValidationScope = "field" | "domain" | "export";
@@ -25,6 +26,67 @@ export interface ValidationReport {
 }
 
 const nonEmptyTrimmed = z.string().transform((value) => value.trim());
+
+export function validateMasterDataConsistency(masterData: MasterData): ValidationReport {
+  const issues: ValidationIssue[] = [];
+  const clerkIds = new Set<string>();
+  const auctionIds = new Set<string>();
+  const departmentIds = new Set<string>();
+
+  masterData.clerks.forEach((clerk, index) => {
+    if (clerkIds.has(clerk.id)) {
+      issues.push({
+        code: "CLERK_ID_DUPLICATE",
+        scope: "domain",
+        severity: "error",
+        path: `clerks.${index}.id`,
+        message: "Sachbearbeiter-IDs müssen eindeutig sein."
+      });
+    }
+    clerkIds.add(clerk.id);
+  });
+
+  masterData.auctions.forEach((auction, index) => {
+    if (auctionIds.has(auction.id)) {
+      issues.push({
+        code: "AUCTION_ID_DUPLICATE",
+        scope: "domain",
+        severity: "error",
+        path: `auctions.${index}.id`,
+        message: "Auktions-IDs müssen eindeutig sein."
+      });
+    }
+    auctionIds.add(auction.id);
+  });
+
+  masterData.departments.forEach((department, index) => {
+    if (departmentIds.has(department.id)) {
+      issues.push({
+        code: "DEPARTMENT_ID_DUPLICATE",
+        scope: "domain",
+        severity: "error",
+        path: `departments.${index}.id`,
+        message: "Abteilungs-IDs müssen eindeutig sein."
+      });
+    }
+    departmentIds.add(department.id);
+  });
+
+  if (!masterData.adminPin.trim()) {
+    issues.push({
+      code: "ADMIN_PIN_REQUIRED",
+      scope: "domain",
+      severity: "error",
+      path: "adminPin",
+      message: "Eine Admin-PIN ist erforderlich."
+    });
+  }
+
+  return {
+    isValid: issues.every((issue) => issue.severity !== "error"),
+    issues
+  };
+}
 
 export function validateCaseSchema(caseFile: CaseFile): ValidationReport {
   const result = caseFileSchema.safeParse(caseFile);
@@ -189,7 +251,7 @@ export function validateCaseBusinessRules(caseFile: CaseFile): ValidationReport 
 }
 
 export function validateCaseForExport(caseFile: CaseFile, masterData: MasterData): ValidationReport {
-  const issues: ValidationIssue[] = [];
+  const issues: ValidationIssue[] = [...validateMasterDataConsistency(masterData).issues, ...validateCaseReferenceIntegrity(caseFile, masterData)];
 
   for (const field of masterData.globalPdfRequiredFields) {
     if (field === "meta.receiptNumber" && !caseFile.meta.receiptNumber.trim()) {
@@ -209,6 +271,12 @@ export function validateCaseForExport(caseFile: CaseFile, masterData: MasterData
     }
     if (field === "consignor.city" && !caseFile.consignor.city.trim()) {
       issues.push({ code: "CONSIGNOR_CITY_REQUIRED", scope: "export", severity: "error", path: field, message: "Die Stadt des Einlieferers fehlt." });
+    }
+    if (field === "bank.beneficiaryOverride.reason" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.reason.trim()) {
+      issues.push({ code: "BENEFICIARY_OVERRIDE_REASON_REQUIRED", scope: "export", severity: "error", path: field, message: "Der Grund für den abweichenden Begünstigten fehlt." });
+    }
+    if (field === "bank.beneficiaryOverride.name" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.name.trim()) {
+      issues.push({ code: "BENEFICIARY_OVERRIDE_NAME_REQUIRED", scope: "export", severity: "error", path: field, message: "Der Name des abweichenden Begünstigten fehlt." });
     }
   }
 

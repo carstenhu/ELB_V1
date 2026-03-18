@@ -2,6 +2,7 @@ export type AppErrorCode =
   | "VALIDATION_ERROR"
   | "CASE_NOT_FOUND"
   | "NO_ACTIVE_CLERK"
+  | "ADMIN_PIN_INVALID"
   | "IMPORT_ERROR"
   | "MIGRATION_ERROR"
   | "EXPORT_NOT_READY";

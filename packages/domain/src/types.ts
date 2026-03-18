@@ -1,4 +1,14 @@
 import { z } from "zod";
+import {
+  adminPinSchema,
+  amountInputSchema,
+  bicSchema,
+  emailLikeSchema,
+  ibanSchema,
+  intNumberSchema,
+  receiptNumberSchema,
+  vatCategorySchema
+} from "./valueObjects";
 
 export const pageIdSchema = z.enum([
   "consignor",
@@ -17,7 +27,7 @@ export type CaseStatus = z.infer<typeof caseStatusSchema>;
 export const clerkSchema = z.object({
   id: z.string(),
   name: z.string(),
-  email: z.string(),
+  email: emailLikeSchema,
   phone: z.string(),
   signaturePng: z.string(),
 });
@@ -47,7 +57,7 @@ export const masterDataSchema = z.object({
   departments: z.array(departmentSchema),
   titles: z.array(z.string()),
   globalPdfRequiredFields: z.array(z.string()),
-  adminPin: z.string(),
+  adminPin: adminPinSchema,
 });
 
 export type MasterData = z.infer<typeof masterDataSchema>;
@@ -55,7 +65,7 @@ export type MasterData = z.infer<typeof masterDataSchema>;
 export const contactAddressSchema = z.object({
   useCompanyAddress: z.boolean(),
   customerNumber: z.string(),
-  vatCategory: z.string(),
+  vatCategory: vatCategorySchema,
   vatNumber: z.string(),
   company: z.string(),
   title: z.string(),
@@ -98,15 +108,15 @@ export const beneficiaryOverrideSchema = z.object({
 
 export const bankSchema = z.object({
   beneficiary: z.string(),
-  iban: z.string(),
-  bic: z.string(),
+  iban: ibanSchema,
+  bic: bicSchema,
   beneficiaryOverride: beneficiaryOverrideSchema,
 });
 
 export type BankData = z.infer<typeof bankSchema>;
 
 export const structuredCostSchema = z.object({
-  amount: z.string(),
+  amount: amountInputSchema,
   note: z.string(),
 });
 
@@ -150,14 +160,17 @@ export const objectPricingModeSchema = z.enum(["limit", "netLimit", "startPrice"
 
 export const objectItemSchema = z.object({
   id: z.string(),
-  intNumber: z.string(),
+  intNumber: intNumberSchema,
   auctionId: z.string(),
   departmentId: z.string(),
   shortDescription: z.string(),
   description: z.string(),
-  estimate: estimateSchema,
+  estimate: z.object({
+    low: amountInputSchema,
+    high: amountInputSchema,
+  }),
   pricingMode: objectPricingModeSchema,
-  priceValue: z.string(),
+  priceValue: amountInputSchema,
   referenceNumber: z.string(),
   remarks: z.string(),
   photoAssetIds: z.array(z.string()),
@@ -173,7 +186,7 @@ export type Signatures = z.infer<typeof signaturesSchema>;
 
 export const caseMetaSchema = z.object({
   id: z.string(),
-  receiptNumber: z.string(),
+  receiptNumber: receiptNumberSchema,
   clerkId: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

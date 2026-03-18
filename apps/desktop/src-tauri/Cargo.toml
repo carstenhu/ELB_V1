@@ -2,6 +2,9 @@
 name = "elb_v1"
 version = "0.1.0"
 edition = "2021"
+description = "ELB V1 Desktop-App"
+license = "Proprietary"
+authors = ["Carsten"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -16,4 +19,3 @@ tauri-plugin-fs = "2"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-

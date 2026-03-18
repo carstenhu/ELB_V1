@@ -18,8 +18,7 @@ export function VatCaptureModal(props: {
         <div className="page-grid">
           <Section title="Pflichtangabe für Kategorie C">
             <p className="modal-hint">
-              Für die Kategorie C muss jetzt eine MwSt-Nr. erfasst werden. Das Modal kann erst nach Eingabe eines Werts geschlossen
-              werden.
+              Für die Kategorie C muss jetzt eine MwSt-Nr. erfasst werden. Das Modal kann erst nach Eingabe eines Werts geschlossen werden.
             </p>
             <Field label="MwSt-Nr." full>
               <input

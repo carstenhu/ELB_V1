@@ -100,6 +100,8 @@ function collectMissingRequiredFields(caseFile: CaseFile, masterData: MasterData
     if (field === "consignor.street" && !caseFile.consignor.street.trim()) missing.push("Straße Einlieferer");
     if (field === "consignor.zip" && !caseFile.consignor.zip.trim()) missing.push("PLZ Einlieferer");
     if (field === "consignor.city" && !caseFile.consignor.city.trim()) missing.push("Stadt Einlieferer");
+    if (field === "bank.beneficiaryOverride.reason" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.reason.trim()) missing.push("Grund abweichender Begünstigter");
+    if (field === "bank.beneficiaryOverride.name" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.name.trim()) missing.push("Name abweichender Begünstigter");
   }
 
   caseFile.objects.forEach((item, index) => {
@@ -137,11 +139,17 @@ function buildObjectText(row: PdfPreviewObjectRow): string {
     row.shortDescription,
     row.description,
     row.referenceNumber ? `Referenznr.: ${row.referenceNumber}` : "",
-    row.remarks ? `Bemerkungen: ${row.remarks}` : "",
-    row.priceValue ? `${row.priceLabel}: ${row.priceValue}` : ""
+    row.remarks ? `Bemerkungen: ${row.remarks}` : ""
   ].filter(Boolean);
 
   return parts.join("\n");
+}
+
+function buildEstimateText(row: PdfPreviewObjectRow): string {
+  return [
+    row.estimate,
+    row.priceValue ? `${row.priceLabel}: ${row.priceValue}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function setTextFieldSafe(form: ReturnType<PDFDocument["getForm"]>, fieldName: string, value: string): void {
@@ -169,8 +177,9 @@ function drawFieldOverlay(args: {
   fieldName: string;
   value: string;
   multiline?: boolean;
+  forceVisible?: boolean;
 }): void {
-  if (!isFollowUpValue(args.value)) {
+  if (!args.forceVisible && !isFollowUpValue(args.value)) {
     return;
   }
 
@@ -191,13 +200,20 @@ function drawFieldOverlay(args: {
       y: rect.top - fontSize - 2.5 - index * lineHeight,
       size: fontSize,
       font: args.font,
-      color: FOLLOW_UP_COLOR
+      color: isFollowUpValue(args.value) ? FOLLOW_UP_COLOR : rgb(0, 0, 0)
     });
   });
 }
 
 function buildCostFieldValue(cost: { amount: string; note: string }): string {
   return [cost.amount.trim(), cost.note.trim()].filter(Boolean).join(" ");
+}
+
+function getVatCategoryLabel(vatCategory: CaseFile["consignor"]["vatCategory"]): string {
+  if (vatCategory === "A") return "Privat Schweiz";
+  if (vatCategory === "B") return "Ausland";
+  if (vatCategory === "C") return "Händler Schweiz";
+  return "";
 }
 
 async function loadTemplateBytes(url: string): Promise<ArrayBuffer> {
@@ -490,7 +506,7 @@ function buildObjectFieldLayout(
   const auctionLines = wrapText(font, row.auctionLabel, fontSize, widths.auctionLabel);
   const departmentLines = wrapText(font, row.departmentCode, fontSize, widths.departmentCode);
   const descriptionLines = wrapText(font, buildObjectText(row), fontSize, widths.description);
-  const estimateLines = wrapText(font, row.estimate, fontSize, widths.estimate);
+  const estimateLines = wrapText(font, buildEstimateText(row), fontSize, widths.estimate);
   const lineCount = Math.max(intLines.length, auctionLines.length, departmentLines.length, descriptionLines.length, estimateLines.length, 1);
 
   function normalize(lines: string[]) {
@@ -759,6 +775,12 @@ function fillSharedFields(args: {
   const clerkValue = clerk ? [clerk.name, clerk.phone, clerk.email].filter(Boolean).join(", ") : "";
   const addressValue = joinAddressLines(addressLines);
   const ownerValue = joinAddressLines(ownerLines);
+  const vatCategoryValue = getVatCategoryLabel(caseFile.consignor.vatCategory);
+  const vatNumberValue = caseFile.consignor.vatCategory === "C" && caseFile.consignor.vatNumber.trim()
+    ? `MwSt-Nr. ${caseFile.consignor.vatNumber.trim()}`
+    : "";
+  const vatCategoryFieldName = pageNumber === 1 ? "MwSt. Kategorie" : "MwSt. Kategorie 2";
+  const vatNumberFieldName = pageNumber === 1 ? "MwSt. Nr " : "MwSt. Nr 2";
 
   setTextFieldSafe(form, receiptFieldName, isFollowUpValue(caseFile.meta.receiptNumber) ? "" : caseFile.meta.receiptNumber);
   setTextFieldSafe(form, "Kommission", isFollowUpValue(commissionValue) ? "" : commissionValue);
@@ -766,10 +788,8 @@ function fillSharedFields(args: {
   setTextFieldSafe(form, "Abb.-Kosten", isFollowUpValue(imagingValue) ? "" : imagingValue);
   setTextFieldSafe(form, "Kosten ", isFollowUpValue(expertiseValue) ? "" : expertiseValue);
   setTextFieldSafe(form, "Versicherung ", isFollowUpValue(insuranceValue) ? "" : insuranceValue);
-  setTextFieldSafe(form, "MwSt. Nr ", "");
-  setTextFieldSafe(form, "MwSt. Nr 2", "");
-  setTextFieldSafe(form, "MwSt. Kategorie", "");
-  setTextFieldSafe(form, "MwSt. Kategorie 2", "");
+  setTextFieldSafe(form, vatNumberFieldName, "");
+  setTextFieldSafe(form, vatCategoryFieldName, "");
   setTextFieldSafe(form, "Diverses/Provenienz 2", isFollowUpValue(provenanceValue) ? "" : provenanceValue);
   setTextFieldSafe(form, "Datum", new Date(caseFile.meta.createdAt).toLocaleDateString("de-CH"));
   setTextFieldSafe(form, "Internet  1", isFollowUpValue(internetValue) ? "" : internetValue);
@@ -790,6 +810,8 @@ function fillSharedFields(args: {
   drawFieldOverlay({ page, form, font, fieldName: "Abb.-Kosten", value: imagingValue });
   drawFieldOverlay({ page, form, font, fieldName: "Kosten ", value: expertiseValue });
   drawFieldOverlay({ page, form, font, fieldName: "Versicherung ", value: insuranceValue });
+  drawFieldOverlay({ page, form, font, fieldName: vatNumberFieldName, value: vatNumberValue, forceVisible: Boolean(vatNumberValue) });
+  drawFieldOverlay({ page, form, font, fieldName: vatCategoryFieldName, value: vatCategoryValue, forceVisible: Boolean(vatCategoryValue) });
   drawFieldOverlay({ page, form, font, fieldName: "Diverses/Provenienz 2", value: provenanceValue });
   drawFieldOverlay({ page, form, font, fieldName: "Internet  1", value: internetValue });
   drawFieldOverlay({ page, form, font, fieldName: "Sachbearbeiter 2", value: clerkValue });

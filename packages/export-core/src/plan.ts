@@ -1,0 +1,33 @@
+import { buildFolderName, type CaseFile } from "@elb/domain/index";
+import { getRuntimeConfig } from "@elb/shared/config";
+import type { ExportPlan } from "./types";
+
+function sanitizeSegment(value: string): string {
+  return value.trim().replaceAll(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "") || "Unbekannt";
+}
+
+export function createExportPlan(caseFile: CaseFile): ExportPlan {
+  const config = getRuntimeConfig();
+  const folderName = buildFolderName(caseFile.consignor.lastName, caseFile.consignor.firstName, caseFile.meta.receiptNumber);
+  const nameSegment = sanitizeSegment(
+    caseFile.consignor.useCompanyAddress && caseFile.consignor.company.trim()
+      ? caseFile.consignor.company
+      : caseFile.consignor.lastName || caseFile.consignor.firstName
+  );
+  const zipFileName = `${nameSegment}_${caseFile.meta.receiptNumber}_v${config.appVersion}.zip`;
+
+  return {
+    folderName,
+    zipFileName,
+    artifacts: [
+      { fileName: "payload.json", type: "json", required: true },
+      { fileName: "metadata.json", type: "json", required: true },
+      { fileName: "elb.pdf", type: "pdf", required: true },
+      { fileName: "zusatz.pdf", type: "pdf", required: true },
+      { fileName: "schaetzliste.docx", type: "docx", required: true },
+      { fileName: "schaetzliste.pdf", type: "pdf", required: true },
+      { fileName: "bilder/manifest.json", type: "image", required: true },
+      { fileName: zipFileName, type: "zip", required: true }
+    ]
+  };
+}
