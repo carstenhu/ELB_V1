@@ -19,7 +19,8 @@
     "web:lint": "npm --workspace apps/web run lint",
     "check:encoding": "node scripts/check-mojibake.mjs",
     "test": "vitest run --passWithNoTests=false",
-    "verify": "npm run check:encoding && npm run desktop:lint && npm run test && npm run desktop:build"
+    "verify:web": "npm run web:lint && npm run test && npm run web:build",
+    "verify": "npm run check:encoding && npm run desktop:lint && npm run web:lint && npm run test && npm run desktop:build && npm run web:build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",

@@ -1,0 +1,57 @@
+# Web Deployment
+
+Diese Web-App ist fuer einen statischen Deploy auf Vercel vorbereitet.
+
+## Aktueller Stand
+
+- kein Server erforderlich
+- keine Umgebungsvariablen notwendig
+- keine Datenbank notwendig
+- Persistenz aktuell nur lokal im Browser
+
+Wichtig:
+- Daten bleiben pro Browser und Geraet lokal gespeichert
+- es gibt aktuell keinen Login
+- es gibt aktuell keine Synchronisation zwischen mehreren Geraeten
+
+## Lokal vor dem Deploy pruefen
+
+```bash
+npm install
+npm run verify:web
+```
+
+Optional zusaetzlich produktionsnah im Browser:
+
+```bash
+npm run web:preview
+```
+
+## Vercel-Projekt anlegen
+
+1. Repository in Vercel importieren
+2. Root Directory auf das Repository-Root lassen
+3. folgende Build-Einstellungen setzen
+
+- Build Command: `npm run web:build`
+- Output Directory: `apps/web/dist`
+- Install Command: `npm install`
+
+Die SPA-Rewrite-Regel ist bereits in [vercel.json](/abs/path/c:/ELB_V1/vercel.json) hinterlegt.
+
+## Nach dem ersten Deploy pruefen
+
+- App startet und Routing funktioniert
+- Workspace laesst sich im Browser anlegen
+- Reload behaelt den Stand im selben Browser
+- PDF-Vorschau oeffnet korrekt
+- ZIP-Download funktioniert
+- keine Desktop-spezifischen Aktionen werden erwartet
+
+## Was spaeter fuer echten Produktivbetrieb fehlt
+
+- zentrale Cloud-Persistenz
+- Benutzerverwaltung
+- Mehrplatz-Synchronisation
+- Konfliktbehandlung bei gleichzeitiger Bearbeitung
+- serverseitige Nummernvergabe

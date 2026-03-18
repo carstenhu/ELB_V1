@@ -79,15 +79,20 @@ Die Web-App ist fuer einen ersten statischen Deploy auf Vercel vorbereitet.
 - Build-Command: `npm run web:build`
 - Output-Verzeichnis: `apps/web/dist`
 - SPA-Routing wird ueber eine Rewrite-Regel auf `index.html` geleitet
+- fuer die Web-Strecke gibt es jetzt `npm run verify:web`
 
 Typischer Ablauf:
 
 ```bash
 npm install
-npm run web:build
+npm run verify:web
 ```
 
 Danach kann das Repo direkt mit Vercel verbunden werden. Fuer den aktuellen Stand braucht die Web-App keine Server-Umgebung und keine Datenbank.
+
+Die Web-App speichert im aktuellen Stand lokal im Browser. Es gibt also noch keinen Login, keine Geraete-Synchronisation und keine gemeinsame Cloud-Datenbasis.
+
+Eine kompakte Schritt-fuer-Schritt-Anleitung liegt in `WEB-DEPLOYMENT.md`.
 
 ## Mehrplatzbetrieb
 
