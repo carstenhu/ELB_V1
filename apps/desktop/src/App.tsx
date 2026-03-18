@@ -34,6 +34,31 @@ const pages: Array<{ id: PageId; label: string }> = [
   { id: "wordPreview", label: "Schätzliste" }
 ];
 
+const VAT_CATEGORY_OPTIONS = [
+  { value: "", label: "Bitte wählen" },
+  { value: "A", label: "A - Privat Schweiz" },
+  { value: "B", label: "B - Ausland" },
+  { value: "C", label: "C - Händler Schweiz" }
+];
+
+const FOLLOW_UP_VALUE = "Angaben folgen";
+
+function normalizeFieldValue(value: string | null | undefined) {
+  return typeof value === "string" ? value : "";
+}
+
+function isFollowUpValue(value: string | null | undefined) {
+  return normalizeFieldValue(value).trim() === FOLLOW_UP_VALUE;
+}
+
+function getTextInputClassName(value: string | null | undefined) {
+  return isFollowUpValue(value) ? "field-input field-input--follow-up" : "field-input";
+}
+
+function renderFollowUpOption(value: string | null | undefined) {
+  return isFollowUpValue(value) ? <option value={FOLLOW_UP_VALUE}>{FOLLOW_UP_VALUE}</option> : null;
+}
+
 function useAppState() {
   return useSyncExternalStore(subscribe, getState, getState);
 }
@@ -221,10 +246,10 @@ function SignaturePadEditor(props: { value: string; onChange: (dataUrl: string) 
       />
       <div className="signature-pad__actions">
         <button type="button" className="secondary-button" onClick={clear}>
-          L?schen
+          Löschen
         </button>
         <button type="button" className="primary-button" onClick={save}>
-          ?bernehmen
+          Übernehmen
         </button>
       </div>
     </div>
@@ -238,6 +263,58 @@ function InlineToggle(props: { label: string; checked: boolean; onChange: (check
       <input type="checkbox" checked={props.checked} onChange={(event) => props.onChange(event.target.checked)} />
       <span className="inline-toggle__box" aria-hidden="true" />
     </label>
+  );
+}
+
+function FollowUpFieldControl(props: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="follow-up-toggle">
+      <input
+        type="checkbox"
+        checked={isFollowUpValue(props.value)}
+        onChange={(event) => props.onChange(event.target.checked ? FOLLOW_UP_VALUE : "")}
+      />
+      <span>Angaben folgen</span>
+    </label>
+  );
+}
+
+function VatCaptureModal(props: {
+  value: string;
+  onValueChange: (value: string) => void;
+  onConfirm: () => void;
+}) {
+  const isValid = props.value.trim().length > 0;
+
+  return (
+    <div className="pin-modal">
+      <div className="overlay__card overlay__card--narrow">
+        <div className="admin-header">
+          <h2>MwSt-Nr. erfassen</h2>
+        </div>
+        <div className="page-grid">
+          <Section title="Pflichtangabe für Kategorie C">
+            <p className="modal-hint">
+              Für die Kategorie C muss jetzt eine MwSt-Nr. erfasst werden. Das Modal kann erst nach Eingabe eines Wertes geschlossen werden.
+            </p>
+            <Field label="MwSt-Nr." full>
+              <input
+                className={getTextInputClassName(props.value)}
+                value={props.value}
+                onChange={(event) => props.onValueChange(event.target.value)}
+              />
+            </Field>
+            <FollowUpFieldControl value={props.value} onChange={props.onValueChange} />
+            {!isValid ? <p className="field-warning">Bitte erfassen Sie eine MwSt-Nr. oder markieren Sie "Angaben folgen".</p> : null}
+            <div className="pin-modal__actions">
+              <button type="button" className="primary-button" disabled={!isValid} onClick={props.onConfirm}>
+                Übernehmen
+              </button>
+            </div>
+          </Section>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -442,12 +519,13 @@ function AdminPage() {
               <Field label="Signatur" full>
                 <SignaturePadEditor
                   value={clerk.signaturePng}
-                  onChange={(dataUrl) =>
+                  onChange={(dataUrl) => {
                     updateMasterData((current) => ({
                       ...current,
                       clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
-                    }))
-                  }
+                    }));
+                    void persistSnapshotToDisk(createSnapshot());
+                  }}
                 />
               </Field>
               {clerk.signaturePng ? <img className="signature-preview" src={clerk.signaturePng} alt={`Signatur ${clerk.name}`} /> : null}
@@ -646,9 +724,23 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
   const owner = deriveOwner(props.caseFile.consignor, props.caseFile.owner);
   const beneficiary = deriveBeneficiary(props.caseFile.consignor, props.caseFile.bank);
   const consignorPhoto = findAsset(props.caseFile, props.caseFile.consignor.photoAssetId);
+  const [vatModalOpen, setVatModalOpen] = useState(false);
+
+  function applyVatCategory(value: string) {
+    updateCurrentCase((current) => ({
+      ...current,
+      consignor: {
+        ...current.consignor,
+        vatCategory: value,
+        vatNumber: value === "C" ? current.consignor.vatNumber : ""
+      }
+    }));
+    setVatModalOpen(value === "C");
+  }
 
   return (
-    <div className="page-grid">
+    <>
+      <div className="page-grid">
       <Section title="Meta">
         <Field label="ELB-Nummer">
           <input
@@ -677,6 +769,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
               }))
             }
           >
+            {renderFollowUpOption(props.caseFile.meta.clerkId)}
             {state.masterData.clerks.map((clerk) => (
               <option key={clerk.id} value={clerk.id}>
                 {clerk.name}
@@ -687,21 +780,21 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
       </Section>
 
       <Section title="Adresse">
-        <Field label="Firmenadresse">
-          <input
-            type="checkbox"
+        <div className="field field--full">
+          <InlineToggle
+            label="Firmenadresse"
             checked={props.caseFile.consignor.useCompanyAddress}
-            onChange={(event) =>
+            onChange={(checked) =>
               updateCurrentCase((current) => ({
                 ...current,
                 consignor: {
                   ...current.consignor,
-                  useCompanyAddress: event.target.checked
+                  useCompanyAddress: checked
                 }
               }))
             }
           />
-        </Field>
+        </div>
         {props.caseFile.consignor.useCompanyAddress ? (
           <Field label="Firma" full>
             <input
@@ -732,7 +825,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                 }))
               }
             >
-              <option value="">Bitte w?hlen</option>
+              <option value="">Bitte wählen</option>
               {state.masterData.titles.map((title) => (
                 <option key={title} value={title}>
                   {title}
@@ -751,7 +844,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
           <input value={props.caseFile.consignor.addressAddon} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, addressAddon: event.target.value } }))} />
         </Field>
         <div className="form-row form-row--double">
-          <Field label="Stra?e">
+          <Field label="Straße">
             <input value={props.caseFile.consignor.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
           </Field>
           <Field label="Nr.">
@@ -776,24 +869,30 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
           <Field label="MwSt-Kategorie">
             <select
               value={props.caseFile.consignor.vatCategory}
-              onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatCategory: event.target.value } }))}
+              onChange={(event) => applyVatCategory(event.target.value)}
             >
               {VAT_CATEGORY_OPTIONS.map((option) => (
-                <option key={option || "empty"} value={option}>
-                  {option || "Bitte w?hlen"}
+                <option key={option.value || "empty"} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="MwSt-Nr.">
-            <input value={props.caseFile.consignor.vatNumber} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: event.target.value } }))} />
-          </Field>
+          {props.caseFile.consignor.vatCategory === "C" ? (
+            <Field label="MwSt-Nr.">
+              <input
+                className={getTextInputClassName(props.caseFile.consignor.vatNumber)}
+                value={props.caseFile.consignor.vatNumber}
+                onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: event.target.value } }))}
+              />
+            </Field>
+          ) : null}
         </div>
         <div className="form-row form-row--triple">
           <Field label="Geburtsdatum">
             <input value={props.caseFile.consignor.birthDate} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
           </Field>
-          <Field label="Nationalit?t">
+          <Field label="Nationalität">
             <input value={props.caseFile.consignor.nationality} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
           </Field>
           <Field label="ID/Passnummer">
@@ -844,7 +943,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
                     })()
                   }
                 >
-                  ?
+                  {"×"}
                 </button>
               </div>
             ) : null}
@@ -853,7 +952,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
       </Section>
 
       <Section title="Bank">
-        <Field label="Beg?nstigter" full>
+        <Field label="Begünstigter" full>
           <input value={beneficiary} disabled />
         </Field>
         <Field label="IBAN">
@@ -864,7 +963,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
         </Field>
         <div className="field field--full">
           <InlineToggle
-            label="Abweichender Beg?nstigter"
+            label="Abweichender Begünstigter"
             checked={props.caseFile.bank.beneficiaryOverride.enabled}
             onChange={(checked) =>
               updateCurrentCase((current) => ({
@@ -921,10 +1020,10 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
         ) : null}
       </Section>
 
-      <Section title="Eigent?mer">
+      <Section title="Eigentümer">
         <div className="field field--full">
           <InlineToggle
-            label="Eigent?mer = Einlieferer"
+            label="Eigentümer = Einlieferer"
             checked={props.caseFile.owner.sameAsConsignor}
             onChange={(checked) =>
               updateCurrentCase((current) => ({
@@ -945,7 +1044,7 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
             <Field label="Nachname">
               <input value={owner.lastName} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } }))} />
             </Field>
-            <Field label="Stra?e">
+            <Field label="Straße">
               <input value={owner.street} onChange={(event) => updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } }))} />
             </Field>
             <Field label="Nr.">
@@ -963,7 +1062,15 @@ function ConsignorPage(props: { caseFile: CaseFile }) {
           </>
         )}
       </Section>
-    </div>
+      </div>
+      {vatModalOpen ? (
+        <VatCaptureModal
+          value={props.caseFile.consignor.vatNumber}
+          onValueChange={(value) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: value } }))}
+          onConfirm={() => setVatModalOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -1048,11 +1155,12 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                   ))}
                 </select>
               </Field>
-              <Field label="Abteilung">
-                <select value={selectedObject.departmentId} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value }))}>
-                  {state.masterData.departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.code} · {department.name}
+                <Field label="Abteilung">
+                  <select value={selectedObject.departmentId} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value }))}>
+                    {renderFollowUpOption(selectedObject.departmentId)}
+                    {state.masterData.departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.code} · {department.name}
                     </option>
                   ))}
                 </select>
@@ -1075,13 +1183,13 @@ function ObjectsPage(props: { caseFile: CaseFile }) {
                   <input value={formatAmountForDisplay(selectedObject.priceValue)} onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))} />
                 </Field>
                 {!ibid ? (
-                  <Field label="Nettolimite">
-                    <input
-                      type="checkbox"
+                  <div className="field">
+                    <InlineToggle
+                      label="Nettolimite"
                       checked={selectedObject.pricingMode === "netLimit"}
-                      onChange={(event) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" }))}
+                      onChange={(checked) => updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: checked ? "netLimit" : "limit" }))}
                     />
-                  </Field>
+                  </div>
                 ) : null}
               </div>
               <div className="form-row form-row--double">
@@ -1263,6 +1371,7 @@ function PdfEditModal(props: {
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const [vatModalOpen, setVatModalOpen] = useState(false);
 
   const objectItem = props.openTarget?.kind === "object" ? props.caseFile.objects[props.openTarget.objectIndex] ?? null : null;
   const objectAssets = objectItem
@@ -1424,6 +1533,18 @@ function PdfEditModal(props: {
     props.onClose();
   }
 
+  function applyConsignorVatCategory(value: string) {
+    updateCurrentCase((current) => ({
+      ...current,
+      consignor: {
+        ...current.consignor,
+        vatCategory: value,
+        vatNumber: value === "C" ? current.consignor.vatNumber : ""
+      }
+    }));
+    setVatModalOpen(value === "C");
+  }
+
   if (!props.openTarget) {
     return null;
   }
@@ -1459,6 +1580,7 @@ function PdfEditModal(props: {
                     }))
                   }
                 >
+                  {renderFollowUpOption(props.caseFile.meta.clerkId)}
                   {state.masterData.clerks.map((clerk) => (
                     <option key={clerk.id} value={clerk.id}>
                       {clerk.name}
@@ -1471,21 +1593,21 @@ function PdfEditModal(props: {
 
           {props.openTarget.kind === "consignor" ? (
             <Section title="Einlieferer">
-              <Field label="Firmenadresse">
-                <input
-                  type="checkbox"
+              <div className="field field--full">
+                <InlineToggle
+                  label="Firmenadresse"
                   checked={props.caseFile.consignor.useCompanyAddress}
-                  onChange={(event) =>
+                  onChange={(checked) =>
                     updateCurrentCase((current) => ({
                       ...current,
                       consignor: {
                         ...current.consignor,
-                        useCompanyAddress: event.target.checked
+                        useCompanyAddress: checked
                       }
                     }))
                   }
                 />
-              </Field>
+              </div>
               {props.caseFile.consignor.useCompanyAddress ? (
                 <Field label="Firma" full>
                   <input value={props.caseFile.consignor.company} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, company: event.target.value } }))} />
@@ -1538,6 +1660,29 @@ function PdfEditModal(props: {
                 <Field label="Land">
                   <input value={props.caseFile.consignor.country} onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))} />
                 </Field>
+              </div>
+              <div className="form-row form-row--double">
+                <Field label="MwSt-Kategorie">
+                  <select
+                    value={props.caseFile.consignor.vatCategory}
+                    onChange={(event) => applyConsignorVatCategory(event.target.value)}
+                  >
+                    {VAT_CATEGORY_OPTIONS.map((option) => (
+                      <option key={option.value || "empty"} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                {props.caseFile.consignor.vatCategory === "C" ? (
+                  <Field label="MwSt-Nr.">
+                    <input
+                      className={getTextInputClassName(props.caseFile.consignor.vatNumber)}
+                      value={props.caseFile.consignor.vatNumber}
+                      onChange={(event) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: event.target.value } }))}
+                    />
+                  </Field>
+                ) : null}
               </div>
               <div className="form-row form-row--triple">
                 <Field label="Geburtsdatum">
@@ -1594,7 +1739,7 @@ function PdfEditModal(props: {
                           })()
                         }
                       >
-                        ?
+                        {"×"}
                       </button>
                     </div>
                   ) : null}
@@ -1750,6 +1895,7 @@ function PdfEditModal(props: {
                 </Field>
                 <Field label="Abteilung">
                   <select value={objectItem.departmentId} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, departmentId: event.target.value }))}>
+                    {renderFollowUpOption(objectItem.departmentId)}
                     {state.masterData.departments.map((department) => (
                       <option key={department.id} value={department.id}>
                         {department.code} ? {department.name}
@@ -1775,13 +1921,13 @@ function PdfEditModal(props: {
                   <input value={formatAmountForDisplay(objectItem.priceValue)} onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, priceValue: event.target.value }))} />
                 </Field>
                 {objectItem.pricingMode === "startPrice" ? null : (
-                  <Field label="Nettolimite">
-                    <input
-                      type="checkbox"
+                  <div className="field">
+                    <InlineToggle
+                      label="Nettolimite"
                       checked={objectItem.pricingMode === "netLimit"}
-                      onChange={(event) => updateObject(objectItem.id, (current) => ({ ...current, pricingMode: event.target.checked ? "netLimit" : "limit" }))}
+                      onChange={(checked) => updateObject(objectItem.id, (current) => ({ ...current, pricingMode: checked ? "netLimit" : "limit" }))}
                     />
-                  </Field>
+                  </div>
                 )}
               </div>
               <div className="form-row form-row--double">
@@ -1841,7 +1987,7 @@ function PdfEditModal(props: {
                               })()
                             }
                           >
-                            ?
+                            {"×"}
                           </button>
                         </div>
                       ))}
@@ -1887,6 +2033,13 @@ function PdfEditModal(props: {
           ) : null}
         </div>
       </div>
+      {vatModalOpen ? (
+        <VatCaptureModal
+          value={props.caseFile.consignor.vatNumber}
+          onValueChange={(value) => updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: value } }))}
+          onConfirm={() => setVatModalOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1999,7 +2152,25 @@ function updateRequiredFieldValue(entry: RequiredFieldEntry, value?: string) {
   });
 }
 
+function getRequiredFieldCurrentValue(caseFile: CaseFile, entry: RequiredFieldEntry): string {
+  if (entry.key === "meta.receiptNumber") return caseFile.meta.receiptNumber;
+  if (entry.key === "meta.clerkId") return caseFile.meta.clerkId;
+  if (entry.key === "consignor.lastName") return caseFile.consignor.lastName;
+  if (entry.key === "consignor.street") return caseFile.consignor.street;
+  if (entry.key === "consignor.zip") return caseFile.consignor.zip;
+  if (entry.key === "consignor.city") return caseFile.consignor.city;
+  if (entry.key === "objects.departmentId") return caseFile.objects[entry.objectIndex ?? -1]?.departmentId ?? "";
+  if (entry.key === "objects.shortDescription") return caseFile.objects[entry.objectIndex ?? -1]?.shortDescription ?? "";
+  if (entry.key === "objects.estimate.low") return caseFile.objects[entry.objectIndex ?? -1]?.estimate.low ?? "";
+  if (entry.key === "objects.estimate.high") return caseFile.objects[entry.objectIndex ?? -1]?.estimate.high ?? "";
+  return "";
+}
+
 function RequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void }) {
+  return <CleanRequiredFieldsModal {...props} />;
+}
+
+function RequiredFieldsModalLegacy(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void }) {
   const state = useAppState();
 
   if (!props.entries.length) {
@@ -2080,6 +2251,86 @@ function RequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredField
               return (
                 <Field key={entry.label} label={entry.label} full>
                   <input value={textValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)} />
+                </Field>
+              );
+            })}
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+void RequiredFieldsModalLegacy;
+
+function CleanRequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void }) {
+  const state = useAppState();
+
+  if (!props.entries.length) {
+    return null;
+  }
+
+  return (
+    <div className="pin-modal">
+      <div className="overlay__card">
+        <div className="admin-header">
+          <h2>Fehlende PDF-Pflichtfelder</h2>
+          <button onClick={props.onClose}>Schließen</button>
+        </div>
+        <div className="page-grid">
+          <Section title="Angaben erfassen">
+            {props.entries.map((entry) => {
+              if (entry.kind === "action") {
+                return (
+                  <div key={entry.label} className="inline-actions">
+                    <span>{entry.label}</span>
+                    <button type="button" className="primary" onClick={() => updateRequiredFieldValue(entry)}>
+                      Objekt hinzufügen
+                    </button>
+                  </div>
+                );
+              }
+
+              const currentValue = getRequiredFieldCurrentValue(props.caseFile, entry);
+
+              if (entry.key === "meta.clerkId") {
+                return (
+                  <Field key={entry.label} label={entry.label} full>
+                    <select value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
+                      {renderFollowUpOption(currentValue)}
+                      <option value="">Bitte wählen</option>
+                      {state.masterData.clerks.map((clerk) => (
+                        <option key={clerk.id} value={clerk.id}>
+                          {clerk.name}
+                        </option>
+                      ))}
+                    </select>
+                    <FollowUpFieldControl value={currentValue} onChange={(value) => updateRequiredFieldValue(entry, value)} />
+                  </Field>
+                );
+              }
+
+              if (entry.key === "objects.departmentId") {
+                return (
+                  <Field key={entry.label} label={entry.label} full>
+                    <select value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
+                      {renderFollowUpOption(currentValue)}
+                      <option value="">Bitte wählen</option>
+                      {state.masterData.departments.map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.code} · {department.name}
+                        </option>
+                      ))}
+                    </select>
+                    <FollowUpFieldControl value={currentValue} onChange={(value) => updateRequiredFieldValue(entry, value)} />
+                  </Field>
+                );
+              }
+
+              return (
+                <Field key={entry.label} label={entry.label} full>
+                  <input className={getTextInputClassName(currentValue)} value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)} />
+                  <FollowUpFieldControl value={currentValue} onChange={(value) => updateRequiredFieldValue(entry, value)} />
                 </Field>
               );
             })}

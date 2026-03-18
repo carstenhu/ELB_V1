@@ -11,6 +11,9 @@ import {
 import templatePdfUrl from "../../../vorlagen/template.pdf?url";
 import templateObjectsPdfUrl from "../../../vorlagen/template_objekte.pdf?url";
 
+const FOLLOW_UP_VALUE = "Angaben folgen";
+const FOLLOW_UP_COLOR = rgb(0.74, 0.14, 0.11);
+
 export interface PdfPreviewObjectRow {
   id: string;
   intNumber: string;
@@ -117,6 +120,12 @@ function joinAddressLines(lines: string[]): string {
   return lines.filter(Boolean).join("\r\n");
 }
 
+function isFollowUpValue(value: string): boolean {
+  return value
+    .split(/\r?\n/)
+    .some((part) => part.trim() === FOLLOW_UP_VALUE);
+}
+
 function buildObjectEstimate(objectItem: CaseFile["objects"][number]): string {
   return [formatAmountForDisplay(objectItem.estimate.low), formatAmountForDisplay(objectItem.estimate.high)]
     .filter(Boolean)
@@ -151,6 +160,40 @@ function setMultilineTextFieldSafe(form: ReturnType<PDFDocument["getForm"]>, fie
   } catch {
     // Some templates may differ slightly; we skip missing fields deliberately.
   }
+}
+
+function drawFieldOverlay(args: {
+  page: PDFPage;
+  form: PdfForm;
+  font: PDFFont;
+  fieldName: string;
+  value: string;
+  multiline?: boolean;
+}): void {
+  if (!isFollowUpValue(args.value)) {
+    return;
+  }
+
+  const rect = getFieldRects(args.form, args.fieldName)[0];
+  if (!rect) {
+    return;
+  }
+
+  const fontSize = args.multiline ? 10 : 10.5;
+  const lineHeight = args.multiline ? 12 : 10.5;
+  const lines = args.multiline
+    ? wrapText(args.font, args.value, fontSize, Math.max(rect.width - 6, 1))
+    : [args.value];
+
+  lines.forEach((line, index) => {
+    args.page.drawText(line, {
+      x: rect.left + 2.5,
+      y: rect.top - fontSize - 2.5 - index * lineHeight,
+      size: fontSize,
+      font: args.font,
+      color: FOLLOW_UP_COLOR
+    });
+  });
 }
 
 function buildCostFieldValue(cost: { amount: string; note: string }): string {
@@ -683,7 +726,16 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
   };
 }
 
-function fillSharedFields(form: ReturnType<PDFDocument["getForm"]>, caseFile: CaseFile, masterData: MasterData, pageNumber: number, totalPages: number): void {
+function fillSharedFields(args: {
+  form: ReturnType<PDFDocument["getForm"]>;
+  page: PDFPage;
+  font: PDFFont;
+  caseFile: CaseFile;
+  masterData: MasterData;
+  pageNumber: number;
+  totalPages: number;
+}): void {
+  const { form, page, font, caseFile, masterData, pageNumber, totalPages } = args;
   const clerk = masterData.clerks.find((item) => item.id === caseFile.meta.clerkId);
   const beneficiary = deriveBeneficiary(caseFile.consignor, caseFile.bank);
   const addressLines = deriveAddressLines(caseFile.consignor);
@@ -696,29 +748,59 @@ function fillSharedFields(form: ReturnType<PDFDocument["getForm"]>, caseFile: Ca
         caseFile.owner.country
       ].filter(Boolean);
 
-  setTextFieldSafe(form, pageNumber === 1 ? "ELB Nr" : "ELB Nr 2", caseFile.meta.receiptNumber);
-  setTextFieldSafe(form, "Kommission", buildCostFieldValue(caseFile.costs.commission));
-  setTextFieldSafe(form, "Transport", buildCostFieldValue(caseFile.costs.transport));
-  setTextFieldSafe(form, "Abb.-Kosten", buildCostFieldValue(caseFile.costs.imaging));
-  setTextFieldSafe(form, "Kosten ", buildCostFieldValue(caseFile.costs.expertise));
-  setTextFieldSafe(form, "Versicherung ", buildCostFieldValue(caseFile.costs.insurance));
+  const receiptFieldName = pageNumber === 1 ? "ELB Nr" : "ELB Nr 2";
+  const commissionValue = buildCostFieldValue(caseFile.costs.commission);
+  const transportValue = buildCostFieldValue(caseFile.costs.transport);
+  const imagingValue = buildCostFieldValue(caseFile.costs.imaging);
+  const expertiseValue = buildCostFieldValue(caseFile.costs.expertise);
+  const insuranceValue = buildCostFieldValue(caseFile.costs.insurance);
+  const provenanceValue = caseFile.costs.provenance;
+  const internetValue = buildCostFieldValue(caseFile.costs.internet);
+  const clerkValue = clerk ? [clerk.name, clerk.phone, clerk.email].filter(Boolean).join(", ") : "";
+  const addressValue = joinAddressLines(addressLines);
+  const ownerValue = joinAddressLines(ownerLines);
+
+  setTextFieldSafe(form, receiptFieldName, isFollowUpValue(caseFile.meta.receiptNumber) ? "" : caseFile.meta.receiptNumber);
+  setTextFieldSafe(form, "Kommission", isFollowUpValue(commissionValue) ? "" : commissionValue);
+  setTextFieldSafe(form, "Transport", isFollowUpValue(transportValue) ? "" : transportValue);
+  setTextFieldSafe(form, "Abb.-Kosten", isFollowUpValue(imagingValue) ? "" : imagingValue);
+  setTextFieldSafe(form, "Kosten ", isFollowUpValue(expertiseValue) ? "" : expertiseValue);
+  setTextFieldSafe(form, "Versicherung ", isFollowUpValue(insuranceValue) ? "" : insuranceValue);
   setTextFieldSafe(form, "MwSt. Nr ", "");
   setTextFieldSafe(form, "MwSt. Nr 2", "");
   setTextFieldSafe(form, "MwSt. Kategorie", "");
   setTextFieldSafe(form, "MwSt. Kategorie 2", "");
-  setTextFieldSafe(form, "Diverses/Provenienz 2", caseFile.costs.provenance);
+  setTextFieldSafe(form, "Diverses/Provenienz 2", isFollowUpValue(provenanceValue) ? "" : provenanceValue);
   setTextFieldSafe(form, "Datum", new Date(caseFile.meta.createdAt).toLocaleDateString("de-CH"));
-  setTextFieldSafe(form, "Internet  1", buildCostFieldValue(caseFile.costs.internet));
-  setTextFieldSafe(form, "Sachbearbeiter 2", clerk ? [clerk.name, clerk.phone, clerk.email].filter(Boolean).join(", ") : "");
-  setMultilineTextFieldSafe(form, "Adresse EL", joinAddressLines(addressLines));
-  setMultilineTextFieldSafe(form, "Adresse EG", joinAddressLines(ownerLines));
-  setTextFieldSafe(form, "BIC/SWIFT", caseFile.bank.bic);
-  setTextFieldSafe(form, "IBAN/Kontonr", caseFile.bank.iban);
-  setTextFieldSafe(form, "Bankangaben: Begünstigter", beneficiary);
+  setTextFieldSafe(form, "Internet  1", isFollowUpValue(internetValue) ? "" : internetValue);
+  setTextFieldSafe(form, "Sachbearbeiter 2", isFollowUpValue(clerkValue) ? "" : clerkValue);
+  setMultilineTextFieldSafe(form, "Adresse EL", isFollowUpValue(addressValue) ? "" : addressValue);
+  setMultilineTextFieldSafe(form, "Adresse EG", isFollowUpValue(ownerValue) ? "" : ownerValue);
+  setTextFieldSafe(form, "BIC/SWIFT", isFollowUpValue(caseFile.bank.bic) ? "" : caseFile.bank.bic);
+  setTextFieldSafe(form, "IBAN/Kontonr", isFollowUpValue(caseFile.bank.iban) ? "" : caseFile.bank.iban);
+  setTextFieldSafe(form, "Bankangaben: Begünstigter", isFollowUpValue(beneficiary) ? "" : beneficiary);
   setTextFieldSafe(form, "Seite N/N", `${pageNumber}/${totalPages}`);
-  setTextFieldSafe(form, "EL Geburtsdatum 1", caseFile.consignor.birthDate);
-  setTextFieldSafe(form, "EL Nationalität  1", caseFile.consignor.nationality);
-  setTextFieldSafe(form, "EL ID/Passnr  1", caseFile.consignor.passportNumber);
+  setTextFieldSafe(form, "EL Geburtsdatum 1", isFollowUpValue(caseFile.consignor.birthDate) ? "" : caseFile.consignor.birthDate);
+  setTextFieldSafe(form, "EL Nationalität  1", isFollowUpValue(caseFile.consignor.nationality) ? "" : caseFile.consignor.nationality);
+  setTextFieldSafe(form, "EL ID/Passnr  1", isFollowUpValue(caseFile.consignor.passportNumber) ? "" : caseFile.consignor.passportNumber);
+
+  drawFieldOverlay({ page, form, font, fieldName: receiptFieldName, value: caseFile.meta.receiptNumber });
+  drawFieldOverlay({ page, form, font, fieldName: "Kommission", value: commissionValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Transport", value: transportValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Abb.-Kosten", value: imagingValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Kosten ", value: expertiseValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Versicherung ", value: insuranceValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Diverses/Provenienz 2", value: provenanceValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Internet  1", value: internetValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Sachbearbeiter 2", value: clerkValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Adresse EL", value: addressValue, multiline: true });
+  drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true });
+  drawFieldOverlay({ page, form, font, fieldName: "BIC/SWIFT", value: caseFile.bank.bic });
+  drawFieldOverlay({ page, form, font, fieldName: "IBAN/Kontonr", value: caseFile.bank.iban });
+  drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: Begünstigter", value: beneficiary });
+  drawFieldOverlay({ page, form, font, fieldName: "EL Geburtsdatum 1", value: caseFile.consignor.birthDate });
+  drawFieldOverlay({ page, form, font, fieldName: "EL Nationalität  1", value: caseFile.consignor.nationality });
+  drawFieldOverlay({ page, form, font, fieldName: "EL ID/Passnr  1", value: caseFile.consignor.passportNumber });
 }
 
 function fillObjectFields(
@@ -772,7 +854,7 @@ async function drawObjectChunk(args: {
           y: lineTop - baselineOffset,
           size: geometry.fontSize,
           font,
-          color: rgb(0.07, 0.1, 0.09)
+          color: isFollowUpValue(line) ? FOLLOW_UP_COLOR : rgb(0.07, 0.1, 0.09)
         });
       });
     });
@@ -821,12 +903,14 @@ export async function generateElbPdf(caseFile: CaseFile, masterData: MasterData)
     const sourceBytes = index === 0 ? mainTemplateBytes : followTemplateBytes;
     const sourcePdf = await PDFDocument.load(sourceBytes);
     const form = sourcePdf.getForm();
+    const page = sourcePdf.getPage(0);
+    const overlayFont = await sourcePdf.embedFont(StandardFonts.Helvetica);
 
-    fillSharedFields(form, caseFile, masterData, index + 1, totalPages);
+    fillSharedFields({ form, page, font: overlayFont, caseFile, masterData, pageNumber: index + 1, totalPages });
     fillObjectFields(form, row, index === 0 ? "1" : "2");
     await drawObjectChunk({
       pdf: sourcePdf,
-      page: sourcePdf.getPage(0),
+      page,
       form,
       row,
       suffix: index === 0 ? "1" : "2"
