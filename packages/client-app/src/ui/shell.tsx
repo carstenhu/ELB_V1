@@ -48,23 +48,30 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
 export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void }) {
   const state = useAppState();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const [pageMenuOpen, setPageMenuOpen] = useState(false);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
+  const pageMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!menuOpen) {
+    if (!actionMenuOpen && !pageMenuOpen) {
       return;
     }
 
     function handlePointerDown(event: PointerEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
+      const target = event.target as Node;
+      if (!actionMenuRef.current?.contains(target)) {
+        setActionMenuOpen(false);
+      }
+      if (!pageMenuRef.current?.contains(target)) {
+        setPageMenuOpen(false);
       }
     }
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setMenuOpen(false);
+        setActionMenuOpen(false);
+        setPageMenuOpen(false);
       }
     }
 
@@ -74,7 +81,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [menuOpen]);
+  }, [actionMenuOpen, pageMenuOpen]);
 
   return (
     <header className="topbar">
@@ -83,20 +90,57 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
         <span>{activeClerk?.name ?? "Kein Sachbearbeiter"}</span>
       </div>
       <nav className="topbar__nav">
-        <div className="topbar__menu" ref={menuRef}>
+        <div className="topbar__menu topbar__menu--pages" ref={pageMenuRef}>
           <button
             type="button"
-            className={menuOpen ? "nav-button nav-button--active topbar__menu-trigger" : "nav-button topbar__menu-trigger"}
-            aria-expanded={menuOpen}
-            aria-label="Menue oeffnen"
-            onClick={() => setMenuOpen((current) => !current)}
+            className={pageMenuOpen ? "nav-button nav-button--active topbar__menu-trigger topbar__menu-trigger--pages" : "nav-button topbar__menu-trigger topbar__menu-trigger--pages"}
+            aria-expanded={pageMenuOpen}
+            aria-label="Navigation oeffnen"
+            onClick={() => {
+              setPageMenuOpen((current) => !current);
+              setActionMenuOpen(false);
+            }}
           >
             <span className="topbar__menu-icon" aria-hidden="true">
               &#9776;
             </span>
+            <span className="topbar__menu-label">Navigation</span>
+          </button>
+          {pageMenuOpen ? (
+            <div className="topbar__menu-panel topbar__menu-panel--pages">
+              {pages.map((page) => (
+                <button
+                  key={page.id}
+                  type="button"
+                  className={page.id === props.page ? "primary-button" : "secondary-button"}
+                  onClick={() => {
+                    props.onPageChange(page.id);
+                    setPageMenuOpen(false);
+                  }}
+                >
+                  {page.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="topbar__menu" ref={actionMenuRef}>
+          <button
+            type="button"
+            className={actionMenuOpen ? "nav-button nav-button--active topbar__menu-trigger" : "nav-button topbar__menu-trigger"}
+            aria-expanded={actionMenuOpen}
+            aria-label="Menue oeffnen"
+            onClick={() => {
+              setActionMenuOpen((current) => !current);
+              setPageMenuOpen(false);
+            }}
+          >
+            <span className="topbar__menu-icon" aria-hidden="true">
+              &#9662;
+            </span>
             <span className="topbar__menu-label">Menue</span>
           </button>
-          {menuOpen ? (
+          {actionMenuOpen ? (
             <div className="topbar__menu-panel">
               <button
                 type="button"
@@ -104,7 +148,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                 onClick={() => {
                   createNewCase();
                   props.onPageChange("consignor");
-                  setMenuOpen(false);
+                  setActionMenuOpen(false);
                 }}
               >
                 Neue ELB anlegen
@@ -114,7 +158,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                 className="primary-button"
                 onClick={() => {
                   props.onOpenClerkSelector();
-                  setMenuOpen(false);
+                  setActionMenuOpen(false);
                 }}
               >
                 Sachbearbeiter wechseln
@@ -124,7 +168,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                 className="primary-button"
                 onClick={() => {
                   props.onPageChange("loadCenter");
-                  setMenuOpen(false);
+                  setActionMenuOpen(false);
                 }}
               >
                 Entwuerfe und ZIPs laden
@@ -134,7 +178,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                 className="primary-button"
                 onClick={() => {
                   props.onPageChange("admin");
-                  setMenuOpen(false);
+                  setActionMenuOpen(false);
                 }}
               >
                 Admin
@@ -145,7 +189,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
         {pages.map((page) => (
           <button
             key={page.id}
-            className={page.id === props.page ? "nav-button nav-button--active" : "nav-button"}
+            className={page.id === props.page ? "nav-button nav-button--active topbar__page-button" : "nav-button topbar__page-button"}
             onClick={() => props.onPageChange(page.id)}
           >
             {page.label}

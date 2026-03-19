@@ -149,6 +149,10 @@ textarea {
   line-height: 1.1;
 }
 
+.topbar__menu-trigger--pages {
+  display: none;
+}
+
 .topbar__menu-icon {
   display: none;
   font-size: 1.15rem;
@@ -177,6 +181,11 @@ textarea {
 .topbar__menu-panel button {
   width: 100%;
   justify-content: flex-start;
+}
+
+.topbar__menu-panel--pages {
+  left: 0;
+  right: auto;
 }
 
 .page,
@@ -603,23 +612,16 @@ textarea {
   }
 
   .topbar__brand {
-    flex: 1 1 auto;
-  }
-
-  .topbar__brand strong {
-    font-size: 0.94rem;
-  }
-
-  .topbar__brand span {
-    font-size: 0.88rem;
+    display: none;
   }
 
   .topbar__nav {
     padding: 0.16rem;
     flex-wrap: nowrap;
+    gap: 0.35rem;
   }
 
-  .topbar__nav > .nav-button {
+  .topbar__page-button {
     display: none;
   }
 
@@ -628,12 +630,16 @@ textarea {
     padding: 0.56rem 0.8rem;
   }
 
+  .topbar__menu-trigger--pages {
+    display: inline-flex;
+  }
+
   .topbar__menu-icon {
     display: inline;
   }
 
   .topbar__menu-label {
-    display: none;
+    display: inline;
   }
 
   .topbar__menu-panel {
