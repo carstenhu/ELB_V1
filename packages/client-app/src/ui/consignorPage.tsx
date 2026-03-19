@@ -6,7 +6,7 @@ import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorAction
 import { clearOwnerData, hasSeparateOwnerData } from "../features/owner/ownerState";
 import { findAsset } from "./caseAssets";
 import { OwnerResetConfirmModal, VatCaptureModal } from "./caseModals";
-import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "./formSupport";
+import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassName, getTextInputClassName, renderFollowUpOption } from "./formSupport";
 
 export function ConsignorPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -62,10 +62,10 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
       <div className="page-grid">
         <Section title="Meta">
           <Field label="ELB-Nummer">
-            <input value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
+            <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
           </Field>
           <Field label="Sachbearbeiter">
-            <select value={props.caseFile.meta.clerkId} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, clerkId: event.target.value } }))}>
+            <select className={getFieldInputClassName(props.caseFile.meta.clerkId)} value={props.caseFile.meta.clerkId} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, clerkId: event.target.value } }))}>
               {renderFollowUpOption(props.caseFile.meta.clerkId)}
               {state.masterData.clerks.map((clerk) => (
                 <option key={clerk.id} value={clerk.id}>
@@ -86,7 +86,7 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
           </div>
           {props.caseFile.consignor.useCompanyAddress ? (
             <Field label="Firma" full>
-              <input value={props.caseFile.consignor.company} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, company: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.company)} value={props.caseFile.consignor.company} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, company: event.target.value } }))} />
             </Field>
           ) : null}
           <div className="form-row form-row--triple">
@@ -101,40 +101,40 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
               </select>
             </Field>
             <Field label="Vorname">
-              <input value={props.caseFile.consignor.firstName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, firstName: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.firstName)} value={props.caseFile.consignor.firstName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, firstName: event.target.value } }))} />
             </Field>
             <Field label="Nachname">
-              <input value={props.caseFile.consignor.lastName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, lastName: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.lastName)} value={props.caseFile.consignor.lastName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, lastName: event.target.value } }))} />
             </Field>
           </div>
           <Field label="Adresszusatz" full>
-            <input value={props.caseFile.consignor.addressAddon} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, addressAddon: event.target.value } }))} />
+            <input className={getFieldInputClassName(props.caseFile.consignor.addressAddon)} value={props.caseFile.consignor.addressAddon} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, addressAddon: event.target.value } }))} />
           </Field>
           <div className="form-row form-row--double">
             <Field label="Straße">
-              <input value={props.caseFile.consignor.street} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.street)} value={props.caseFile.consignor.street} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, street: event.target.value } }))} />
             </Field>
             <Field label="Nr.">
-              <input value={props.caseFile.consignor.houseNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, houseNumber: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.houseNumber)} value={props.caseFile.consignor.houseNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, houseNumber: event.target.value } }))} />
             </Field>
           </div>
           <div className="form-row form-row--triple">
             <Field label="PLZ">
-              <input value={props.caseFile.consignor.zip} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, zip: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.zip)} value={props.caseFile.consignor.zip} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, zip: event.target.value } }))} />
             </Field>
             <Field label="Stadt">
-              <input value={props.caseFile.consignor.city} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.city)} value={props.caseFile.consignor.city} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
             </Field>
             <Field label="Land">
-              <CountryInput value={props.caseFile.consignor.country} onChange={(value) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: value } }))} />
+              <CountryInput className={getFieldInputClassName(props.caseFile.consignor.country)} value={props.caseFile.consignor.country} onChange={(value) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: value } }))} />
             </Field>
           </div>
           <div className="form-row form-row--double">
             <Field label="Telefon">
-              <input value={props.caseFile.consignor.phone} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, phone: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.phone)} value={props.caseFile.consignor.phone} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, phone: event.target.value } }))} />
             </Field>
             <Field label="E-Mail">
-              <input type="email" value={props.caseFile.consignor.email} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, email: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.email)} type="email" value={props.caseFile.consignor.email} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, email: event.target.value } }))} />
             </Field>
           </div>
         </Section>
@@ -158,13 +158,13 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
           </div>
           <div className="form-row form-row--triple">
             <Field label="Geburtsdatum">
-              <input value={props.caseFile.consignor.birthDate} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.birthDate)} value={props.caseFile.consignor.birthDate} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, birthDate: event.target.value } }))} />
             </Field>
             <Field label="Nationalität">
-              <input value={props.caseFile.consignor.nationality} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.nationality)} value={props.caseFile.consignor.nationality} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, nationality: event.target.value } }))} />
             </Field>
             <Field label="ID/Passnummer">
-              <input value={props.caseFile.consignor.passportNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, passportNumber: event.target.value } }))} />
+              <input className={getFieldInputClassName(props.caseFile.consignor.passportNumber)} value={props.caseFile.consignor.passportNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, passportNumber: event.target.value } }))} />
             </Field>
           </div>
           <Field label="Passfoto" full>
@@ -199,10 +199,10 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
             <input value={beneficiary} disabled />
           </Field>
           <Field label="IBAN">
-            <input value={props.caseFile.bank.iban} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, iban: event.target.value } }))} />
+            <input className={getFieldInputClassName(props.caseFile.bank.iban)} value={props.caseFile.bank.iban} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, iban: event.target.value } }))} />
           </Field>
           <Field label="BIC">
-            <input value={props.caseFile.bank.bic} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, bic: event.target.value } }))} />
+            <input className={getFieldInputClassName(props.caseFile.bank.bic)} value={props.caseFile.bank.bic} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, bic: event.target.value } }))} />
           </Field>
           <div className="field field--full">
             <InlineToggle
@@ -219,10 +219,10 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
           {props.caseFile.bank.beneficiaryOverride.enabled ? (
             <>
               <Field label="Grund" full>
-                <input value={props.caseFile.bank.beneficiaryOverride.reason} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, reason: event.target.value } } }))} />
+                <input className={getFieldInputClassName(props.caseFile.bank.beneficiaryOverride.reason)} value={props.caseFile.bank.beneficiaryOverride.reason} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, reason: event.target.value } } }))} />
               </Field>
               <Field label="Name" full>
-                <input value={props.caseFile.bank.beneficiaryOverride.name} disabled={!props.caseFile.bank.beneficiaryOverride.reason} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, name: event.target.value } } }))} />
+                <input className={getFieldInputClassName(props.caseFile.bank.beneficiaryOverride.name)} value={props.caseFile.bank.beneficiaryOverride.name} disabled={!props.caseFile.bank.beneficiaryOverride.reason} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, bank: { ...current.bank, beneficiaryOverride: { ...current.bank.beneficiaryOverride, name: event.target.value } } }))} />
               </Field>
             </>
           ) : null}
@@ -239,25 +239,25 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
           {props.caseFile.owner.sameAsConsignor ? null : (
             <>
               <Field label="Vorname">
-                <input value={owner.firstName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, firstName: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.firstName)} value={owner.firstName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, firstName: event.target.value } }))} />
               </Field>
               <Field label="Nachname">
-                <input value={owner.lastName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.lastName)} value={owner.lastName} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, lastName: event.target.value } }))} />
               </Field>
               <Field label="Straße">
-                <input value={owner.street} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.street)} value={owner.street} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, street: event.target.value } }))} />
               </Field>
               <Field label="Nr.">
-                <input value={owner.houseNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, houseNumber: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.houseNumber)} value={owner.houseNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, houseNumber: event.target.value } }))} />
               </Field>
               <Field label="PLZ">
-                <input value={owner.zip} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, zip: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.zip)} value={owner.zip} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, zip: event.target.value } }))} />
               </Field>
               <Field label="Stadt">
-                <input value={owner.city} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, city: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.city)} value={owner.city} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, city: event.target.value } }))} />
               </Field>
               <Field label="Land">
-                <input value={owner.country} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, country: event.target.value } }))} />
+                <input className={getFieldInputClassName(owner.country)} value={owner.country} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, country: event.target.value } }))} />
               </Field>
             </>
           )}

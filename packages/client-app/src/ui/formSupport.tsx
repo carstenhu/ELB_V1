@@ -31,8 +31,12 @@ export function isFollowUpValue(value: string | null | undefined) {
   return normalizeFieldValue(value).trim() === FOLLOW_UP_VALUE;
 }
 
-export function getTextInputClassName(value: string | null | undefined) {
+export function getFieldInputClassName(value: string | null | undefined) {
   return isFollowUpValue(value) ? "field-input field-input--follow-up" : "field-input";
+}
+
+export function getTextInputClassName(value: string | null | undefined) {
+  return getFieldInputClassName(value);
 }
 
 export function renderFollowUpOption(value: string | null | undefined) {
@@ -192,12 +196,12 @@ export function InlineToggle(props: { label: string; checked: boolean; onChange:
   );
 }
 
-export function CountryInput(props: { value: string; onChange: (value: string) => void }) {
+export function CountryInput(props: { value: string; onChange: (value: string) => void; className?: string }) {
   const listId = useId();
 
   return (
     <>
-      <input list={listId} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
+      <input className={props.className} list={listId} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
       <datalist id={listId}>
         {COUNTRY_SUGGESTIONS.map((country) => (
           <option key={country} value={country} />

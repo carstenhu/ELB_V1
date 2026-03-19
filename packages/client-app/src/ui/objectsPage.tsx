@@ -4,7 +4,7 @@ import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorActions";
 import { consumePendingObjectSelectionId } from "../appState";
 import { useAppState } from "../useAppState";
-import { InlineToggle, renderFollowUpOption } from "./formSupport";
+import { InlineToggle, getFieldInputClassName, renderFollowUpOption } from "./formSupport";
 
 export function ObjectsPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -69,7 +69,7 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
             <>
               <div className="form-row form-row--triple">
                 <Field label="Int.-Nr.">
-                  <input value={selectedObject.intNumber} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value }))} />
+                  <input className={getFieldInputClassName(selectedObject.intNumber)} value={selectedObject.intNumber} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value }))} />
                 </Field>
                 <Field label="Auktion">
                   <select
@@ -87,7 +87,7 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                   </select>
                 </Field>
                 <Field label="Abteilung">
-                  <select value={selectedObject.departmentId} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value }))}>
+                  <select className={getFieldInputClassName(selectedObject.departmentId)} value={selectedObject.departmentId} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value }))}>
                     {renderFollowUpOption(selectedObject.departmentId)}
                     {state.masterData.departments.map((department) => (
                       <option key={department.id} value={department.id}>
@@ -98,20 +98,20 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                 </Field>
               </div>
               <Field label="Kurzbeschrieb" full>
-                <input value={selectedObject.shortDescription} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value }))} />
+                <input className={getFieldInputClassName(selectedObject.shortDescription)} value={selectedObject.shortDescription} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value }))} />
               </Field>
               <Field label="Beschreibung" full>
-                <textarea value={selectedObject.description} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))} />
+                <textarea className={getFieldInputClassName(selectedObject.description)} value={selectedObject.description} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))} />
               </Field>
               <div className={ibid ? "form-row form-row--triple" : "form-row form-row--quad"}>
                 <Field label="Schätzung von">
-                  <input value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
+                  <input className={getFieldInputClassName(selectedObject.estimate.low)} value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
                 </Field>
                 <Field label="Schätzung bis">
-                  <input value={formatAmountForDisplay(selectedObject.estimate.high)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+                  <input className={getFieldInputClassName(selectedObject.estimate.high)} value={formatAmountForDisplay(selectedObject.estimate.high)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
                 </Field>
                 <Field label={ibid ? "Startpreis" : "Limite"}>
-                  <input value={formatAmountForDisplay(selectedObject.priceValue)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))} />
+                  <input className={getFieldInputClassName(selectedObject.priceValue)} value={formatAmountForDisplay(selectedObject.priceValue)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))} />
                 </Field>
                 {!ibid ? (
                   <div className="field">
@@ -121,10 +121,10 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
               </div>
               <div className="form-row form-row--double">
                 <Field label="Referenznr.">
-                  <input value={selectedObject.referenceNumber} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
+                  <input className={getFieldInputClassName(selectedObject.referenceNumber)} value={selectedObject.referenceNumber} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
                 </Field>
                 <Field label="Bemerkungen">
-                  <input value={selectedObject.remarks} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))} />
+                  <input className={getFieldInputClassName(selectedObject.remarks)} value={selectedObject.remarks} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))} />
                 </Field>
               </div>
               <Field label="Objektfotos" full>
@@ -171,26 +171,26 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
       <Section title="Konditionen für alle Objekte">
         <div className="form-row form-row--six">
           <Field label="Kommission">
-            <input value={props.caseFile.costs.commission.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />
+            <input className={getFieldInputClassName(props.caseFile.costs.commission.amount)} value={props.caseFile.costs.commission.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />
           </Field>
           <Field label="Versicherung">
-            <input value={props.caseFile.costs.insurance.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } }))} />
+            <input className={getFieldInputClassName(props.caseFile.costs.insurance.amount)} value={props.caseFile.costs.insurance.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } }))} />
           </Field>
           <Field label="Transport">
-            <input value={props.caseFile.costs.transport.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } }))} />
+            <input className={getFieldInputClassName(props.caseFile.costs.transport.amount)} value={props.caseFile.costs.transport.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } }))} />
           </Field>
           <Field label="Abb.-Kosten">
-            <input value={props.caseFile.costs.imaging.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } }))} />
+            <input className={getFieldInputClassName(props.caseFile.costs.imaging.amount)} value={props.caseFile.costs.imaging.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } }))} />
           </Field>
           <Field label="Kosten Expertisen">
-            <input value={props.caseFile.costs.expertise.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } }))} />
+            <input className={getFieldInputClassName(props.caseFile.costs.expertise.amount)} value={props.caseFile.costs.expertise.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } }))} />
           </Field>
           <Field label="Internet">
-            <input value={props.caseFile.costs.internet.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } }))} />
+            <input className={getFieldInputClassName(props.caseFile.costs.internet.amount)} value={props.caseFile.costs.internet.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } }))} />
           </Field>
         </div>
         <Field label="Provenienz / Infos" full>
-          <textarea value={props.caseFile.costs.provenance} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } }))} />
+          <textarea className={getFieldInputClassName(props.caseFile.costs.provenance)} value={props.caseFile.costs.provenance} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } }))} />
         </Field>
       </Section>
     </div>

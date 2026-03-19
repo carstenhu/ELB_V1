@@ -1,6 +1,7 @@
 import { type CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorActions";
+import { getFieldInputClassName } from "./formSupport";
 import { useAppState } from "../useAppState";
 
 export function InternalPage(props: { caseFile: CaseFile }) {
@@ -11,7 +12,7 @@ export function InternalPage(props: { caseFile: CaseFile }) {
     <div className="page-grid">
       <Section title="Interne Infos">
         <Field label="Interne Notizen" full>
-          <textarea value={props.caseFile.internalInfo.notes} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, internalInfo: { ...current.internalInfo, notes: event.target.value } }))} />
+          <textarea className={getFieldInputClassName(props.caseFile.internalInfo.notes)} value={props.caseFile.internalInfo.notes} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, internalInfo: { ...current.internalInfo, notes: event.target.value } }))} />
         </Field>
       </Section>
       <Section title="Interessengebiete">
