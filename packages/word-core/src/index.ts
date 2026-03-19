@@ -317,8 +317,39 @@ function setFooterClerkName(node: Element, value: string) {
   lastText.textContent = value;
 }
 
-function ensureImageRelationship(zip: JSZip, relsDoc: XMLDocument, photo: WordPreviewPhoto, counter: number): string | null {
-  const parsed = dataUrlToBytes(photo.src);
+async function createContainedPhotoDataUrl(dataUrl: string, targetSize: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = targetSize;
+      canvas.height = targetSize;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        reject(new Error("Bildkontext fuer den Word-Export konnte nicht erzeugt werden."));
+        return;
+      }
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, targetSize, targetSize);
+
+      const scale = Math.min(targetSize / image.width, targetSize / image.height);
+      const drawWidth = image.width * scale;
+      const drawHeight = image.height * scale;
+      const drawX = (targetSize - drawWidth) / 2;
+      const drawY = (targetSize - drawHeight) / 2;
+      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    image.onerror = () => reject(new Error("Bild konnte fuer den Word-Export nicht aufbereitet werden."));
+    image.src = dataUrl;
+  });
+}
+
+async function ensureImageRelationship(zip: JSZip, relsDoc: XMLDocument, photo: WordPreviewPhoto, counter: number): Promise<string | null> {
+  const parsed = dataUrlToBytes(await createContainedPhotoDataUrl(photo.src, 640));
   if (!parsed) {
     return null;
   }
@@ -427,11 +458,17 @@ async function drawPdfPhoto(page: PDFPage, pdfDocument: PDFDocument, photo: Word
     ? await pdfDocument.embedPng(parsed.bytes)
     : await pdfDocument.embedJpg(parsed.bytes);
 
+  const scale = Math.min(size / embedded.width, size / embedded.height);
+  const targetWidth = embedded.width * scale;
+  const targetHeight = embedded.height * scale;
+  const offsetX = (size - targetWidth) / 2;
+  const offsetY = (size - targetHeight) / 2;
+
   page.drawImage(embedded, {
-    x,
-    y,
-    width: size,
-    height: size
+    x: x + offsetX,
+    y: y + offsetY,
+    width: targetWidth,
+    height: targetHeight
   });
 }
 
@@ -564,7 +601,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
 
   let imageCounter = 1;
 
-  model.pages.forEach((page, pageIndex) => {
+  for (const [pageIndex, page] of model.pages.entries()) {
     if (pageIndex > 0) {
       body.appendChild(createPageBreakParagraph(documentDoc));
     }
@@ -583,13 +620,13 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     appendDateValue(dateClone, page.headerRightText);
     body.appendChild(dateClone);
 
-    page.rows.forEach((row) => {
-      const relationshipId = row.primaryPhoto ? ensureImageRelationship(zip, relationshipsDoc, row.primaryPhoto, imageCounter) : null;
+    for (const row of page.rows) {
+      const relationshipId = row.primaryPhoto ? await ensureImageRelationship(zip, relationshipsDoc, row.primaryPhoto, imageCounter) : null;
       if (relationshipId) {
         imageCounter += 1;
       }
       body.appendChild(buildTemplateObjectTable(documentDoc, objectTable, row, relationshipId));
-    });
+    }
 
     footerNodes.forEach((footerNode, footerIndex) => {
       const footerClone = footerNode.cloneNode(true) as Element;
@@ -598,7 +635,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       }
       body.appendChild(footerClone);
     });
-  });
+  }
 
   body.appendChild(sectionProperties.cloneNode(true));
 

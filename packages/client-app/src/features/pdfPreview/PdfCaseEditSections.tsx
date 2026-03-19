@@ -256,18 +256,28 @@ export function PdfCostsEditorSection(props: { caseFile: CaseFile }) {
 
   return (
     <Section title="Konditionen">
-      <Field label="Kommission">
-        <input value={props.caseFile.costs.commission.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />
-      </Field>
-      <Field label="Versicherung">
-        <input value={props.caseFile.costs.insurance.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } }))} />
-      </Field>
-      <Field label="Transport">
-        <input value={props.caseFile.costs.transport.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } }))} />
-      </Field>
-      <Field label="Abb.-Kosten">
-        <input value={props.caseFile.costs.imaging.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } }))} />
-      </Field>
+      <div className="form-row form-row--triple">
+        <Field label="Kommission">
+          <input value={props.caseFile.costs.commission.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />
+        </Field>
+        <Field label="Versicherung">
+          <input value={props.caseFile.costs.insurance.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, insurance: { ...current.costs.insurance, amount: event.target.value } } }))} />
+        </Field>
+        <Field label="Transport">
+          <input value={props.caseFile.costs.transport.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, transport: { ...current.costs.transport, amount: event.target.value } } }))} />
+        </Field>
+      </div>
+      <div className="form-row form-row--triple">
+        <Field label="Abb.-Kosten">
+          <input value={props.caseFile.costs.imaging.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, imaging: { ...current.costs.imaging, amount: event.target.value } } }))} />
+        </Field>
+        <Field label="Expertise">
+          <input value={props.caseFile.costs.expertise.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, expertise: { ...current.costs.expertise, amount: event.target.value } } }))} />
+        </Field>
+        <Field label="Internet">
+          <input value={props.caseFile.costs.internet.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, internet: { ...current.costs.internet, amount: event.target.value } } }))} />
+        </Field>
+      </div>
       <Field label="Provenienz / Infos" full>
         <textarea value={props.caseFile.costs.provenance} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } }))} />
       </Field>

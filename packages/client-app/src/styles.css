@@ -209,6 +209,43 @@ textarea {
   accent-color: #7fac89;
 }
 
+.required-fields-bulk-action {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid #cfd8ce;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f6f0 100%);
+  box-shadow: 0 6px 18px rgba(24, 33, 30, 0.05);
+}
+
+.required-fields-bulk-action__copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.required-fields-bulk-action__copy strong {
+  color: #17372f;
+}
+
+.required-fields-bulk-action__copy p {
+  margin: 0;
+  color: #516258;
+  line-height: 1.45;
+}
+
+.required-fields-bulk-action__toggle {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #afc2b0;
+  background: rgba(255, 255, 255, 0.96);
+  color: #17372f;
+  font-size: 0.96rem;
+  font-weight: 600;
+}
+
 .modal-hint,
 .field-warning {
   margin: 0;

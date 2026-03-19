@@ -48,4 +48,32 @@ describe("exchange import", () => {
     expect(imported.caseFile.assets[0]?.optimizedPath).toMatch(/^data:image\/jpeg;base64,/);
     expect(imported.caseFile.assets[0]?.originalPath).toBe(imported.caseFile.assets[0]?.optimizedPath);
   });
+
+  it("ignores system files around a valid exchange folder", async () => {
+    const imported = await importExchangeFromEntries([
+      {
+        path: "__MACOSX/._case.json",
+        content: new Uint8Array([1, 2, 3])
+      },
+      {
+        path: ".DS_Store",
+        content: new Uint8Array([1, 2, 3])
+      },
+      {
+        path: "Huebler_Carsten_0001_v2/case.json",
+        content: JSON.stringify(createCaseEnvelope(createEmptyCase({
+          id: "case-2",
+          clerkId: "clerk-1",
+          receiptNumber: "0002",
+          createdAt: "2026-03-19T09:00:00.000Z"
+        })), null, 2)
+      },
+      {
+        path: "Huebler_Carsten_0001_v2/master-data.json",
+        content: JSON.stringify(createEmptyMasterData(), null, 2)
+      }
+    ]);
+
+    expect(imported.caseFile.meta.id).toBe("case-2");
+  });
 });

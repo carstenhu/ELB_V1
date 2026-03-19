@@ -30,14 +30,20 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
         <div className="page-grid">
           <Section title="Angaben erfassen">
             {fillableEntries.length ? (
-              <label className="follow-up-toggle">
-                <input
-                  type="checkbox"
-                  checked={allMissingFieldsMarkedFollowUp}
-                  onChange={(event) => updateRequiredFieldValues(fillableEntries, event.target.checked ? FOLLOW_UP_VALUE : "")}
-                />
-                <span>Alle fehlenden Felder direkt mit Angaben folgen befuellen</span>
-              </label>
+              <div className="required-fields-bulk-action">
+                <div className="required-fields-bulk-action__copy">
+                  <strong>Alles direkt mit Angaben folgen markieren</strong>
+                  <p>Damit werden alle ausfuellbaren Pflichtfelder in einem Schritt gesetzt.</p>
+                </div>
+                <label className="follow-up-toggle required-fields-bulk-action__toggle">
+                  <input
+                    type="checkbox"
+                    checked={allMissingFieldsMarkedFollowUp}
+                    onChange={(event) => updateRequiredFieldValues(fillableEntries, event.target.checked ? FOLLOW_UP_VALUE : "")}
+                  />
+                  <span>Alle fehlenden Felder mit Angaben folgen befuellen</span>
+                </label>
+              </div>
             ) : null}
             {props.entries.map((entry) => {
               if (entry.inputKind === "action") {

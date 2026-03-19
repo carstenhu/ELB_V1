@@ -19,6 +19,20 @@ interface NormalizedExchangeEntry {
   content: string | Uint8Array;
 }
 
+function isIgnoredSystemPath(path: string): boolean {
+  const normalized = normalizePath(path);
+  const lowerCasePath = normalized.toLowerCase();
+  const segments = lowerCasePath.split("/");
+  const fileName = segments[segments.length - 1] ?? "";
+
+  return segments.includes("__macosx")
+    || fileName === ".ds_store"
+    || fileName === "thumbs.db"
+    || fileName === "desktop.ini"
+    || fileName === "austausch-index.json"
+    || fileName === ".localized";
+}
+
 function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+/g, "/");
 }
@@ -95,6 +109,35 @@ function findEntry(entries: readonly NormalizedExchangeEntry[], fileName: string
   return entries.find((entry) => entry.lowerCasePath === lowerCaseName || entry.lowerCasePath.endsWith(`/${lowerCaseName}`)) ?? null;
 }
 
+function findExchangeEntries(entries: readonly NormalizedExchangeEntry[]): { caseEntry: NormalizedExchangeEntry; masterDataEntry: NormalizedExchangeEntry } {
+  const caseEntries = entries.filter((entry) => entry.lowerCasePath.endsWith("/case.json") || entry.lowerCasePath === "case.json");
+  const masterDataEntries = entries.filter((entry) => entry.lowerCasePath.endsWith("/master-data.json") || entry.lowerCasePath === "master-data.json");
+
+  if (!caseEntries.length) {
+    throw new AppError("IMPORT_ERROR", "Austauschordner enthaelt keine case.json.");
+  }
+
+  if (!masterDataEntries.length) {
+    throw new AppError("IMPORT_ERROR", "Austauschordner enthaelt keine master-data.json.");
+  }
+
+  for (const caseEntry of caseEntries) {
+    const caseDirectory = getDirectoryName(caseEntry.path).toLowerCase();
+    const matchingMasterDataEntry = masterDataEntries.find((entry) => getDirectoryName(entry.path).toLowerCase() === caseDirectory);
+    if (matchingMasterDataEntry) {
+      return {
+        caseEntry,
+        masterDataEntry: matchingMasterDataEntry
+      };
+    }
+  }
+
+  return {
+    caseEntry: caseEntries[0]!,
+    masterDataEntry: masterDataEntries[0]!
+  };
+}
+
 function getEntryBytes(entry: NormalizedExchangeEntry): Uint8Array {
   if (entry.content instanceof Uint8Array) {
     return entry.content;
@@ -120,7 +163,7 @@ function buildPortableEntryMap(entries: readonly ExchangeImportEntry[]): Normali
       lowerCasePath: normalizedPath.toLowerCase(),
       content: entry.content
     };
-  });
+  }).filter((entry) => !isIgnoredSystemPath(entry.path));
 }
 
 function resolveAssetEntry(
@@ -182,16 +225,7 @@ function hydrateImportedAssets(
 export async function importExchangeFromEntries(entries: readonly ExchangeImportEntry[]): Promise<ExchangeImportResult> {
   try {
     const entryMap = buildPortableEntryMap(entries);
-    const caseEntry = findEntry(entryMap, "case.json");
-    const masterDataEntry = findEntry(entryMap, "master-data.json");
-
-    if (!caseEntry) {
-      throw new AppError("IMPORT_ERROR", "Austauschordner enthaelt keine case.json.");
-    }
-
-    if (!masterDataEntry) {
-      throw new AppError("IMPORT_ERROR", "Austauschordner enthaelt keine master-data.json.");
-    }
+    const { caseEntry, masterDataEntry } = findExchangeEntries(entryMap);
 
     const importedCase = importCaseFromJson(getEntryText(caseEntry));
     const parsedMasterData = masterDataSchema.parse(JSON.parse(getEntryText(masterDataEntry)));
