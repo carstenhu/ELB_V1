@@ -4,6 +4,10 @@ export function formatReceiptNumber(index: number): string {
   return String(index);
 }
 
+export function formatIntNumber(index: number): string {
+  return String(index).padStart(4, "0");
+}
+
 export function formatAmountForDisplay(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "");
   if (!digits) {

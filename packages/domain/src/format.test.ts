@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildExchangeBaseName, buildFolderName, formatAmountForDisplay, formatReceiptNumber, isIbidAuction } from "./format";
+import { buildExchangeBaseName, buildFolderName, formatAmountForDisplay, formatIntNumber, formatReceiptNumber, isIbidAuction } from "./format";
 
 describe("domain format helpers", () => {
   it("formats receipt numbers without forced padding", () => {
     expect(formatReceiptNumber(7)).toBe("7");
+  });
+
+  it("keeps object internal numbers padded", () => {
+    expect(formatIntNumber(7)).toBe("0007");
   });
 
   it("formats amounts with spaces", () => {

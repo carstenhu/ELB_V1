@@ -1,6 +1,7 @@
 import {
   createEmptyCase,
   createEmptyObject,
+  formatIntNumber,
   formatReceiptNumber,
   isIbidAuction,
   type CaseFile,
@@ -161,7 +162,7 @@ export function addObjectToCase(caseFile: CaseFile, masterData: MasterData, cont
   const objectId = context.createId();
   const nextObject = createEmptyObject({
     id: objectId,
-    intNumber: formatReceiptNumber(caseFile.objects.length + 1),
+    intNumber: formatIntNumber(caseFile.objects.length + 1),
     auctionId: lastObject?.auctionId ?? masterData.auctions[0]?.id ?? "",
     departmentId: lastObject?.departmentId ?? masterData.departments[0]?.id ?? ""
   });

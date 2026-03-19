@@ -15,7 +15,7 @@ describe("master data sync", () => {
 
     const masterData = importMasterDataFromJson(JSON.stringify(raw));
 
-    expect(masterData.clerks[0]?.nextReceiptNumberDesktop).toBe("0001");
+    expect(masterData.clerks[0]?.nextReceiptNumberDesktop).toBe("1");
     expect(masterData.globalPdfRequiredFields).toEqual(["meta.receiptNumber"]);
   });
 
@@ -26,6 +26,6 @@ describe("master data sync", () => {
     const serialized = serializeMasterData(masterData);
 
     expect(serialized).toContain("\"clerks\"");
-    expect(serialized).toContain("\"nextReceiptNumberDesktop\": \"0001\"");
+    expect(serialized).toContain("\"nextReceiptNumberDesktop\": \"1\"");
   });
 });

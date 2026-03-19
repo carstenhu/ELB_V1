@@ -617,7 +617,7 @@ async function resolveClerkFolderSegment(
 }
 
 export function getClerkDataDirectoryRelativePath(clerkId: string, masterData: MasterData): string {
-  return getClerkRoot(findClerkFolderSegment(masterData, clerkId));
+  return `Sachbearbeiter/${findClerkFolderSegment(masterData, clerkId)}`;
 }
 
 async function listDirectoryEntries(fsModule: FileSystemModule | null, path: string): Promise<Array<{ name: string; isFile: boolean; isDirectory: boolean }>> {
@@ -920,7 +920,7 @@ export async function persistExportArtifactsToDisk(args: {
   const clerkId = args.caseFile.meta.clerkId;
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, clerkId);
   const exchangeBaseName = buildExchangeBaseName(args.caseFile.consignor, args.caseFile.meta.receiptNumber);
-  const version = await getNextExchangeVersion(fsModule, clerkId, exchangeBaseName);
+  const version = await getNextExchangeVersion(fsModule, clerkId, args.caseFile.meta.receiptNumber.trim() || exchangeBaseName);
   const exchangeZipPath = getExchangeZipPath(clerkFolderSegment, getExchangeZipFileName(args.caseFile, version));
 
   await ensureDir(fsModule, ROOT_DIR);
