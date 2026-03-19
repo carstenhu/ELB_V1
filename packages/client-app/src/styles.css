@@ -29,7 +29,10 @@ textarea {
   top: 0;
   z-index: 10;
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
   padding: 0.8rem 1.15rem;
   border-bottom: 1px solid rgba(189, 198, 186, 0.8);
   background: rgba(250, 247, 241, 0.9);
@@ -46,6 +49,7 @@ textarea {
 
 .topbar__brand {
   gap: 0.45rem;
+  padding: 0 0.2rem;
 }
 
 .topbar__brand strong {
@@ -566,6 +570,10 @@ textarea {
   .topbar__brand,
   .topbar__nav {
     justify-content: center;
+  }
+
+  .topbar__brand {
+    width: 100%;
   }
 
   .form-row--double,

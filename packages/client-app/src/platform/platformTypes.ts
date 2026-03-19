@@ -40,8 +40,8 @@ export interface StoredExchangeZipOption {
 export interface ExchangeImportPort {
   importFromSelection(): Promise<ExchangeImportResult | null>;
   importFromZipSelection(): Promise<ExchangeImportResult | null>;
-  listStoredZipOptions(args: { clerkId: string; masterData: MasterData }): Promise<StoredExchangeZipOption[]>;
-  importStoredZip(args: { clerkId: string; masterData: MasterData; zipId: string }): Promise<ExchangeImportResult | null>;
+  listStoredZipOptions(args: { masterData: MasterData }): Promise<StoredExchangeZipOption[]>;
+  importStoredZip(args: { masterData: MasterData; zipId: string }): Promise<ExchangeImportResult | null>;
 }
 
 export interface MasterDataSyncResult {

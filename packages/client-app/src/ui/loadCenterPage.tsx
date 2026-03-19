@@ -12,19 +12,12 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
   const [zipBusy, setZipBusy] = useState(false);
 
   useEffect(() => {
-    if (!state.activeClerkId) {
-      setStoredZipOptions([]);
-      setZipStatus("Bitte zuerst einen Sachbearbeiter waehlen.");
-      return;
-    }
-
     let active = true;
     setZipBusy(true);
     setZipStatus("");
 
     void platform.exchangeImport
       .listStoredZipOptions({
-        clerkId: state.activeClerkId,
         masterData: state.masterData
       })
       .then((options) => {
@@ -52,22 +45,16 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
     return () => {
       active = false;
     };
-  }, [platform, state.activeClerkId, state.masterData]);
+  }, [platform, state.masterData]);
 
   const clerkDrafts = state.activeClerkId ? state.drafts.filter((draft) => draft.meta.clerkId === state.activeClerkId) : [];
 
   async function handleStoredZipImport(zipId: string) {
-    if (!state.activeClerkId) {
-      setZipStatus("Bitte zuerst einen Sachbearbeiter waehlen.");
-      return;
-    }
-
     setZipBusy(true);
     setZipStatus("");
 
     try {
       const imported = await platform.exchangeImport.importStoredZip({
-        clerkId: state.activeClerkId,
         masterData: state.masterData,
         zipId
       });
@@ -112,8 +99,7 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
         ) : null}
       </Section>
       <Section title="Gespeicherte ZIP-Dateien laden">
-        {!state.activeClerkId ? <p>Bitte zuerst einen Sachbearbeiter waehlen.</p> : null}
-        {state.activeClerkId && !storedZipOptions.length && !zipBusy ? <p>{zipStatus || "Keine gespeicherten ZIP-Dateien vorhanden."}</p> : null}
+        {!storedZipOptions.length && !zipBusy ? <p>{zipStatus || "Keine gespeicherten ZIP-Dateien vorhanden."}</p> : null}
         {storedZipOptions.length ? (
           <div className="load-list">
             {storedZipOptions.map((zipOption) => (

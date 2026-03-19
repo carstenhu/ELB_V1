@@ -121,6 +121,34 @@ function getExchangeZipPath(clerkFolderSegment: string, fileName: string): strin
   return `${getExchangeRoot(clerkFolderSegment)}/${fileName}`;
 }
 
+function getStoredExchangeZipId(clerkFolderSegment: string, fileName: string): string {
+  return `${getExchangeRoot(clerkFolderSegment)}/${fileName}`;
+}
+
+function parseStoredExchangeZipId(zipId: string): { clerkFolderSegment: string; fileName: string } | null {
+  const normalizedZipId = zipId.replaceAll("\\", "/").replace(/^\/+/, "");
+  const pathSegments = normalizedZipId.split("/").filter(Boolean);
+  if (pathSegments.length < 5) {
+    return null;
+  }
+
+  const exchangeIndex = pathSegments.lastIndexOf(EXCHANGE_DIR_NAME);
+  if (exchangeIndex !== 3 || pathSegments[0] !== ROOT_DIR || pathSegments[1] !== "Sachbearbeiter") {
+    return null;
+  }
+
+  const fileName = pathSegments[pathSegments.length - 1];
+  const clerkFolderSegment = pathSegments[exchangeIndex - 1];
+  if (typeof clerkFolderSegment !== "string" || typeof fileName !== "string" || !fileName.toLowerCase().endsWith(".zip")) {
+    return null;
+  }
+
+  return {
+    clerkFolderSegment,
+    fileName
+  };
+}
+
 function toStoredRef(path: string): string {
   return `${ASSET_REF_PREFIX}${path}`;
 }
@@ -958,32 +986,47 @@ export async function persistGeneratedPdfToDisk(args: {
 }
 
 export async function listStoredExchangeZipFiles(args: {
-  clerkId: string;
   masterData: MasterData;
 }): Promise<StoredExchangeZipFile[]> {
   const fsModule = await loadTauriFs();
-  const clerkFolderSegment = findClerkFolderSegment(args.masterData, args.clerkId);
-  const exchangeRoot = getExchangeRoot(clerkFolderSegment);
-  const entries = await listDirectoryEntries(fsModule, exchangeRoot);
+  const clerkRootEntries = await listDirectoryEntries(fsModule, CLERKS_ROOT);
+  const clerkFolders = clerkRootEntries
+    .filter((entry) => entry.isDirectory && entry.name.trim())
+    .map((entry) => entry.name.trim());
 
-  return entries
-    .filter((entry) => entry.isFile && entry.name.toLowerCase().endsWith(".zip"))
-    .map((entry) => ({
-      id: entry.name,
-      fileName: entry.name,
-      label: entry.name
-    }))
+  const filesByClerk = await Promise.all(
+    clerkFolders.map(async (clerkFolderSegment) => {
+      const exchangeRoot = getExchangeRoot(clerkFolderSegment);
+      const entries = await listDirectoryEntries(fsModule, exchangeRoot);
+      const matchingClerk = args.masterData.clerks.find((clerk) => findClerkFolderSegment(args.masterData, clerk.id) === clerkFolderSegment);
+      const clerkLabel = matchingClerk?.name ?? clerkFolderSegment.replaceAll("_", " ");
+
+      return entries
+        .filter((entry) => entry.isFile && entry.name.toLowerCase().endsWith(".zip"))
+        .map((entry) => ({
+          id: getStoredExchangeZipId(clerkFolderSegment, entry.name),
+          fileName: entry.name,
+          label: `${clerkLabel} · ${entry.name}`
+        }));
+    })
+  );
+
+  return filesByClerk
+    .flat()
     .sort((left, right) => right.fileName.localeCompare(left.fileName, "de-CH", { numeric: true, sensitivity: "base" }));
 }
 
 export async function readStoredExchangeZipFile(args: {
-  clerkId: string;
   masterData: MasterData;
   zipId: string;
 }): Promise<{ fileName: string; content: Uint8Array } | null> {
   const fsModule = await loadTauriFs();
-  const clerkFolderSegment = findClerkFolderSegment(args.masterData, args.clerkId);
-  const zipPath = getExchangeZipPath(clerkFolderSegment, args.zipId);
+  const storedZip = parseStoredExchangeZipId(args.zipId);
+  if (!storedZip) {
+    return null;
+  }
+
+  const zipPath = getExchangeZipPath(storedZip.clerkFolderSegment, storedZip.fileName);
   const content = await readBinaryData(fsModule, zipPath);
 
   if (!content) {
@@ -991,7 +1034,7 @@ export async function readStoredExchangeZipFile(args: {
   }
 
   return {
-    fileName: args.zipId,
+    fileName: storedZip.fileName,
     content
   };
 }

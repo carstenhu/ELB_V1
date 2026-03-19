@@ -150,9 +150,9 @@ export const desktopPlatform: AppPlatform = {
         message: `Austausch-ZIP wurde importiert: ${selectedPath}`
       };
     },
-    listStoredZipOptions: ({ clerkId, masterData }) => listStoredExchangeZipFiles({ clerkId, masterData }),
-    importStoredZip: async ({ clerkId, masterData, zipId }) => {
-      const zipFile = await readStoredExchangeZipFile({ clerkId, masterData, zipId });
+    listStoredZipOptions: ({ masterData }) => listStoredExchangeZipFiles({ masterData }),
+    importStoredZip: async ({ masterData, zipId }) => {
+      const zipFile = await readStoredExchangeZipFile({ masterData, zipId });
       if (!zipFile) {
         return null;
       }

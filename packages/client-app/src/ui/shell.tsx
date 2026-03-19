@@ -78,6 +78,10 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
 
   return (
     <header className="topbar">
+      <div className="topbar__brand">
+        <strong>{APP_NAME}</strong>
+        <span>{activeClerk?.name ?? "Kein Sachbearbeiter"}</span>
+      </div>
       <nav className="topbar__nav">
         <div className="topbar__menu" ref={menuRef}>
           <button
@@ -133,10 +137,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
               </button>
             </div>
           ) : null}
-        </div>
-        <div className="topbar__brand">
-          <strong>{APP_NAME}</strong>
-          <span>{activeClerk?.name ?? "Kein Sachbearbeiter"}</span>
         </div>
         {pages.map((page) => (
           <button
