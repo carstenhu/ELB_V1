@@ -11,7 +11,7 @@ import {
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
-import { createWebWorkspaceRepository } from "./supabaseWorkspaceRepository";
+import { createWebWorkspaceRepository, uploadExportZipToSupabase } from "./supabaseWorkspaceRepository";
 
 function toBlob(content: Blob | ArrayBuffer | Uint8Array, mimeType?: string): Blob {
   if (content instanceof Blob) {
@@ -285,9 +285,18 @@ export const webPlatform: AppPlatform = {
     persist: async (args) => {
       const { exchangeZipPath } = await persistExportArtifactsToDisk(args);
       const exchangeZipFileName = exchangeZipPath.split("/").pop() || args.zipFileName;
+      const remoteZipPath = await uploadExportZipToSupabase({
+        clerkId: args.caseFile.meta.clerkId,
+        zipFileName: exchangeZipFileName,
+        zipContent: args.zipContent
+      });
       const targetWindow = preparePendingWindow(args.initiatedWindow ?? null, "ZIP wird vorbereitet", "Der Export wird erstellt. Der Download startet automatisch.");
       completePendingDownload(targetWindow, exchangeZipFileName, args.zipContent);
-      return { message: `ZIP wurde als Browser-Download bereitgestellt: ${exchangeZipFileName}. Interner ZIP-Pfad: ${exchangeZipPath}` };
+      return {
+        message: remoteZipPath
+          ? `ZIP wurde als Browser-Download bereitgestellt: ${exchangeZipFileName}. Online gespeichert unter: ${remoteZipPath}`
+          : `ZIP wurde als Browser-Download bereitgestellt: ${exchangeZipFileName}. Interner ZIP-Pfad: ${exchangeZipPath}`
+      };
     }
   },
   shell: {

@@ -30,7 +30,7 @@ interface SupabaseWorkspaceConfig {
   bucket: string;
 }
 
-function getSupabaseConfig(): SupabaseWorkspaceConfig | null {
+export function getSupabaseWorkspaceConfig(): SupabaseWorkspaceConfig | null {
   const client = getSupabaseClient();
   if (!client) {
     return null;
@@ -56,6 +56,14 @@ function fromRemoteAssetRef(path: string): string {
 
 function normalizeBytes(input: ArrayBuffer | Uint8Array): Uint8Array {
   return input instanceof Uint8Array ? input : new Uint8Array(input);
+}
+
+async function toBinaryBytes(input: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {
+  if (input instanceof Blob) {
+    return new Uint8Array(await input.arrayBuffer());
+  }
+
+  return normalizeBytes(input);
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -124,6 +132,10 @@ function sanitizeRemoteSegment(value: string): string {
     .replaceAll(/[^\p{L}\p{N}._-]+/gu, "_")
     .replace(/^_+|_+$/g, "")
     .toLowerCase() || "unassigned";
+}
+
+export function buildSupabaseRemoteExportPath(clerkId: string, zipFileName: string): string {
+  return `exports/${sanitizeRemoteSegment(clerkId)}/${sanitizeRemoteSegment(zipFileName)}`;
 }
 
 function getRemoteClerkRoot(clerkId: string): string {
@@ -381,7 +393,7 @@ async function loadRemoteSnapshot(config: SupabaseWorkspaceConfig): Promise<Work
 
 export function createWebWorkspaceRepository(): WorkspaceRepository {
   const localRepository = createWorkspaceRepository();
-  const supabaseConfig = getSupabaseConfig();
+  const supabaseConfig = getSupabaseWorkspaceConfig();
 
   if (!supabaseConfig) {
     logger.info("Supabase ist nicht konfiguriert. Web speichert weiterhin nur lokal.");
@@ -417,4 +429,19 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
       }
     }
   };
+}
+
+export async function uploadExportZipToSupabase(args: {
+  clerkId: string;
+  zipFileName: string;
+  zipContent: Blob | ArrayBuffer | Uint8Array;
+}): Promise<string | null> {
+  const supabaseConfig = getSupabaseWorkspaceConfig();
+  if (!supabaseConfig) {
+    return null;
+  }
+
+  const path = buildSupabaseRemoteExportPath(args.clerkId, args.zipFileName);
+  await uploadBinary(supabaseConfig, path, await toBinaryBytes(args.zipContent), "application/zip");
+  return path;
 }
