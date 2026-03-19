@@ -53,7 +53,7 @@ export async function generateSupplementPdf(caseFile: CaseFile, masterData: Mast
       objectItem.description,
       objectItem.referenceNumber ? `Referenznr.: ${objectItem.referenceNumber}` : "",
       objectItem.remarks ? `Bemerkungen: ${objectItem.remarks}` : "",
-      objectItem.estimate.low || objectItem.estimate.high ? `SchÃƒÂ¤tzung: ${buildObjectEstimate(objectItem)}` : "",
+      objectItem.estimate.low || objectItem.estimate.high ? `Schaetzung: ${buildObjectEstimate(objectItem)}` : "",
       objectItem.priceValue ? `${getPriceLabel(auction, objectItem)}: ${formatAmountForDisplay(objectItem.priceValue)}` : ""
     ].filter(Boolean);
     const objectText = descriptionParts.join("\n");
@@ -83,7 +83,7 @@ export async function generateSupplementPdf(caseFile: CaseFile, masterData: Mast
       color: rgb(0.13, 0.17, 0.15)
     });
     page.drawText(
-      [department ? `${department.code} ${department.name}` : "", auction ? getAuctionLabel(auction) : ""].filter(Boolean).join(" Ã‚Â· "),
+      [department ? `${department.code} ${department.name}` : "", auction ? getAuctionLabel(auction) : ""].filter(Boolean).join(" - "),
       {
         x: margin + 90,
         y: cursor.y - 18,
@@ -161,7 +161,7 @@ export async function generateSupplementPdf(caseFile: CaseFile, masterData: Mast
   const closingLines = [
     ...deriveAddressLines(caseFile.consignor),
     "",
-    `BegÃƒÂ¼nstigter: ${deriveBeneficiary(caseFile.consignor, caseFile.bank) || "-"}`,
+    `Beguenstigter: ${deriveBeneficiary(caseFile.consignor, caseFile.bank) || "-"}`,
     `IBAN: ${caseFile.bank.iban || "-"}`,
     `BIC: ${caseFile.bank.bic || "-"}`,
     "",

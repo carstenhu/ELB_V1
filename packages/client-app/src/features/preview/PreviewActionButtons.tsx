@@ -6,7 +6,7 @@ export function PreviewActionButtons(props: { caseFile: CaseFile; onExportStatus
 
   return (
     <>
-      <button onClick={() => void actions.openDataFolder()}>Datenordner Ã¶ffnen</button>
+      <button onClick={() => void actions.openDataFolder()}>Datenordner oeffnen</button>
       <button onClick={() => actions.saveDraft()}>Entwurf speichern</button>
       <button onClick={() => void actions.openPdf()}>PDF anzeigen</button>
       <button onClick={() => void actions.exportArtifacts()}>ZIP finalisieren</button>

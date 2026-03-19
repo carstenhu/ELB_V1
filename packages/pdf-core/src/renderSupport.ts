@@ -143,10 +143,10 @@ export function fillSharedFields(args: {
   setMultilineTextFieldSafe(form, "Adresse EG", isFollowUpValue(ownerValue) ? "" : ownerValue);
   setTextFieldSafe(form, "BIC/SWIFT", isFollowUpValue(caseFile.bank.bic) ? "" : caseFile.bank.bic);
   setTextFieldSafe(form, "IBAN/Kontonr", isFollowUpValue(caseFile.bank.iban) ? "" : caseFile.bank.iban);
-  setTextFieldSafe(form, "Bankangaben: BegÃƒÂ¼nstigter", isFollowUpValue(beneficiary) ? "" : beneficiary);
+  setTextFieldSafe(form, "Bankangaben: Beg\u00fcnstigter", isFollowUpValue(beneficiary) ? "" : beneficiary);
   setTextFieldSafe(form, "Seite N/N", `${pageNumber}/${totalPages}`);
   setTextFieldSafe(form, "EL Geburtsdatum 1", isFollowUpValue(caseFile.consignor.birthDate) ? "" : caseFile.consignor.birthDate);
-  setTextFieldSafe(form, "EL NationalitÃƒÂ¤t  1", isFollowUpValue(caseFile.consignor.nationality) ? "" : caseFile.consignor.nationality);
+  setTextFieldSafe(form, "EL Nationalit\u00e4t  1", isFollowUpValue(caseFile.consignor.nationality) ? "" : caseFile.consignor.nationality);
   setTextFieldSafe(form, "EL ID/Passnr  1", isFollowUpValue(caseFile.consignor.passportNumber) ? "" : caseFile.consignor.passportNumber);
 
   drawFieldOverlay({ page, form, font, fieldName: receiptFieldName, value: caseFile.meta.receiptNumber });
@@ -164,9 +164,9 @@ export function fillSharedFields(args: {
   drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true });
   drawFieldOverlay({ page, form, font, fieldName: "BIC/SWIFT", value: caseFile.bank.bic });
   drawFieldOverlay({ page, form, font, fieldName: "IBAN/Kontonr", value: caseFile.bank.iban });
-  drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: BegÃƒÂ¼nstigter", value: beneficiary });
+  drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: Beg\u00fcnstigter", value: beneficiary });
   drawFieldOverlay({ page, form, font, fieldName: "EL Geburtsdatum 1", value: caseFile.consignor.birthDate });
-  drawFieldOverlay({ page, form, font, fieldName: "EL NationalitÃƒÂ¤t  1", value: caseFile.consignor.nationality });
+  drawFieldOverlay({ page, form, font, fieldName: "EL Nationalit\u00e4t  1", value: caseFile.consignor.nationality });
   drawFieldOverlay({ page, form, font, fieldName: "EL ID/Passnr  1", value: caseFile.consignor.passportNumber });
 }
 
@@ -175,5 +175,5 @@ export function fillObjectFields(form: PdfForm, suffix: "1" | "2"): void {
   setMultilineTextFieldSafe(form, `Erhalten ${suffix}`, "");
   setMultilineTextFieldSafe(form, `Kapitel ${suffix}`, "");
   setMultilineTextFieldSafe(form, `Kurzbeschreibung ${suffix}`, "");
-  setMultilineTextFieldSafe(form, `SchÃƒÂ¤tzung ${suffix}`, "");
+  setMultilineTextFieldSafe(form, `Sch\u00e4tzung ${suffix}`, "");
 }

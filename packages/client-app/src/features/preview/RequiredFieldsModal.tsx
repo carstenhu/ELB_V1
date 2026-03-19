@@ -20,7 +20,7 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
       <div className="overlay__card">
         <div className="admin-header">
           <h2>Fehlende PDF-Pflichtfelder</h2>
-          <button onClick={props.onClose}>SchlieÃŸen</button>
+          <button onClick={props.onClose}>Schliessen</button>
         </div>
         <div className="page-grid">
           <Section title="Angaben erfassen">
@@ -30,7 +30,7 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
                   <div key={entry.label} className="inline-actions">
                     <span>{entry.label}</span>
                     <button type="button" className="primary" onClick={() => updateRequiredFieldValue(entry)}>
-                      Objekt hinzufÃ¼gen
+                      Objekt hinzufuegen
                     </button>
                   </div>
                 );
@@ -43,7 +43,7 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
                   <Field key={entry.label} label={entry.label} full>
                     <select value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
                       {renderFollowUpOption(currentValue)}
-                      <option value="">Bitte wÃ¤hlen</option>
+                      <option value="">Bitte waehlen</option>
                       {state.masterData.clerks.map((clerk) => (
                         <option key={clerk.id} value={clerk.id}>
                           {clerk.name}
@@ -60,10 +60,10 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
                   <Field key={entry.label} label={entry.label} full>
                     <select value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
                       {renderFollowUpOption(currentValue)}
-                      <option value="">Bitte wÃ¤hlen</option>
+                      <option value="">Bitte waehlen</option>
                       {state.masterData.departments.map((department) => (
                         <option key={department.id} value={department.id}>
-                          {department.code} Â· {department.name}
+                          {department.code} - {department.name}
                         </option>
                       ))}
                     </select>

@@ -14,7 +14,7 @@ export function ExportStatusCard(props: {
     <div className={props.className ? `preview-card ${props.className}` : "preview-card"}>
       <h3>Exportstatus</h3>
       {props.actions ? <div className="preview-card__actions">{props.actions}</div> : null}
-      <p>BegÃ¼nstigter: {props.beneficiary || "Noch nicht gesetzt"}</p>
+      <p>Beguenstigter: {props.beneficiary || "Noch nicht gesetzt"}</p>
       <p>Sachbearbeiter: {props.clerkLabel || "Noch nicht gesetzt"}</p>
       <p>ZIP: {props.zipFileName}</p>
       {props.missingRequiredFields.length ? (
@@ -34,7 +34,7 @@ export function ExportStatusCard(props: {
           </ul>
         </>
       ) : (
-        <p>Alle konfigurierten PDF-Pflichtfelder sind aktuell befÃ¼llt.</p>
+        <p>Alle konfigurierten PDF-Pflichtfelder sind aktuell befuellt.</p>
       )}
       {props.exportStatus ? <p>{props.exportStatus}</p> : null}
     </div>

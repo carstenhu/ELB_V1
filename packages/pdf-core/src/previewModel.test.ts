@@ -87,8 +87,8 @@ describe("pdf preview model", () => {
     expect(model.objectRows[0]?.priceValue).toBe("1 200");
     expect(model.missingRequiredFields).toEqual([
       "Objekt 1: Kurzbeschrieb",
-      "Objekt 1: SchÃ¤tzung von",
-      "Objekt 1: SchÃ¤tzung bis"
+      "Objekt 1: Schaetzung von",
+      "Objekt 1: Schaetzung bis"
     ]);
   });
 
@@ -116,7 +116,7 @@ describe("pdf preview model", () => {
     expect(buildCostFieldValue({ amount: "12%", note: "inkl. MwSt." })).toBe("12% inkl. MwSt.");
     expect(getVatCategoryLabel("A")).toBe("Privat Schweiz");
     expect(getVatCategoryLabel("B")).toBe("Ausland");
-    expect(getVatCategoryLabel("C")).toBe("HÃ¤ndler Schweiz");
+    expect(getVatCategoryLabel("C")).toBe("Haendler Schweiz");
     expect(joinAddressLines(["Anna", "", "Zuerich"])).toBe("Anna\r\nZuerich");
     expect(isFollowUpValue(`${FOLLOW_UP_VALUE}\nmehr`)).toBe(true);
     expect(isFollowUpValue("bereits vorhanden")).toBe(false);

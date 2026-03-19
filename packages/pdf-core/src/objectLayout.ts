@@ -135,7 +135,7 @@ export function getObjectFieldGeometry(form: PdfForm, suffix: "1" | "2"): Object
   const auctionLabel = getRequiredRect(form, `Erhalten ${suffix}`);
   const departmentCode = getRequiredRect(form, `Kapitel ${suffix}`);
   const description = getRequiredRect(form, `Kurzbeschreibung ${suffix}`);
-  const estimate = getRequiredRect(form, `SchÃ¤tzung ${suffix}`);
+  const estimate = getRequiredRect(form, `Sch\u00e4tzung ${suffix}`);
   const block = unionRects([intNumber, auctionLabel, departmentCode, description, estimate]);
 
   if (!block) {
@@ -279,11 +279,11 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
   const fieldMap = pageKind === "main"
     ? {
         meta: ["ELB Nr"],
-        consignor: ["Adresse EL", "EL Geburtsdatum 1", "EL NationalitÃ¤t  1", "EL ID/Passnr  1"],
+        consignor: ["Adresse EL", "EL Geburtsdatum 1", "EL Nationalit\u00e4t  1", "EL ID/Passnr  1"],
         owner: ["Adresse EG"],
-        bank: ["BIC/SWIFT", "IBAN/Kontonr", "Bankangaben: BegÃ¼nstigter"],
+        bank: ["BIC/SWIFT", "IBAN/Kontonr", "Bankangaben: Beg\u00fcnstigter"],
         costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
-        object: ["Int-Nr 1", "Erhalten 1", "Kapitel 1", "Kurzbeschreibung 1", "SchÃ¤tzung 1"],
+        object: ["Int-Nr 1", "Erhalten 1", "Kapitel 1", "Kurzbeschreibung 1", "Sch\u00e4tzung 1"],
         consignorSignature: ["der Einlieferer Sig", "der Einlieferer Sig 2"],
         clerkSignature: ["Koller Auktionen Sig 1"]
       }
@@ -293,7 +293,7 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
         owner: [],
         bank: ["Adresse EL"],
         costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
-        object: ["Int-Nr 2", "Erhalten 2", "Kapitel 2", "Kurzbeschreibung 2", "SchÃ¤tzung 2"],
+        object: ["Int-Nr 2", "Erhalten 2", "Kapitel 2", "Kurzbeschreibung 2", "Sch\u00e4tzung 2"],
         consignorSignature: ["der Einlieferer Sig", "der Einlieferer Sig 2"],
         clerkSignature: ["Koller Auktionen Sig 1"]
       };

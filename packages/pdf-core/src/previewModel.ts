@@ -43,18 +43,18 @@ function collectMissingRequiredFields(caseFile: CaseFile, masterData: MasterData
     if (field === "meta.receiptNumber" && !caseFile.meta.receiptNumber.trim()) missing.push("ELB-Nummer");
     if (field === "meta.clerkId" && !caseFile.meta.clerkId.trim()) missing.push("Sachbearbeiter");
     if (field === "consignor.lastName" && !caseFile.consignor.lastName.trim()) missing.push("Nachname Einlieferer");
-    if (field === "consignor.street" && !caseFile.consignor.street.trim()) missing.push("StraÃŸe Einlieferer");
+    if (field === "consignor.street" && !caseFile.consignor.street.trim()) missing.push("Strasse Einlieferer");
     if (field === "consignor.zip" && !caseFile.consignor.zip.trim()) missing.push("PLZ Einlieferer");
     if (field === "consignor.city" && !caseFile.consignor.city.trim()) missing.push("Stadt Einlieferer");
-    if (field === "bank.beneficiaryOverride.reason" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.reason.trim()) missing.push("Grund abweichender BegÃ¼nstigter");
-    if (field === "bank.beneficiaryOverride.name" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.name.trim()) missing.push("Name abweichender BegÃ¼nstigter");
+    if (field === "bank.beneficiaryOverride.reason" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.reason.trim()) missing.push("Grund abweichender Beguenstigter");
+    if (field === "bank.beneficiaryOverride.name" && caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.name.trim()) missing.push("Name abweichender Beguenstigter");
   }
 
   caseFile.objects.forEach((item, index) => {
     if (!item.departmentId.trim()) missing.push(`Objekt ${index + 1}: Abteilung`);
     if (!item.shortDescription.trim()) missing.push(`Objekt ${index + 1}: Kurzbeschrieb`);
-    if (!item.estimate.low.trim()) missing.push(`Objekt ${index + 1}: SchÃ¤tzung von`);
-    if (!item.estimate.high.trim()) missing.push(`Objekt ${index + 1}: SchÃ¤tzung bis`);
+    if (!item.estimate.low.trim()) missing.push(`Objekt ${index + 1}: Schaetzung von`);
+    if (!item.estimate.high.trim()) missing.push(`Objekt ${index + 1}: Schaetzung bis`);
   });
 
   if (caseFile.objects.length === 0) {
@@ -102,7 +102,7 @@ export function buildCostFieldValue(cost: { amount: string; note: string }): str
 export function getVatCategoryLabel(vatCategory: CaseFile["consignor"]["vatCategory"]): string {
   if (vatCategory === "A") return "Privat Schweiz";
   if (vatCategory === "B") return "Ausland";
-  if (vatCategory === "C") return "HÃ¤ndler Schweiz";
+  if (vatCategory === "C") return "Haendler Schweiz";
   return "";
 }
 
