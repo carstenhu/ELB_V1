@@ -1,13 +1,14 @@
 import type { CaseFile } from "@elb/domain/index";
-import { usePreviewActions } from "./usePreviewActions";
+import { usePreviewActions, type PreviewProblemDetails } from "./usePreviewActions";
 
 export function PreviewActionButtons(props: {
   caseFile: CaseFile;
   hasMissingRequiredFields: boolean;
   onExportStatusChange: (value: string) => void;
   onCaptureMissing: () => void;
+  onPreviewProblem: (problem: PreviewProblemDetails) => void;
 }) {
-  const actions = usePreviewActions(props.caseFile, props.onExportStatusChange);
+  const actions = usePreviewActions(props.caseFile, props.onExportStatusChange, props.onPreviewProblem);
 
   function guardRequiredFields(runAction: () => void) {
     if (props.hasMissingRequiredFields) {

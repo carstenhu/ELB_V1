@@ -3,6 +3,7 @@ import { type CaseFile } from "@elb/domain/index";
 import { createExportPlan } from "@elb/export-core/index";
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { createWordPreviewModel, loadWordTemplateAssets } from "@elb/word-core/index";
+import type { PreviewProblemDetails } from "../features/preview/usePreviewActions";
 import { getRequiredFieldEntries } from "../features/preview/requiredFields";
 import { useAppState } from "../useAppState";
 import { ExportStatusCard } from "./ExportStatusCard";
@@ -15,6 +16,11 @@ const PreviewActionButtons = lazy(async () => {
 const RequiredFieldsModal = lazy(async () => {
   const module = await import("../features/preview/RequiredFieldsModal");
   return { default: module.RequiredFieldsModal };
+});
+
+const PreviewProblemModal = lazy(async () => {
+  const module = await import("../features/preview/PreviewProblemModal");
+  return { default: module.PreviewProblemModal };
 });
 
 function PreviewActionsFallback() {
@@ -105,6 +111,7 @@ export function WordTemplatePreviewPage(props: {
   const hasMissingRequiredFields = requiredEntries.length > 0;
   const [headerImageSrc, setHeaderImageSrc] = useState("");
   const [requiredFieldsOpen, setRequiredFieldsOpen] = useState(false);
+  const [previewProblem, setPreviewProblem] = useState<PreviewProblemDetails | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,6 +162,7 @@ export function WordTemplatePreviewPage(props: {
                 hasMissingRequiredFields={hasMissingRequiredFields}
                 onExportStatusChange={props.onExportStatusChange}
                 onCaptureMissing={() => setRequiredFieldsOpen(true)}
+                onPreviewProblem={setPreviewProblem}
               />
             </Suspense>
           }
@@ -163,6 +171,11 @@ export function WordTemplatePreviewPage(props: {
       {requiredFieldsOpen ? (
         <Suspense fallback={<RequiredFieldsFallback />}>
           <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} />
+        </Suspense>
+      ) : null}
+      {previewProblem ? (
+        <Suspense fallback={<RequiredFieldsFallback />}>
+          <PreviewProblemModal problem={previewProblem} onClose={() => setPreviewProblem(null)} />
         </Suspense>
       ) : null}
     </div>

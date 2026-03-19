@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { type CaseFile } from "@elb/domain/index";
 import { createExportPlan } from "@elb/export-core/index";
 import { createPdfPreviewModel } from "@elb/pdf-core/index";
+import type { PreviewProblemDetails } from "../features/preview/usePreviewActions";
 import { PdfCanvasPreview, type PdfEditTarget } from "../pdfPreview";
 import { getRequiredFieldEntries } from "../features/preview/requiredFields";
 import { useAppState } from "../useAppState";
@@ -16,6 +17,11 @@ const PreviewActionButtons = lazy(async () => {
 const RequiredFieldsModal = lazy(async () => {
   const module = await import("../features/preview/RequiredFieldsModal");
   return { default: module.RequiredFieldsModal };
+});
+
+const PreviewProblemModal = lazy(async () => {
+  const module = await import("../features/preview/PreviewProblemModal");
+  return { default: module.PreviewProblemModal };
 });
 
 function PreviewActionsFallback() {
@@ -40,6 +46,7 @@ export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string
   const hasMissingRequiredFields = requiredEntries.length > 0;
   const [editTarget, setEditTarget] = useState<PdfEditTarget | null>(null);
   const [requiredFieldsOpen, setRequiredFieldsOpen] = useState(false);
+  const [previewProblem, setPreviewProblem] = useState<PreviewProblemDetails | null>(null);
 
   return (
     <div className="preview-page">
@@ -60,6 +67,7 @@ export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string
                   hasMissingRequiredFields={hasMissingRequiredFields}
                   onExportStatusChange={props.onExportStatusChange}
                   onCaptureMissing={() => setRequiredFieldsOpen(true)}
+                  onPreviewProblem={setPreviewProblem}
                 />
               </Suspense>
             }
@@ -69,6 +77,11 @@ export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string
         {requiredFieldsOpen ? (
           <Suspense fallback={<RequiredFieldsFallback />}>
             <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} />
+          </Suspense>
+        ) : null}
+        {previewProblem ? (
+          <Suspense fallback={<RequiredFieldsFallback />}>
+            <PreviewProblemModal problem={previewProblem} onClose={() => setPreviewProblem(null)} />
           </Suspense>
         ) : null}
       </div>

@@ -1,10 +1,17 @@
 import type { CaseFile } from "@elb/domain/index";
+import type { ValidationIssue } from "@elb/app-core/index";
 import { createLogger } from "@elb/shared/logger";
 import { finalizeCurrentCase, saveDraft } from "../../appState";
 import { usePlatform } from "../../platform/platformContext";
 import { useAppState } from "../../useAppState";
 
 const logger = createLogger("preview-actions");
+
+export interface PreviewProblemDetails {
+  title: string;
+  message: string;
+  reasons: string[];
+}
 
 function formatErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
@@ -50,6 +57,35 @@ function openPendingWindow(title: string, message: string): Window | null {
   return pendingWindow;
 }
 
+function isValidationIssue(value: unknown): value is ValidationIssue {
+  return typeof value === "object"
+    && value !== null
+    && "message" in value
+    && typeof value.message === "string";
+}
+
+function extractProblemDetails(error: unknown, title: string): PreviewProblemDetails | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const message = "message" in error && typeof error.message === "string" ? error.message : "";
+  const details = "details" in error ? error.details : undefined;
+  const reasons = Array.isArray(details)
+    ? details.filter(isValidationIssue).map((issue) => issue.message.trim()).filter(Boolean)
+    : [];
+
+  if (!message && !reasons.length) {
+    return null;
+  }
+
+  return {
+    title,
+    message: message || "Die Aktion konnte nicht abgeschlossen werden.",
+    reasons: Array.from(new Set(reasons))
+  };
+}
+
 async function ensureCaseReady(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]): Promise<void> {
   const { requireCaseReadyForExport } = await import("@elb/app-core/index");
   requireCaseReadyForExport(caseFile, masterData);
@@ -67,7 +103,11 @@ async function createZipBundle(caseFile: CaseFile, masterData: ReturnType<typeof
   return { bundle, zipBlob };
 }
 
-export function usePreviewActions(caseFile: CaseFile, onExportStatusChange: (value: string) => void) {
+export function usePreviewActions(
+  caseFile: CaseFile,
+  onExportStatusChange: (value: string) => void,
+  onPreviewProblem?: (problem: PreviewProblemDetails) => void
+) {
   const platform = usePlatform();
   const state = useAppState();
 
@@ -100,6 +140,10 @@ export function usePreviewActions(caseFile: CaseFile, onExportStatusChange: (val
         previewWindow.close();
       }
       logger.error("PDF-Vorschau fehlgeschlagen.", error);
+      const problem = extractProblemDetails(error, "PDF kann nicht angezeigt werden");
+      if (problem) {
+        onPreviewProblem?.(problem);
+      }
       onExportStatusChange(formatErrorMessage(error, "PDF konnte nicht geoeffnet werden."));
     }
   }
@@ -128,6 +172,10 @@ export function usePreviewActions(caseFile: CaseFile, onExportStatusChange: (val
         downloadWindow.close();
       }
       logger.error("Export fehlgeschlagen.", error);
+      const problem = extractProblemDetails(error, "Export nicht moeglich");
+      if (problem) {
+        onPreviewProblem?.(problem);
+      }
       onExportStatusChange(formatErrorMessage(error, "Export fehlgeschlagen."));
     }
   }
