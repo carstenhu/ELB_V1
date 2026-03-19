@@ -102,6 +102,7 @@ export function WordTemplatePreviewPage(props: {
   const pdfModel = createPdfPreviewModel(props.caseFile, state.masterData);
   const exportPlan = createExportPlan(props.caseFile);
   const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalPdfRequiredFields);
+  const hasMissingRequiredFields = requiredEntries.length > 0;
   const [headerImageSrc, setHeaderImageSrc] = useState("");
   const [requiredFieldsOpen, setRequiredFieldsOpen] = useState(false);
 
@@ -149,7 +150,12 @@ export function WordTemplatePreviewPage(props: {
           onCaptureMissing={() => setRequiredFieldsOpen(true)}
           actions={
             <Suspense fallback={<PreviewActionsFallback />}>
-              <PreviewActionButtons caseFile={props.caseFile} onExportStatusChange={props.onExportStatusChange} />
+              <PreviewActionButtons
+                caseFile={props.caseFile}
+                hasMissingRequiredFields={hasMissingRequiredFields}
+                onExportStatusChange={props.onExportStatusChange}
+                onCaptureMissing={() => setRequiredFieldsOpen(true)}
+              />
             </Suspense>
           }
         />
