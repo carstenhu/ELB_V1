@@ -12,7 +12,8 @@ export const emailLikeSchema = z.string().trim().refine((value) => value === "" 
 export const ibanSchema = z.string().trim();
 export const bicSchema = z.string().trim();
 
-// Betraege bleiben Freitext, erlauben aber die ueblichen Tausendertrennzeichen.
-export const amountInputSchema = z.string().trim().refine((value) => value === "" || /^[0-9\s'.,]+$/.test(value), {
+// Betraege bleiben Freitext, erlauben aber die ueblichen Tausendertrennzeichen
+// sowie in der Schweiz gebraeuchliche Suffixe wie ".-".
+export const amountInputSchema = z.string().trim().refine((value) => value === "" || /^[0-9\s'.,-]+$/.test(value), {
   message: "Betraege duerfen Ziffern sowie uebliche Trennzeichen enthalten."
 });

@@ -64,6 +64,55 @@ function isValidationIssue(value: unknown): value is ValidationIssue {
     && typeof value.message === "string";
 }
 
+function formatIssuePath(path: string): string {
+  if (!path) {
+    return "Allgemein";
+  }
+
+  if (path === "bank.iban") return "IBAN";
+  if (path === "bank.bic") return "BIC";
+  if (path === "meta.receiptNumber") return "ELB-Nummer";
+  if (path === "meta.clerkId") return "Sachbearbeiter";
+  if (path === "consignor.street") return "Einlieferer: Strasse";
+  if (path === "consignor.zip") return "Einlieferer: PLZ";
+  if (path === "consignor.city") return "Einlieferer: Ort";
+  if (path === "consignor.lastName") return "Einlieferer: Name";
+  if (path === "bank.beneficiaryOverride.reason") return "Abweichender Beguenstigter: Grund";
+  if (path === "bank.beneficiaryOverride.name") return "Abweichender Beguenstigter: Name";
+
+  const costMatch = path.match(/^costs\.(commission|insurance|transport|imaging|expertise|internet)\.amount$/);
+  if (costMatch) {
+    const labels: Record<string, string> = {
+      commission: "Kommission",
+      insurance: "Versicherung",
+      transport: "Transport",
+      imaging: "Abb.-Kosten",
+      expertise: "Kosten Expertisen",
+      internet: "Internet"
+    };
+    const costKey = costMatch[1];
+    return costKey ? (labels[costKey] ?? path) : path;
+  }
+
+  const objectMatch = path.match(/^objects\.(\d+)\.(.+)$/);
+  if (objectMatch) {
+    const objectNumber = Number.parseInt(objectMatch[1] ?? "0", 10) + 1;
+    const fieldPath = objectMatch[2] ?? "";
+
+    if (fieldPath === "intNumber") return `Objekt ${objectNumber}: Int.-Nr.`;
+    if (fieldPath === "auctionId") return `Objekt ${objectNumber}: Auktion`;
+    if (fieldPath === "departmentId") return `Objekt ${objectNumber}: Abteilung`;
+    if (fieldPath === "shortDescription") return `Objekt ${objectNumber}: Kurzbeschreibung`;
+    if (fieldPath === "priceValue") return `Objekt ${objectNumber}: Preis`;
+    if (fieldPath === "estimate.low") return `Objekt ${objectNumber}: Schaetzung von`;
+    if (fieldPath === "estimate.high") return `Objekt ${objectNumber}: Schaetzung bis`;
+
+    return `Objekt ${objectNumber}: ${fieldPath}`;
+  }
+
+  return path;
+}
+
 function extractProblemDetails(error: unknown, title: string): PreviewProblemDetails | null {
   if (!error || typeof error !== "object") {
     return null;
@@ -72,7 +121,14 @@ function extractProblemDetails(error: unknown, title: string): PreviewProblemDet
   const message = "message" in error && typeof error.message === "string" ? error.message : "";
   const details = "details" in error ? error.details : undefined;
   const reasons = Array.isArray(details)
-    ? details.filter(isValidationIssue).map((issue) => issue.message.trim()).filter(Boolean)
+    ? details
+      .filter(isValidationIssue)
+      .map((issue) => {
+        const issueMessage = issue.message.trim();
+        const fieldLabel = formatIssuePath(issue.path);
+        return fieldLabel ? `${fieldLabel}: ${issueMessage}` : issueMessage;
+      })
+      .filter(Boolean)
     : [];
 
   if (!message && !reasons.length) {
