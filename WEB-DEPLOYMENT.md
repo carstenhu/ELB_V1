@@ -29,15 +29,26 @@ npm run web:preview
 
 ## Vercel-Projekt anlegen
 
+Empfehlung:
+- Root Directory auf `apps/web` setzen
+- damit greift die Web-spezifische Konfiguration in [apps/web/vercel.json](/abs/path/c:/ELB_V1/apps/web/vercel.json)
+
 1. Repository in Vercel importieren
-2. Root Directory auf das Repository-Root lassen
+2. Root Directory auf `apps/web` setzen
 3. folgende Build-Einstellungen setzen
 
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Install Command: `npm install --prefix=../..`
+
+Die SPA-Rewrite-Regel ist in [apps/web/vercel.json](/abs/path/c:/ELB_V1/apps/web/vercel.json) hinterlegt.
+
+Alternative mit Repository-Root:
+- Root Directory auf das Repository-Root lassen
 - Build Command: `npm run web:build`
 - Output Directory: `apps/web/dist`
 - Install Command: `npm install`
-
-Die SPA-Rewrite-Regel ist bereits in [vercel.json](/abs/path/c:/ELB_V1/vercel.json) hinterlegt.
+- dabei greift [vercel.json](/abs/path/c:/ELB_V1/vercel.json)
 
 Alternativ ueber die CLI auf diesem Rechner:
 
