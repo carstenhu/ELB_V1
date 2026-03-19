@@ -104,7 +104,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
             <span className="topbar__menu-icon" aria-hidden="true">
               &#9776;
             </span>
-            <span className="topbar__menu-label">Menue</span>
+            <span className="topbar__menu-label">Seiten</span>
           </button>
           {pageMenuOpen ? (
             <div className="topbar__menu-panel topbar__menu-panel--pages">
@@ -138,7 +138,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
             <span className="topbar__menu-icon" aria-hidden="true">
               &#9776;
             </span>
-            <span className="topbar__menu-label">Menue</span>
+            <span className="topbar__menu-label">Aktionen</span>
           </button>
           {actionMenuOpen ? (
             <div className="topbar__menu-panel">
