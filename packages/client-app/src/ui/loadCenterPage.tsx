@@ -10,6 +10,7 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
   const [storedZipOptions, setStoredZipOptions] = useState<Array<{ id: string; label: string }>>([]);
   const [zipStatus, setZipStatus] = useState("");
   const [zipBusy, setZipBusy] = useState(false);
+  const clerkNameById = new Map(state.masterData.clerks.map((clerk) => [clerk.id, clerk.name]));
 
   useEffect(() => {
     let active = true;
@@ -47,7 +48,9 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
     };
   }, [platform, state.masterData]);
 
-  const clerkDrafts = state.activeClerkId ? state.drafts.filter((draft) => draft.meta.clerkId === state.activeClerkId) : [];
+  const availableDrafts = [...state.drafts].sort((left, right) =>
+    right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
+  );
 
   async function handleStoredZipImport(zipId: string) {
     setZipBusy(true);
@@ -77,11 +80,10 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
   return (
     <div className="page-grid">
       <Section title="Entwuerfe laden">
-        {!state.activeClerkId ? <p>Bitte zuerst einen Sachbearbeiter waehlen.</p> : null}
-        {state.activeClerkId && !clerkDrafts.length ? <p>Keine Entwuerfe fuer den aktuellen Sachbearbeiter vorhanden.</p> : null}
-        {clerkDrafts.length ? (
+        {!availableDrafts.length ? <p>Keine gespeicherten Entwuerfe vorhanden.</p> : null}
+        {availableDrafts.length ? (
           <div className="load-list">
-            {clerkDrafts.map((draft) => (
+            {availableDrafts.map((draft) => (
               <button
                 key={draft.meta.id}
                 type="button"
@@ -91,8 +93,8 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
                   props.onDone?.();
                 }}
               >
-                <strong>{draft.consignor.lastName || draft.consignor.company || "Unbenannt"}</strong>
-                <span>ELB {draft.meta.receiptNumber}</span>
+                <strong>{`${clerkNameById.get(draft.meta.clerkId) ?? "Unbekannt"} · ${draft.consignor.lastName || draft.consignor.company || "Unbenannt"}`}</strong>
+                <span>{`ELB ${draft.meta.receiptNumber}`}</span>
               </button>
             ))}
           </div>
