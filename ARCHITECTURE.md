@@ -47,6 +47,7 @@ Diese Pakete kapseln Persistenz, Dokumentenerzeugung, Export-Bundles und technis
 - `apps/web`
 - nutzt dieselbe React-App-Komposition aus `packages/client-app`
 - stellt stattdessen einen `webPlatform`-Adapter fuer Browser-Persistenz und Download-basierte Exporte bereit
+- kann optional einen Supabase-basierten Online-Mirror fuer Workspace, Stammdaten und optimierte Session-Bilder aktivieren
 
 ## Wichtige Refactorings
 
@@ -94,6 +95,7 @@ Diese Pakete kapseln Persistenz, Dokumentenerzeugung, Export-Bundles und technis
 - `apps/web` ist als eigenstaendige Vite-App vorhanden.
 - Die App nutzt die gemeinsame UI- und State-Komposition aus `packages/client-app`.
 - Workspace-Daten werden im Browser ueber die bereits vorhandene Fallback-Persistenz gehalten.
+- Optional kann `apps/web` denselben Workspace zusaetzlich nach Supabase Storage spiegeln.
 - ZIP-Exporte werden im Web als Browser-Download bereitgestellt.
 
 ## Verbleibende sinnvolle Naechstschritte

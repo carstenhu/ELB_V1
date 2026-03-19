@@ -92,6 +92,8 @@ Danach kann das Repo direkt mit Vercel verbunden werden. Fuer den aktuellen Stan
 
 Die Web-App speichert im aktuellen Stand lokal im Browser. Es gibt also noch keinen Login, keine Geraete-Synchronisation und keine gemeinsame Cloud-Datenbasis.
 
+Optional kann die Web-App jetzt zusaetzlich nach Supabase spiegeln. Die lokale Sofortspeicherung bleibt dabei erhalten, Supabase kommt als zweite Speicherstufe dazu. Setup siehe `SUPABASE-SETUP.md`.
+
 Eine kompakte Schritt-fuer-Schritt-Anleitung liegt in `WEB-DEPLOYMENT.md`.
 
 ## Mehrplatzbetrieb

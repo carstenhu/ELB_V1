@@ -10,8 +10,8 @@ import {
 } from "@elb/persistence/filesystem";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
-import { createWorkspaceRepository } from "@elb/persistence/repository";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
+import { createWebWorkspaceRepository } from "./supabaseWorkspaceRepository";
 
 function toBlob(content: Blob | ArrayBuffer | Uint8Array, mimeType?: string): Blob {
   if (content instanceof Blob) {
@@ -184,7 +184,7 @@ async function collectEntriesFromHandle(handle: unknown, prefix: string): Promis
 
 export const webPlatform: AppPlatform = {
   receiptNumberScope: "web",
-  workspaceRepository: createWorkspaceRepository(),
+  workspaceRepository: createWebWorkspaceRepository(),
   auditSink: createAuditRepository(),
   caseAssets: {
     persistAsset: (caseFile, asset) => persistCaseAssetImmediately(caseFile, asset)
