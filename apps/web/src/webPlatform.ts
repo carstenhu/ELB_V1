@@ -1,5 +1,6 @@
 import { createAuditRepository } from "@elb/persistence/auditRepository";
 import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
+import { getBrowserDataDirectoryStatus, linkBrowserDataDirectory, unlinkBrowserDataDirectory } from "@elb/persistence/filesystem";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
@@ -249,6 +250,17 @@ export const webPlatform: AppPlatform = {
       };
     }
   },
+  dataDirectory: {
+    getStatus: () => getBrowserDataDirectoryStatus(),
+    link: async () => {
+      await linkBrowserDataDirectory();
+      return getBrowserDataDirectoryStatus();
+    },
+    unlink: async () => {
+      await unlinkBrowserDataDirectory();
+      return getBrowserDataDirectoryStatus();
+    }
+  },
   exportArtifacts: {
     persist: async (args) => {
       const { exchangeFolder, exchangeZipPath } = await persistExportArtifactsToDisk(args);
@@ -259,7 +271,12 @@ export const webPlatform: AppPlatform = {
   },
   shell: {
     openDataDirectory: async () => {
-      throw new Error("Im Web gibt es keinen Datenordner.");
+      const status = await getBrowserDataDirectoryStatus();
+      if (!status.isLinked) {
+        throw new Error("Im Web ist noch kein Datenordner verknuepft.");
+      }
+
+      return status.label ?? "ELB_V1_Daten";
     }
   }
 };

@@ -283,6 +283,19 @@ textarea {
   flex-wrap: wrap;
 }
 
+.admin-status-block {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #d7d9ce;
+  border-radius: 14px;
+  background: rgba(250, 248, 241, 0.88);
+}
+
+.admin-status-block p {
+  margin: 0;
+}
+
 
 .chip-flow {
   display: flex;

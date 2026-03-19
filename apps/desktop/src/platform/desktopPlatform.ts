@@ -133,6 +133,26 @@ export const desktopPlatform: AppPlatform = {
       };
     }
   },
+  dataDirectory: {
+    getStatus: async () => ({
+      supportsLinking: false,
+      isLinked: true,
+      label: "Downloads/ELB_V1_Daten",
+      message: "Die Desktop-App speichert direkt in Downloads/ELB_V1_Daten."
+    }),
+    link: async () => ({
+      supportsLinking: false,
+      isLinked: true,
+      label: "Downloads/ELB_V1_Daten",
+      message: "Die Desktop-App verwendet den Datenordner bereits direkt."
+    }),
+    unlink: async () => ({
+      supportsLinking: false,
+      isLinked: true,
+      label: "Downloads/ELB_V1_Daten",
+      message: "Die Desktop-App verwendet den Datenordner fest in Downloads/ELB_V1_Daten."
+    })
+  },
   exportArtifacts: {
     persist: async (args) => {
       try {

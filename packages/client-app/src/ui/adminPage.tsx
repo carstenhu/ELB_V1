@@ -1,11 +1,11 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
 import { createEmptyClerk, normalizeRequiredFieldKeys } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
-import { hasAdminAccess, importExchangeData, importMasterDataSnapshot, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
+import { createSnapshot, hasAdminAccess, importExchangeData, importMasterDataSnapshot, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
 import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
 import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function AdminPage() {
   const state = useAppState();
@@ -17,8 +17,32 @@ export function AdminPage() {
   const [exchangeBusy, setExchangeBusy] = useState(false);
   const [masterDataStatus, setMasterDataStatus] = useState("");
   const [masterDataBusy, setMasterDataBusy] = useState(false);
+  const [dataDirectoryStatus, setDataDirectoryStatus] = useState("");
+  const [dataDirectoryLabel, setDataDirectoryLabel] = useState<string | null>(null);
+  const [dataDirectoryBusy, setDataDirectoryBusy] = useState(false);
+  const [dataDirectoryLinked, setDataDirectoryLinked] = useState(false);
+  const [dataDirectorySupportsLinking, setDataDirectorySupportsLinking] = useState(false);
   const cases = [state.currentCase, ...state.drafts, ...state.finalized].filter((caseFile): caseFile is NonNullable<typeof caseFile> => Boolean(caseFile));
   const unlocked = hasAdminAccess();
+
+  useEffect(() => {
+    let active = true;
+
+    void platform.dataDirectory.getStatus().then((status) => {
+      if (!active) {
+        return;
+      }
+
+      setDataDirectoryStatus(status.message);
+      setDataDirectoryLabel(status.label);
+      setDataDirectoryLinked(status.isLinked);
+      setDataDirectorySupportsLinking(status.supportsLinking);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [platform]);
 
   async function handleExchangeImport() {
     setExchangeBusy(true);
@@ -95,6 +119,39 @@ export function AdminPage() {
       setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht importiert werden.");
     } finally {
       setMasterDataBusy(false);
+    }
+  }
+
+  async function handleDataDirectoryLink() {
+    setDataDirectoryBusy(true);
+
+    try {
+      const status = await platform.dataDirectory.link();
+      await platform.workspaceRepository.save(createSnapshot());
+      setDataDirectoryStatus(`${status.message} Aktueller Workspace wurde direkt geschrieben.`);
+      setDataDirectoryLabel(status.label);
+      setDataDirectoryLinked(status.isLinked);
+      setDataDirectorySupportsLinking(status.supportsLinking);
+    } catch (error) {
+      setDataDirectoryStatus(error instanceof Error ? error.message : "Datenordner konnte nicht verknuepft werden.");
+    } finally {
+      setDataDirectoryBusy(false);
+    }
+  }
+
+  async function handleDataDirectoryUnlink() {
+    setDataDirectoryBusy(true);
+
+    try {
+      const status = await platform.dataDirectory.unlink();
+      setDataDirectoryStatus(status.message);
+      setDataDirectoryLabel(status.label);
+      setDataDirectoryLinked(status.isLinked);
+      setDataDirectorySupportsLinking(status.supportsLinking);
+    } catch (error) {
+      setDataDirectoryStatus(error instanceof Error ? error.message : "Datenordner-Verknuepfung konnte nicht geloest werden.");
+    } finally {
+      setDataDirectoryBusy(false);
     }
   }
 
@@ -281,6 +338,21 @@ export function AdminPage() {
 
       {section === "exchange" ? (
         <Section title="Datenaustausch">
+          <div className="admin-status-block">
+            <strong>Datenordner</strong>
+            <p>{dataDirectoryStatus}</p>
+            {dataDirectoryLabel ? <p>Aktueller Ordner: {dataDirectoryLabel}</p> : null}
+            {dataDirectorySupportsLinking ? (
+              <div className="inline-actions">
+                <button type="button" className="primary" disabled={dataDirectoryBusy} onClick={() => void handleDataDirectoryLink()}>
+                  {dataDirectoryBusy ? "Verknuepfung laeuft..." : "Datenordner verknuepfen"}
+                </button>
+                <button type="button" disabled={dataDirectoryBusy || !dataDirectoryLinked} onClick={() => void handleDataDirectoryUnlink()}>
+                  Verknuepfung loesen
+                </button>
+              </div>
+            ) : null}
+          </div>
           <div className="inline-actions">
             <button type="button" disabled={masterDataBusy} onClick={() => void handleMasterDataExport()}>
               Stammdaten exportieren

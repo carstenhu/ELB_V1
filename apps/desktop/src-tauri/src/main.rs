@@ -21,9 +21,24 @@ fn get_data_directory_path(app: AppHandle) -> Result<String, String> {
         .into_owned())
 }
 
+fn normalize_relative_data_path(relative_path: &str) -> String {
+    let normalized = relative_path.replace('\\', "/");
+    let trimmed = normalized.trim_start_matches('/');
+    let prefixed = format!("{DATA_DIR_NAME}/");
+
+    if trimmed == DATA_DIR_NAME {
+        String::new()
+    } else if trimmed.starts_with(&prefixed) {
+        trimmed[prefixed.len()..].to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 #[tauri::command]
 fn open_app_local_data_path(app: AppHandle, relative_path: String) -> Result<String, String> {
-    let target_path = resolve_data_dir(&app)?.join(&relative_path);
+    let normalized_relative_path = normalize_relative_data_path(&relative_path);
+    let target_path = resolve_data_dir(&app)?.join(&normalized_relative_path);
 
     if !target_path.exists() {
         return Err(format!(

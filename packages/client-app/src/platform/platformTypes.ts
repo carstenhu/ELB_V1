@@ -46,6 +46,19 @@ export interface MasterDataSyncPort {
   importFromSelection(): Promise<MasterDataSyncResult | null>;
 }
 
+export interface DataDirectoryStatus {
+  supportsLinking: boolean;
+  isLinked: boolean;
+  label: string | null;
+  message: string;
+}
+
+export interface DataDirectoryPort {
+  getStatus(): Promise<DataDirectoryStatus>;
+  link(): Promise<DataDirectoryStatus>;
+  unlink(): Promise<DataDirectoryStatus>;
+}
+
 export interface AppShellPort {
   openDataDirectory(): Promise<string>;
 }
@@ -59,5 +72,6 @@ export interface AppPlatform {
   pdfPreview: PdfPreviewPort;
   exchangeImport: ExchangeImportPort;
   masterDataSync: MasterDataSyncPort;
+  dataDirectory: DataDirectoryPort;
   shell: AppShellPort;
 }

@@ -14,6 +14,20 @@ interface FileSystemModule {
   writeFile?(path: string, data: Uint8Array, options?: { baseDir?: number | string }): Promise<void>;
 }
 
+interface BrowserDirectoryHandle {
+  kind?: string;
+  name: string;
+  getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<BrowserDirectoryHandle>;
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<BrowserFileHandle>;
+  queryPermission?(options?: { mode?: "read" | "readwrite" }): Promise<"granted" | "denied" | "prompt">;
+  requestPermission?(options?: { mode?: "read" | "readwrite" }): Promise<"granted" | "denied" | "prompt">;
+}
+
+interface BrowserFileHandle {
+  getFile(): Promise<File>;
+  createWritable(): Promise<{ write(data: Blob | BufferSource | string): Promise<void>; close(): Promise<void> }>;
+}
+
 interface WorkspaceMetaStorage {
   activeClerkId: string | null;
   savedAt: string;
@@ -42,9 +56,19 @@ const SESSION_FILE_NAME = "session.json";
 const ASSET_REF_PREFIX = "stored://";
 const INDEXED_DB_NAME = "elb-v1-storage";
 const INDEXED_DB_STORE = "files";
+const INDEXED_DB_HANDLE_STORE = "handles";
+const LINKED_DIRECTORY_HANDLE_KEY = "linked-directory-handle";
 
 function getBrowserStorageKey(path: string): string {
   return `elb.v1.fs.${path}`;
+}
+
+function getLinkedDirectoryLabel(handle: BrowserDirectoryHandle | null): string | null {
+  if (!handle) {
+    return null;
+  }
+
+  return handle.name === ROOT_DIR ? ROOT_DIR : `${handle.name}/${ROOT_DIR}`;
 }
 
 function getClerkFolderSegment(name: string | null | undefined, clerkId: string): string {
@@ -136,17 +160,65 @@ function openIndexedDb(): Promise<IDBDatabase | null> {
   }
 
   return new Promise((resolve, reject) => {
-    const request = globalThis.indexedDB.open(INDEXED_DB_NAME, 1);
+    const request = globalThis.indexedDB.open(INDEXED_DB_NAME, 2);
 
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(INDEXED_DB_STORE)) {
         database.createObjectStore(INDEXED_DB_STORE);
       }
+      if (!database.objectStoreNames.contains(INDEXED_DB_HANDLE_STORE)) {
+        database.createObjectStore(INDEXED_DB_HANDLE_STORE);
+      }
     };
 
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+async function indexedDbPut(storeName: string, key: string, value: unknown): Promise<void> {
+  const database = await openIndexedDb();
+  if (!database) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(storeName, "readwrite");
+    const store = transaction.objectStore(storeName);
+    store.put(value, key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+async function indexedDbGet<T>(storeName: string, key: string): Promise<T | null> {
+  const database = await openIndexedDb();
+  if (!database) {
+    return null;
+  }
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(storeName, "readonly");
+    const store = transaction.objectStore(storeName);
+    const request = store.get(key);
+    request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function indexedDbDelete(storeName: string, key: string): Promise<void> {
+  const database = await openIndexedDb();
+  if (!database) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(storeName, "readwrite");
+    const store = transaction.objectStore(storeName);
+    store.delete(key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
   });
 }
 
@@ -181,12 +253,202 @@ async function indexedDbRead(path: string): Promise<string | null> {
   });
 }
 
+function getBrowserLinkedDirectoryPicker(): (() => Promise<BrowserDirectoryHandle>) | null {
+  const picker = Reflect.get(globalThis, "showDirectoryPicker");
+  return typeof picker === "function" ? (picker as () => Promise<BrowserDirectoryHandle>) : null;
+}
+
+function getBrowserPathSegments(path: string): string[] {
+  return path
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter(Boolean)
+    .filter((segment, index) => !(index === 0 && segment === ROOT_DIR));
+}
+
+async function ensureBrowserHandlePermission(handle: BrowserDirectoryHandle, mode: "read" | "readwrite"): Promise<boolean> {
+  if (typeof handle.queryPermission === "function") {
+    const state = await handle.queryPermission({ mode });
+    if (state === "granted") {
+      return true;
+    }
+  }
+
+  if (typeof handle.requestPermission === "function") {
+    const state = await handle.requestPermission({ mode });
+    return state === "granted";
+  }
+
+  return true;
+}
+
+async function getStoredLinkedDirectoryHandle(): Promise<BrowserDirectoryHandle | null> {
+  return indexedDbGet<BrowserDirectoryHandle>(INDEXED_DB_HANDLE_STORE, LINKED_DIRECTORY_HANDLE_KEY);
+}
+
+async function getBrowserLinkedDirectoryHandle(mode: "read" | "readwrite" = "readwrite"): Promise<BrowserDirectoryHandle | null> {
+  const storedHandle = await getStoredLinkedDirectoryHandle();
+  if (!storedHandle) {
+    return null;
+  }
+
+  const granted = await ensureBrowserHandlePermission(storedHandle, mode);
+  return granted ? storedHandle : null;
+}
+
+async function persistLinkedDirectoryHandle(handle: BrowserDirectoryHandle): Promise<void> {
+  await indexedDbPut(INDEXED_DB_HANDLE_STORE, LINKED_DIRECTORY_HANDLE_KEY, handle);
+}
+
+async function clearLinkedDirectoryHandle(): Promise<void> {
+  await indexedDbDelete(INDEXED_DB_HANDLE_STORE, LINKED_DIRECTORY_HANDLE_KEY);
+}
+
+async function getBrowserDirectoryHandle(path: string, options?: { create?: boolean }): Promise<BrowserDirectoryHandle | null> {
+  const rootHandle = await getBrowserLinkedDirectoryHandle(options?.create ? "readwrite" : "read");
+  if (!rootHandle) {
+    return null;
+  }
+
+  const segments = getBrowserPathSegments(path);
+  let currentHandle = rootHandle;
+
+  for (const segment of segments) {
+    currentHandle = await currentHandle.getDirectoryHandle(segment, { create: options?.create ?? false });
+  }
+
+  return currentHandle;
+}
+
+async function getBrowserFileHandle(path: string, options?: { create?: boolean }): Promise<BrowserFileHandle | null> {
+  const segments = getBrowserPathSegments(path);
+  const fileName = segments.pop();
+  if (!fileName) {
+    return null;
+  }
+
+  const parentPath = segments.length ? `${ROOT_DIR}/${segments.join("/")}` : ROOT_DIR;
+  const parentHandle = await getBrowserDirectoryHandle(parentPath, options?.create ? { create: true } : undefined);
+  if (!parentHandle) {
+    return null;
+  }
+
+  return parentHandle.getFileHandle(fileName, { create: options?.create ?? false });
+}
+
+async function browserWriteTextData(path: string, data: string): Promise<boolean> {
+  const fileHandle = await getBrowserFileHandle(path, { create: true });
+  if (!fileHandle) {
+    return false;
+  }
+
+  const writable = await fileHandle.createWritable();
+  await writable.write(new Blob([data]));
+  await writable.close();
+  return true;
+}
+
+async function browserWriteBinaryData(path: string, data: Uint8Array): Promise<boolean> {
+  const fileHandle = await getBrowserFileHandle(path, { create: true });
+  if (!fileHandle) {
+    return false;
+  }
+
+  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  const writable = await fileHandle.createWritable();
+  await writable.write(new Blob([buffer]));
+  await writable.close();
+  return true;
+}
+
+async function browserReadTextData(path: string): Promise<string | null> {
+  try {
+    const fileHandle = await getBrowserFileHandle(path, { create: false });
+    if (!fileHandle) {
+      return null;
+    }
+
+    const file = await fileHandle.getFile();
+    return file.text();
+  } catch {
+    return null;
+  }
+}
+
+export async function linkBrowserDataDirectory(): Promise<{ label: string; message: string }> {
+  const picker = getBrowserLinkedDirectoryPicker();
+  if (!picker) {
+    throw new Error("Dieser Browser unterstuetzt keine verknuepfbaren Datenordner.");
+  }
+
+  const selectedHandle = await picker();
+  const rootHandle = selectedHandle.name === ROOT_DIR
+    ? selectedHandle
+    : await selectedHandle.getDirectoryHandle(ROOT_DIR, { create: true });
+
+  const granted = await ensureBrowserHandlePermission(rootHandle, "readwrite");
+  if (!granted) {
+    throw new Error("Der Datenordner konnte nicht mit Schreibrechten verknuepft werden.");
+  }
+
+  await persistLinkedDirectoryHandle(rootHandle);
+  const label = getLinkedDirectoryLabel(rootHandle) ?? ROOT_DIR;
+  return {
+    label,
+    message: `Web-Datenordner verknuepft: ${label}`
+  };
+}
+
+export async function unlinkBrowserDataDirectory(): Promise<{ message: string }> {
+  await clearLinkedDirectoryHandle();
+  return { message: "Web-Datenordner-Verknuepfung wurde geloest." };
+}
+
+export async function getBrowserDataDirectoryStatus(): Promise<{
+  supportsLinking: boolean;
+  isLinked: boolean;
+  label: string | null;
+  message: string;
+}> {
+  const supportsLinking = Boolean(getBrowserLinkedDirectoryPicker());
+  if (!supportsLinking) {
+    return {
+      supportsLinking,
+      isLinked: false,
+      label: null,
+      message: "Dieser Browser unterstuetzt keine verknuepfbaren Datenordner."
+    };
+  }
+
+  const handle = await getBrowserLinkedDirectoryHandle("read");
+  if (!handle) {
+    return {
+      supportsLinking,
+      isLinked: false,
+      label: null,
+      message: "Kein Web-Datenordner verknuepft. Waehle den Downloads-Ordner oder direkt ELB_V1_Daten aus."
+    };
+  }
+
+  const label = getLinkedDirectoryLabel(handle);
+  return {
+    supportsLinking,
+    isLinked: true,
+    label,
+    message: `Web-Datenordner aktiv: ${label ?? ROOT_DIR}`
+  };
+}
+
 async function ensureDir(fsModule: FileSystemModule | null, path: string): Promise<void> {
   if (fsModule) {
     await fsModule.mkdir(path, {
       baseDir: getDesktopBaseDir(fsModule),
       recursive: true
     });
+    return;
+  }
+
+  if (await getBrowserDirectoryHandle(path, { create: true })) {
     return;
   }
 
@@ -214,6 +476,10 @@ async function writeTextData(fsModule: FileSystemModule | null, path: string, da
     return;
   }
 
+  if (await browserWriteTextData(path, data)) {
+    return;
+  }
+
   await indexedDbWrite(path, data);
 }
 
@@ -237,6 +503,10 @@ async function writeBinaryData(fsModule: FileSystemModule | null, path: string, 
     return;
   }
 
+  if (await browserWriteBinaryData(path, data)) {
+    return;
+  }
+
   await indexedDbWrite(path, `base64:${bytesToBase64(data)}`);
 }
 
@@ -252,6 +522,11 @@ async function readTextData(fsModule: FileSystemModule | null, path: string): Pr
     return fsModule.readTextFile(path, {
       baseDir: getDesktopBaseDir(fsModule)
     });
+  }
+
+  const linkedValue = await browserReadTextData(path);
+  if (linkedValue !== null) {
+    return linkedValue;
   }
 
   return indexedDbRead(path);
