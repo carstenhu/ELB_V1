@@ -88,9 +88,13 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
             type="button"
             className={menuOpen ? "nav-button nav-button--active topbar__menu-trigger" : "nav-button topbar__menu-trigger"}
             aria-expanded={menuOpen}
+            aria-label="Menue oeffnen"
             onClick={() => setMenuOpen((current) => !current)}
           >
-            Menue
+            <span className="topbar__menu-icon" aria-hidden="true">
+              &#9776;
+            </span>
+            <span className="topbar__menu-label">Menue</span>
           </button>
           {menuOpen ? (
             <div className="topbar__menu-panel">
