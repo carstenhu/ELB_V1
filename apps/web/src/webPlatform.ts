@@ -1,5 +1,5 @@
 import { createAuditRepository } from "@elb/persistence/auditRepository";
-import { importExchangeFromEntries, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
+import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
@@ -217,6 +217,18 @@ export const webPlatform: AppPlatform = {
       return {
         ...imported,
         message: "Austauschordner wurde aus dem Browser-Dateisystem importiert."
+      };
+    },
+    importFromZipSelection: async () => {
+      const file = await selectBrowserFile(".zip,application/zip");
+      if (!file) {
+        return null;
+      }
+
+      const imported = await importExchangeFromZip(await file.arrayBuffer());
+      return {
+        ...imported,
+        message: `Austausch-ZIP wurde importiert: ${file.name}`
       };
     }
   },

@@ -33,6 +33,7 @@ export interface ExchangeImportResult {
 
 export interface ExchangeImportPort {
   importFromSelection(): Promise<ExchangeImportResult | null>;
+  importFromZipSelection(): Promise<ExchangeImportResult | null>;
 }
 
 export interface MasterDataSyncResult {

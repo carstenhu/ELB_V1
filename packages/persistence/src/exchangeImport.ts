@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { AppError, importCaseFromJson, toAppError } from "@elb/app-core/index";
 import { masterDataSchema, normalizeMasterData, type CaseFile, type MasterData } from "@elb/domain/index";
 
@@ -203,5 +204,25 @@ export async function importExchangeFromEntries(entries: readonly ExchangeImport
     };
   } catch (error) {
     throw toAppError(error, "IMPORT_ERROR", "Austauschordner konnte nicht importiert werden.");
+  }
+}
+
+export async function importExchangeFromZip(input: Blob | ArrayBuffer | Uint8Array): Promise<ExchangeImportResult> {
+  try {
+    const zip = await JSZip.loadAsync(input);
+    const entries = await Promise.all(
+      Object.values(zip.files)
+        .filter((entry) => !entry.dir)
+        .map(async (entry) => ({
+          path: normalizePath(entry.name),
+          content: entry.name.toLowerCase().endsWith(".json")
+            ? await entry.async("text")
+            : await entry.async("uint8array")
+        }))
+    );
+
+    return importExchangeFromEntries(entries);
+  } catch (error) {
+    throw toAppError(error, "IMPORT_ERROR", "Austausch-ZIP konnte nicht importiert werden.");
   }
 }

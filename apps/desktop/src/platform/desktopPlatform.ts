@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readDir, readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { createAuditRepository } from "@elb/persistence/auditRepository";
-import { importExchangeFromEntries, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
+import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import {
   persistCaseAssetImmediately,
@@ -78,6 +78,24 @@ export const desktopPlatform: AppPlatform = {
       return {
         ...imported,
         message: `Austauschordner wurde importiert: ${selectedPath}`
+      };
+    },
+    importFromZipSelection: async () => {
+      const selected = await open({
+        directory: false,
+        multiple: false,
+        filters: [{ name: "ZIP", extensions: ["zip"] }],
+        title: "Austausch-ZIP auswaehlen"
+      });
+
+      const selectedPath = Array.isArray(selected) ? selected[0] : selected;
+      if (!selectedPath) {
+        return null;
+      }
+
+      return {
+        ...(await importExchangeFromZip(await readFile(selectedPath))),
+        message: `Austausch-ZIP wurde importiert: ${selectedPath}`
       };
     }
   },

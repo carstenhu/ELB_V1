@@ -42,6 +42,28 @@ export function AdminPage() {
     }
   }
 
+  async function handleExchangeZipImport() {
+    setExchangeBusy(true);
+    setExchangeStatus("");
+    setExchangeWarnings([]);
+
+    try {
+      const imported = await platform.exchangeImport.importFromZipSelection();
+      if (!imported) {
+        setExchangeStatus("Keine Austausch-ZIP ausgewaehlt.");
+        return;
+      }
+
+      importExchangeData(imported);
+      setExchangeWarnings(imported.warnings);
+      setExchangeStatus(imported.message);
+    } catch (error) {
+      setExchangeStatus(error instanceof Error ? error.message : "Austausch-ZIP konnte nicht importiert werden.");
+    } finally {
+      setExchangeBusy(false);
+    }
+  }
+
   async function handleMasterDataExport() {
     setMasterDataBusy(true);
     setMasterDataStatus("");
@@ -268,10 +290,13 @@ export function AdminPage() {
             </button>
           </div>
           {masterDataStatus ? <p>{masterDataStatus}</p> : null}
-          <p>Importiert einen versionierten Austauschordner und stellt ihn als aktuelle Session des zugehoerigen Sachbearbeiters wieder her.</p>
+          <p>Importiert einen versionierten Austauschordner oder direkt eine Austausch-ZIP und stellt ihn als aktuelle Session des zugehoerigen Sachbearbeiters wieder her.</p>
           <div className="inline-actions">
             <button type="button" className="primary" disabled={exchangeBusy} onClick={() => void handleExchangeImport()}>
               {exchangeBusy ? "Import laeuft..." : "Austauschordner importieren"}
+            </button>
+            <button type="button" disabled={exchangeBusy} onClick={() => void handleExchangeZipImport()}>
+              Austausch-ZIP importieren
             </button>
           </div>
           {exchangeStatus ? <p>{exchangeStatus}</p> : null}

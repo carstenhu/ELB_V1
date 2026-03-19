@@ -157,9 +157,9 @@ async function createPdfBytes(caseFile: CaseFile, masterData: ReturnType<typeof 
 }
 
 async function createZipBundle(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]) {
-  const [{ generateExportBundle, createExportZip }] = await Promise.all([import("@elb/export-core/index")]);
+  const [{ generateExportBundle, createExportZipFromBundle }] = await Promise.all([import("@elb/export-core/index")]);
   const bundle = await generateExportBundle(caseFile, masterData);
-  const zipBlob = await createExportZip(caseFile, masterData);
+  const zipBlob = await createExportZipFromBundle(bundle);
   return { bundle, zipBlob };
 }
 

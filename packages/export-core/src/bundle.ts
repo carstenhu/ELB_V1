@@ -101,8 +101,7 @@ export async function generateExportBundle(caseFile: CaseFile, masterData: Maste
   };
 }
 
-export async function createExportZip(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
-  const bundle = await generateExportBundle(caseFile, masterData);
+export async function createExportZipFromBundle(bundle: GeneratedExportBundle): Promise<Blob> {
   const zip = new JSZip();
   const root = zip.folder(bundle.plan.folderName);
 
@@ -115,4 +114,9 @@ export async function createExportZip(caseFile: CaseFile, masterData: MasterData
   }
 
   return zip.generateAsync({ type: "blob" });
+}
+
+export async function createExportZip(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
+  const bundle = await generateExportBundle(caseFile, masterData);
+  return createExportZipFromBundle(bundle);
 }
