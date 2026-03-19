@@ -6,10 +6,6 @@ import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
 import { useAppState } from "../useAppState";
 import { useState } from "react";
 
-function buildReferenceHint(receiptNumbers: string[]): string {
-  return receiptNumbers.length ? `Verwendet in: ${receiptNumbers.join(", ")}` : "";
-}
-
 export function AdminPage() {
   const state = useAppState();
   const [pinInput, setPinInput] = useState("");
@@ -181,7 +177,6 @@ export function AdminPage() {
                     <input value={department.name} onChange={(event) => updateMasterData((current) => ({ ...current, departments: current.departments.map((item) => (item.id === department.id ? { ...item, name: event.target.value } : item)) }))} />
                   </Field>
                 </div>
-                {references.length ? <p className="field-warning">{buildReferenceHint(references.map((item) => item.receiptNumber))}</p> : null}
                 <div className="inline-actions">
                   <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, departments: current.departments.filter((item) => item.id !== department.id) }))}>
                     Löschen
