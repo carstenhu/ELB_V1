@@ -11,3 +11,5 @@ data/
 tmp_koller/
 tmp_koller.zip
 *.tsbuildinfo
+apps/web/.env
+apps/web/.env.local
