@@ -1,6 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readDir, readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { createAuditRepository } from "@elb/persistence/auditRepository";
 import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
@@ -20,6 +17,23 @@ import type { MasterData } from "@elb/domain/index";
 const logger = createLogger("desktop-platform");
 const DEFAULT_SUPABASE_BUCKET = "elb-v1-data";
 const REMOTE_MASTER_DATA_PATH = "Stammdaten/master-data.json";
+
+async function loadTauriCore() {
+  const module = await import("@tauri-apps/api/core");
+  if (typeof module.invoke !== "function") {
+    throw new Error("Tauri Core API ist nicht verfuegbar.");
+  }
+
+  return module;
+}
+
+async function loadTauriDialog() {
+  return import("@tauri-apps/plugin-dialog");
+}
+
+async function loadTauriFs() {
+  return import("@tauri-apps/plugin-fs");
+}
 
 function toError(error: unknown, fallback: string): Error {
   if (error instanceof Error) {
@@ -103,6 +117,7 @@ export const desktopPlatform: AppPlatform = {
           fileName: args.fileName,
           pdfContent: args.pdfContent
         });
+        const { invoke } = await loadTauriCore();
         const absolutePath = await invoke<string>("open_app_local_data_path", { relativePath });
         return { message: `PDF wurde lokal gespeichert und geoeffnet: ${absolutePath}` };
       } catch (error) {
@@ -113,6 +128,8 @@ export const desktopPlatform: AppPlatform = {
   },
   exchangeImport: {
     importFromSelection: async () => {
+      const { open } = await loadTauriDialog();
+      const { readDir, readFile, readTextFile } = await loadTauriFs();
       const selected = await open({
         directory: true,
         multiple: false,
@@ -124,7 +141,7 @@ export const desktopPlatform: AppPlatform = {
         return null;
       }
 
-      const entries = await collectExchangeEntries(selectedPath, selectedPath);
+      const entries = await collectExchangeEntries(readDir, readFile, readTextFile, selectedPath, selectedPath);
       const imported = await importExchangeFromEntries(entries);
 
       return {
@@ -133,6 +150,8 @@ export const desktopPlatform: AppPlatform = {
       };
     },
     importFromZipSelection: async () => {
+      const { open } = await loadTauriDialog();
+      const { readFile } = await loadTauriFs();
       const selected = await open({
         directory: false,
         multiple: false,
@@ -165,6 +184,8 @@ export const desktopPlatform: AppPlatform = {
   },
   masterDataSync: {
     exportCurrent: async (masterData) => {
+      const { save } = await loadTauriDialog();
+      const { writeTextFile } = await loadTauriFs();
       const targetPath = await save({
         defaultPath: "master-data.json",
         filters: [{ name: "JSON", extensions: ["json"] }],
@@ -179,6 +200,8 @@ export const desktopPlatform: AppPlatform = {
       return { message: `Stammdaten wurden gespeichert: ${targetPath}` };
     },
     importFromSelection: async () => {
+      const { open } = await loadTauriDialog();
+      const { readTextFile } = await loadTauriFs();
       const selected = await open({
         directory: false,
         multiple: false,
@@ -233,9 +256,12 @@ export const desktopPlatform: AppPlatform = {
     }
   },
   shell: {
-    openDataDirectory: ({ clerkId, masterData }) => invoke<string>("open_data_directory", {
-      relativePath: getClerkDataDirectoryRelativePath(clerkId, masterData)
-    })
+    openDataDirectory: async ({ clerkId, masterData }) => {
+      const { invoke } = await loadTauriCore();
+      return invoke<string>("open_data_directory", {
+        relativePath: getClerkDataDirectoryRelativePath(clerkId, masterData)
+      });
+    }
   }
 };
 
@@ -253,7 +279,13 @@ function isTextExchangeFile(path: string): boolean {
   return path.toLowerCase().endsWith(".json");
 }
 
-async function collectExchangeEntries(currentDirectory: string, rootDirectory: string): Promise<ExchangeImportEntry[]> {
+async function collectExchangeEntries(
+  readDir: typeof import("@tauri-apps/plugin-fs").readDir,
+  readFile: typeof import("@tauri-apps/plugin-fs").readFile,
+  readTextFile: typeof import("@tauri-apps/plugin-fs").readTextFile,
+  currentDirectory: string,
+  rootDirectory: string
+): Promise<ExchangeImportEntry[]> {
   const directoryEntries = await readDir(currentDirectory);
   const collected: ExchangeImportEntry[] = [];
 
@@ -261,7 +293,7 @@ async function collectExchangeEntries(currentDirectory: string, rootDirectory: s
     const entryPath = `${currentDirectory}/${entry.name}`;
 
     if (entry.isDirectory) {
-      collected.push(...await collectExchangeEntries(entryPath, rootDirectory));
+      collected.push(...await collectExchangeEntries(readDir, readFile, readTextFile, entryPath, rootDirectory));
       continue;
     }
 
