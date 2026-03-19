@@ -1,11 +1,12 @@
 import type { CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { useAppState } from "../../useAppState";
-import { FollowUpFieldControl, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
+import { FOLLOW_UP_VALUE, FollowUpFieldControl, getTextInputClassName, isFollowUpValue, renderFollowUpOption } from "../../ui/formSupport";
 import {
   getRequiredFieldCurrentValue,
   type RequiredFieldEntry,
-  updateRequiredFieldValue
+  updateRequiredFieldValue,
+  updateRequiredFieldValues
 } from "./requiredFields";
 
 export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void }) {
@@ -14,6 +15,10 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
   if (!props.entries.length) {
     return null;
   }
+
+  const fillableEntries = props.entries.filter((entry) => entry.inputKind !== "action");
+  const allMissingFieldsMarkedFollowUp =
+    fillableEntries.length > 0 && fillableEntries.every((entry) => isFollowUpValue(getRequiredFieldCurrentValue(props.caseFile, entry)));
 
   return (
     <div className="pin-modal">
@@ -24,6 +29,16 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
         </div>
         <div className="page-grid">
           <Section title="Angaben erfassen">
+            {fillableEntries.length ? (
+              <label className="follow-up-toggle">
+                <input
+                  type="checkbox"
+                  checked={allMissingFieldsMarkedFollowUp}
+                  onChange={(event) => updateRequiredFieldValues(fillableEntries, event.target.checked ? FOLLOW_UP_VALUE : "")}
+                />
+                <span>Alle fehlenden Felder direkt mit Angaben folgen befuellen</span>
+              </label>
+            ) : null}
             {props.entries.map((entry) => {
               if (entry.inputKind === "action") {
                 return (

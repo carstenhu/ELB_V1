@@ -21,6 +21,15 @@ export function updateRequiredFieldValue(entry: RequiredFieldEntry, value?: stri
   updateCurrentCase((current) => applyRequiredFieldUpdate(current, entry, value ?? ""));
 }
 
+export function updateRequiredFieldValues(entries: RequiredFieldEntry[], value: string) {
+  const fillableEntries = entries.filter((entry) => entry.inputKind !== "action");
+  if (!fillableEntries.length) {
+    return;
+  }
+
+  updateCurrentCase((current) => fillableEntries.reduce((nextCaseFile, entry) => applyRequiredFieldUpdate(nextCaseFile, entry, value), current));
+}
+
 export function getRequiredFieldCurrentValue(caseFile: CaseFile, entry: RequiredFieldEntry): string {
   if (entry.key === "meta.receiptNumber") return caseFile.meta.receiptNumber;
   if (entry.key === "meta.clerkId") return caseFile.meta.clerkId;
