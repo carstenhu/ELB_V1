@@ -1,5 +1,7 @@
+import type { ContactAddress } from "./types";
+
 export function formatReceiptNumber(index: number): string {
-  return String(index).padStart(4, "0");
+  return String(index);
 }
 
 export function formatAmountForDisplay(raw: string): string {
@@ -21,3 +23,17 @@ export function buildFolderName(lastName: string, firstName: string, receiptNumb
   return `${normalizedLastName}_${normalizedFirstName}_${receiptNumber}`;
 }
 
+function sanitizeFileNameSegment(value: string): string {
+  return value.trim().replaceAll(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").toLowerCase() || "unbekannt";
+}
+
+export function buildExchangeBaseName(
+  consignor: Pick<ContactAddress, "useCompanyAddress" | "company" | "lastName" | "firstName">,
+  receiptNumber: string
+): string {
+  const displayName = consignor.useCompanyAddress && consignor.company.trim()
+    ? consignor.company
+    : consignor.lastName.trim() || consignor.firstName.trim() || "Unbekannt";
+
+  return `${sanitizeFileNameSegment(displayName)}_${receiptNumber.trim() || "ohne_nummer"}`;
+}

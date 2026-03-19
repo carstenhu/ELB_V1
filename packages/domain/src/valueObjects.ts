@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-export const receiptNumberSchema = z.string().trim().regex(/^\d{4}$/, "Nummern muessen vierstellig sein.");
-export const intNumberSchema = receiptNumberSchema;
+export const receiptNumberSchema = z.string().trim().regex(/^\d+$/, "ELB-Nummern muessen aus Ziffern bestehen.");
+export const intNumberSchema = z.string().trim().regex(/^\d{4}$/, "Int.-Nr. muss vierstellig sein.");
 export const adminPinSchema = z.string().trim().regex(/^\d{4,12}$/, "Die Admin-PIN muss aus 4 bis 12 Ziffern bestehen.");
 export const vatCategorySchema = z.enum(["", "A", "B", "C"]);
 export const emailLikeSchema = z.string().trim().refine((value) => value === "" || z.email().safeParse(value).success, {

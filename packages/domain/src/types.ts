@@ -34,8 +34,8 @@ export const clerkSchema = z.object({
   email: emailLikeSchema,
   phone: z.string(),
   signaturePng: z.string(),
-  nextReceiptNumberDesktop: receiptNumberSchema.default("0001"),
-  nextReceiptNumberWeb: receiptNumberSchema.default("0001"),
+  nextReceiptNumberDesktop: receiptNumberSchema.default("1"),
+  nextReceiptNumberWeb: receiptNumberSchema.default("1"),
 });
 
 export type Clerk = z.infer<typeof clerkSchema>;

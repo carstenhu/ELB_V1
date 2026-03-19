@@ -1,6 +1,13 @@
 import { createAuditRepository } from "@elb/persistence/auditRepository";
 import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
-import { getBrowserDataDirectoryStatus, linkBrowserDataDirectory, unlinkBrowserDataDirectory } from "@elb/persistence/filesystem";
+import {
+  getBrowserDataDirectoryStatus,
+  getClerkDataDirectoryRelativePath,
+  linkBrowserDataDirectory,
+  listStoredExchangeZipFiles,
+  readStoredExchangeZipFile,
+  unlinkBrowserDataDirectory
+} from "@elb/persistence/filesystem";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
@@ -231,6 +238,19 @@ export const webPlatform: AppPlatform = {
         ...imported,
         message: `Austausch-ZIP wurde importiert: ${file.name}`
       };
+    },
+    listStoredZipOptions: ({ clerkId, masterData }) => listStoredExchangeZipFiles({ clerkId, masterData }),
+    importStoredZip: async ({ clerkId, masterData, zipId }) => {
+      const zipFile = await readStoredExchangeZipFile({ clerkId, masterData, zipId });
+      if (!zipFile) {
+        return null;
+      }
+
+      const imported = await importExchangeFromZip(zipFile.content);
+      return {
+        ...imported,
+        message: `Austausch-ZIP wurde geladen: ${zipFile.fileName}`
+      };
     }
   },
   masterDataSync: {
@@ -263,21 +283,21 @@ export const webPlatform: AppPlatform = {
   },
   exportArtifacts: {
     persist: async (args) => {
-      const { exchangeFolder, exchangeZipPath } = await persistExportArtifactsToDisk(args);
+      const { exchangeZipPath } = await persistExportArtifactsToDisk(args);
       const exchangeZipFileName = exchangeZipPath.split("/").pop() || args.zipFileName;
       const targetWindow = preparePendingWindow(args.initiatedWindow ?? null, "ZIP wird vorbereitet", "Der Export wird erstellt. Der Download startet automatisch.");
       completePendingDownload(targetWindow, exchangeZipFileName, args.zipContent);
-      return { message: `ZIP wurde als Browser-Download bereitgestellt: ${exchangeZipFileName}. Austauschordner: ${exchangeFolder}. Interner ZIP-Pfad: ${exchangeZipPath}` };
+      return { message: `ZIP wurde als Browser-Download bereitgestellt: ${exchangeZipFileName}. Interner ZIP-Pfad: ${exchangeZipPath}` };
     }
   },
   shell: {
-    openDataDirectory: async () => {
+    openDataDirectory: async ({ clerkId, masterData }) => {
       const status = await getBrowserDataDirectoryStatus();
       if (!status.isLinked) {
         throw new Error("Im Web ist noch kein Datenordner verknuepft.");
       }
 
-      return status.label ?? "ELB_V1_Daten";
+      return `${status.label ?? "ELB_V1_Daten"}/${getClerkDataDirectoryRelativePath(clerkId, masterData)}`;
     }
   }
 };

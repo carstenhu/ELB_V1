@@ -2,10 +2,10 @@ import { normalizeRequiredFieldKeys } from "./requiredFields";
 import type { CaseFile, Clerk, Costs, MasterData, ObjectItem } from "./types";
 import { DEFAULT_ADMIN_PIN } from "@elb/shared/constants";
 
-const INITIAL_RECEIPT_NUMBER = "0001";
+const INITIAL_RECEIPT_NUMBER = "1";
 
 function normalizeReceiptCounter(value: unknown): string {
-  return typeof value === "string" && /^\d{4}$/.test(value.trim()) ? value.trim() : INITIAL_RECEIPT_NUMBER;
+  return typeof value === "string" && /^\d+$/.test(value.trim()) ? value.trim() : INITIAL_RECEIPT_NUMBER;
 }
 
 function makeStructuredCost(): Costs["commission"] {

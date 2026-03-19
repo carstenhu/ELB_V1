@@ -24,8 +24,8 @@ describe("export-core", () => {
   it("writes image artifacts into the generated zip", async () => {
     const zipBlob = await createExportZipFromBundle({
       plan: {
-        folderName: "Muster_Eva_0042",
-        zipFileName: "Muster_Eva_0042.zip",
+        baseName: "muster_42",
+        zipFileName: "muster_42.zip",
         artifacts: []
       },
       metadata: {
@@ -46,7 +46,7 @@ describe("export-core", () => {
 
     const zip = await JSZip.loadAsync(await zipBlob.arrayBuffer());
 
-    expect(zip.file("Muster_Eva_0042/bilder/manifest.json")).toBeTruthy();
-    expect(zip.file("Muster_Eva_0042/bilder/optimized/asset-1.jpg")).toBeTruthy();
+    expect(zip.file("bilder/manifest.json")).toBeTruthy();
+    expect(zip.file("bilder/optimized/asset-1.jpg")).toBeTruthy();
   });
 });

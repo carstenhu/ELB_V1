@@ -44,6 +44,11 @@ export function reserveNextCaseNumber(args: {
   return formatReceiptNumber(maxValue + 1);
 }
 
+function toPositiveNumericString(value: string): string {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "1";
+}
+
 function getClerkReceiptCounter(clerk: Clerk, scope: ReceiptNumberScope): string {
   return scope === "desktop" ? clerk.nextReceiptNumberDesktop : clerk.nextReceiptNumberWeb;
 }
@@ -69,7 +74,7 @@ export function getSuggestedCaseNumber(args: {
     finalized: args.finalized
   }), 10);
 
-  return formatReceiptNumber(Math.max(storedValue || 0, fallbackValue || 1));
+  return toPositiveNumericString(String(Math.max(storedValue || 0, fallbackValue || 1)));
 }
 
 export function consumeReceiptNumberIfNeeded(args: {
@@ -90,7 +95,7 @@ export function consumeReceiptNumberIfNeeded(args: {
     return args.masterData;
   }
 
-  const nextNumber = formatReceiptNumber((Number.parseInt(suggestedNumber, 10) || 0) + 1);
+  const nextNumber = toPositiveNumericString(String((Number.parseInt(suggestedNumber, 10) || 0) + 1));
   return {
     ...args.masterData,
     clerks: args.masterData.clerks.map((item) => (item.id === clerk.id ? setClerkReceiptCounter(item, args.scope, nextNumber) : item))

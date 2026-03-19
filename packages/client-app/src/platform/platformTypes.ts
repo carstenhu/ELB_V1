@@ -31,9 +31,17 @@ export interface ExchangeImportResult {
   message: string;
 }
 
+export interface StoredExchangeZipOption {
+  id: string;
+  fileName: string;
+  label: string;
+}
+
 export interface ExchangeImportPort {
   importFromSelection(): Promise<ExchangeImportResult | null>;
   importFromZipSelection(): Promise<ExchangeImportResult | null>;
+  listStoredZipOptions(args: { clerkId: string; masterData: MasterData }): Promise<StoredExchangeZipOption[]>;
+  importStoredZip(args: { clerkId: string; masterData: MasterData; zipId: string }): Promise<ExchangeImportResult | null>;
 }
 
 export interface MasterDataSyncResult {
@@ -60,7 +68,7 @@ export interface DataDirectoryPort {
 }
 
 export interface AppShellPort {
-  openDataDirectory(): Promise<string>;
+  openDataDirectory(args: { clerkId: string; masterData: MasterData }): Promise<string>;
 }
 
 export interface AppPlatform {

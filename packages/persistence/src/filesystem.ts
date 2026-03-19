@@ -1,5 +1,5 @@
 import type { AuditEntry } from "@elb/app-core/index";
-import { buildFolderName, type Asset, type CaseFile, type MasterData } from "@elb/domain/index";
+import { buildExchangeBaseName, type Asset, type CaseFile, type MasterData } from "@elb/domain/index";
 import type { AppStorageSnapshot } from "./storage";
 
 interface FileSystemModule {
@@ -9,6 +9,8 @@ interface FileSystemModule {
   };
   exists(path: string, options?: { baseDir?: number | string }): Promise<boolean>;
   mkdir(path: string, options?: { baseDir?: number | string; recursive?: boolean }): Promise<void>;
+  readDir?(path: string, options?: { baseDir?: number | string }): Promise<Array<{ name: string; isDirectory?: boolean; isFile?: boolean }>>;
+  readFile?(path: string, options?: { baseDir?: number | string }): Promise<Uint8Array>;
   readTextFile(path: string, options?: { baseDir?: number | string }): Promise<string>;
   writeTextFile(path: string, data: string, options?: { baseDir?: number | string }): Promise<void>;
   writeFile?(path: string, data: Uint8Array, options?: { baseDir?: number | string }): Promise<void>;
@@ -17,6 +19,7 @@ interface FileSystemModule {
 interface BrowserDirectoryHandle {
   kind?: string;
   name: string;
+  values?(): AsyncIterable<BrowserDirectoryEntryHandle>;
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<BrowserDirectoryHandle>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<BrowserFileHandle>;
   queryPermission?(options?: { mode?: "read" | "readwrite" }): Promise<"granted" | "denied" | "prompt">;
@@ -24,9 +27,13 @@ interface BrowserDirectoryHandle {
 }
 
 interface BrowserFileHandle {
+  kind?: string;
+  name?: string;
   getFile(): Promise<File>;
   createWritable(): Promise<{ write(data: Blob | BufferSource | string): Promise<void>; close(): Promise<void> }>;
 }
+
+type BrowserDirectoryEntryHandle = BrowserDirectoryHandle | BrowserFileHandle;
 
 interface WorkspaceMetaStorage {
   activeClerkId: string | null;
@@ -41,7 +48,13 @@ interface ClerkSessionStorage {
 }
 
 interface ExchangeIndexStorage {
-  nextVersion: number;
+  nextVersionByBaseName: Record<string, number>;
+}
+
+export interface StoredExchangeZipFile {
+  id: string;
+  fileName: string;
+  label: string;
 }
 
 const ROOT_DIR = "ELB_V1_Daten";
@@ -102,6 +115,10 @@ function getExchangeRoot(clerkFolderSegment: string): string {
 
 function getExchangeIndexFile(clerkFolderSegment: string): string {
   return `${getExchangeRoot(clerkFolderSegment)}/${EXCHANGE_INDEX_FILE_NAME}`;
+}
+
+function getExchangeZipPath(clerkFolderSegment: string, fileName: string): string {
+  return `${getExchangeRoot(clerkFolderSegment)}/${fileName}`;
 }
 
 function toStoredRef(path: string): string {
@@ -455,19 +472,6 @@ async function ensureDir(fsModule: FileSystemModule | null, path: string): Promi
   globalThis.localStorage?.setItem(getBrowserStorageKey(`${path}/.dir`), "1");
 }
 
-async function ensureParentDir(fsModule: FileSystemModule | null, path: string): Promise<void> {
-  const parts = path.split("/").slice(0, -1);
-  if (!parts.length) {
-    return;
-  }
-
-  let currentPath = "";
-  for (const part of parts) {
-    currentPath = currentPath ? `${currentPath}/${part}` : part;
-    await ensureDir(fsModule, currentPath);
-  }
-}
-
 async function writeTextData(fsModule: FileSystemModule | null, path: string, data: string): Promise<void> {
   if (fsModule) {
     await fsModule.writeTextFile(path, data, {
@@ -532,6 +536,43 @@ async function readTextData(fsModule: FileSystemModule | null, path: string): Pr
   return indexedDbRead(path);
 }
 
+async function readBinaryData(fsModule: FileSystemModule | null, path: string): Promise<Uint8Array | null> {
+  if (fsModule?.readFile) {
+    const exists = await fsModule.exists(path, {
+      baseDir: getDesktopBaseDir(fsModule)
+    });
+    if (!exists) {
+      return null;
+    }
+
+    return fsModule.readFile(path, {
+      baseDir: getDesktopBaseDir(fsModule)
+    });
+  }
+
+  try {
+    const fileHandle = await getBrowserFileHandle(path, { create: false });
+    if (fileHandle) {
+      const file = await fileHandle.getFile();
+      return new Uint8Array(await file.arrayBuffer());
+    }
+  } catch {
+    // Fall back to IndexedDB/localStorage below.
+  }
+
+  const stored = await indexedDbRead(path);
+  if (!stored?.startsWith("base64:")) {
+    return null;
+  }
+
+  const binary = atob(stored.slice("base64:".length));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
 async function writeJsonFile<T>(fsModule: FileSystemModule | null, path: string, value: T): Promise<void> {
   await writeTextData(fsModule, path, JSON.stringify(value, null, 2));
 }
@@ -573,6 +614,49 @@ async function resolveClerkFolderSegment(
 
   const persistedMasterData = await readJsonFile<MasterData>(fsModule, MASTER_DATA_FILE);
   return findClerkFolderSegment(persistedMasterData, clerkId);
+}
+
+export function getClerkDataDirectoryRelativePath(clerkId: string, masterData: MasterData): string {
+  return getClerkRoot(findClerkFolderSegment(masterData, clerkId));
+}
+
+async function listDirectoryEntries(fsModule: FileSystemModule | null, path: string): Promise<Array<{ name: string; isFile: boolean; isDirectory: boolean }>> {
+  if (fsModule?.readDir) {
+    const exists = await fsModule.exists(path, {
+      baseDir: getDesktopBaseDir(fsModule)
+    });
+    if (!exists) {
+      return [];
+    }
+
+    const entries = await fsModule.readDir(path, {
+      baseDir: getDesktopBaseDir(fsModule)
+    });
+
+    return entries.map((entry) => ({
+      name: entry.name,
+      isFile: Boolean(entry.isFile),
+      isDirectory: Boolean(entry.isDirectory)
+    }));
+  }
+
+  const directoryHandle = await getBrowserDirectoryHandle(path);
+  if (!directoryHandle || typeof directoryHandle.values !== "function") {
+    return [];
+  }
+
+  const entries: Array<{ name: string; isFile: boolean; isDirectory: boolean }> = [];
+
+  for await (const entry of directoryHandle.values()) {
+    const handle = entry as BrowserDirectoryEntryHandle;
+    entries.push({
+      name: handle.name ?? "",
+      isFile: handle.kind === "file",
+      isDirectory: handle.kind === "directory"
+    });
+  }
+
+  return entries;
 }
 
 async function resolveAssetPayload(fsModule: FileSystemModule | null, value: string): Promise<string> {
@@ -702,21 +786,26 @@ function getRelevantClerkIds(snapshot: AppStorageSnapshot): string[] {
   return [...ids];
 }
 
-async function getNextExchangeVersion(fsModule: FileSystemModule | null, clerkId: string): Promise<number> {
+async function getNextExchangeVersion(fsModule: FileSystemModule | null, clerkId: string, exchangeBaseName: string): Promise<number> {
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, clerkId);
   const indexFile = getExchangeIndexFile(clerkFolderSegment);
-  const currentIndex = (await readJsonFile<ExchangeIndexStorage>(fsModule, indexFile)) ?? { nextVersion: 1 };
-  const nextVersion = currentIndex.nextVersion;
+  const currentIndex = (await readJsonFile<ExchangeIndexStorage>(fsModule, indexFile)) ?? { nextVersionByBaseName: {} };
+  const nextVersion = currentIndex.nextVersionByBaseName[exchangeBaseName] ?? 1;
 
   await ensureDir(fsModule, getClerkRoot(clerkFolderSegment));
   await ensureDir(fsModule, getExchangeRoot(clerkFolderSegment));
-  await writeJsonFile(fsModule, indexFile, { nextVersion: nextVersion + 1 });
+  await writeJsonFile(fsModule, indexFile, {
+    nextVersionByBaseName: {
+      ...currentIndex.nextVersionByBaseName,
+      [exchangeBaseName]: nextVersion + 1
+    }
+  } satisfies ExchangeIndexStorage);
 
   return nextVersion;
 }
 
-function getExchangeFolderName(caseFile: CaseFile, version: number): string {
-  return `${buildFolderName(caseFile.consignor.lastName, caseFile.consignor.firstName, caseFile.meta.receiptNumber)}_v${version}`;
+function getExchangeZipFileName(caseFile: CaseFile, version: number): string {
+  return `${buildExchangeBaseName(caseFile.consignor, caseFile.meta.receiptNumber)}_v${version}.zip`;
 }
 
 export async function hydrateSnapshotFromDisk(): Promise<AppStorageSnapshot | null> {
@@ -826,35 +915,22 @@ export async function persistExportArtifactsToDisk(args: {
   artifacts: Array<{ fileName: string; content: string | ArrayBuffer | Blob | Uint8Array }>;
   zipFileName: string;
   zipContent: Blob | ArrayBuffer | Uint8Array;
-}): Promise<{ exchangeFolder: string; exchangeZipPath: string }> {
+}): Promise<{ exchangeZipPath: string }> {
   const fsModule = await loadTauriFs();
   const clerkId = args.caseFile.meta.clerkId;
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, clerkId);
-  const version = await getNextExchangeVersion(fsModule, clerkId);
-  const exchangeFolder = `${getExchangeRoot(clerkFolderSegment)}/${getExchangeFolderName(args.caseFile, version)}`;
-  const exchangeZipPath = `${getExchangeRoot(clerkFolderSegment)}/${getExchangeFolderName(args.caseFile, version)}.zip`;
+  const exchangeBaseName = buildExchangeBaseName(args.caseFile.consignor, args.caseFile.meta.receiptNumber);
+  const version = await getNextExchangeVersion(fsModule, clerkId, exchangeBaseName);
+  const exchangeZipPath = getExchangeZipPath(clerkFolderSegment, getExchangeZipFileName(args.caseFile, version));
 
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, CLERKS_ROOT);
   await ensureDir(fsModule, getClerkRoot(clerkFolderSegment));
   await ensureDir(fsModule, getExchangeRoot(clerkFolderSegment));
-  await ensureDir(fsModule, exchangeFolder);
-
-  for (const artifact of args.artifacts) {
-    const targetPath = `${exchangeFolder}/${artifact.fileName}`;
-    await ensureParentDir(fsModule, targetPath);
-
-    if (typeof artifact.content === "string") {
-      await writeTextData(fsModule, targetPath, artifact.content);
-    } else {
-      await writeBinaryData(fsModule, targetPath, await toBytes(artifact.content));
-    }
-  }
 
   await writeBinaryData(fsModule, exchangeZipPath, await toBytes(args.zipContent));
 
   return {
-    exchangeFolder,
     exchangeZipPath
   };
 }
@@ -879,6 +955,45 @@ export async function persistGeneratedPdfToDisk(args: {
   await writeBinaryData(fsModule, targetPath, await toBytes(args.pdfContent));
 
   return targetPath;
+}
+
+export async function listStoredExchangeZipFiles(args: {
+  clerkId: string;
+  masterData: MasterData;
+}): Promise<StoredExchangeZipFile[]> {
+  const fsModule = await loadTauriFs();
+  const clerkFolderSegment = findClerkFolderSegment(args.masterData, args.clerkId);
+  const exchangeRoot = getExchangeRoot(clerkFolderSegment);
+  const entries = await listDirectoryEntries(fsModule, exchangeRoot);
+
+  return entries
+    .filter((entry) => entry.isFile && entry.name.toLowerCase().endsWith(".zip"))
+    .map((entry) => ({
+      id: entry.name,
+      fileName: entry.name,
+      label: entry.name
+    }))
+    .sort((left, right) => right.fileName.localeCompare(left.fileName, "de-CH", { numeric: true, sensitivity: "base" }));
+}
+
+export async function readStoredExchangeZipFile(args: {
+  clerkId: string;
+  masterData: MasterData;
+  zipId: string;
+}): Promise<{ fileName: string; content: Uint8Array } | null> {
+  const fsModule = await loadTauriFs();
+  const clerkFolderSegment = findClerkFolderSegment(args.masterData, args.clerkId);
+  const zipPath = getExchangeZipPath(clerkFolderSegment, args.zipId);
+  const content = await readBinaryData(fsModule, zipPath);
+
+  if (!content) {
+    return null;
+  }
+
+  return {
+    fileName: args.zipId,
+    content
+  };
 }
 
 export async function loadAuditLogFromDisk(): Promise<AuditEntry[]> {

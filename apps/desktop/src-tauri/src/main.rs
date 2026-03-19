@@ -57,8 +57,12 @@ fn open_app_local_data_path(app: AppHandle, relative_path: String) -> Result<Str
 }
 
 #[tauri::command]
-fn open_data_directory(app: AppHandle) -> Result<String, String> {
-    let data_dir = resolve_data_dir(&app)?;
+fn open_data_directory(app: AppHandle, relative_path: Option<String>) -> Result<String, String> {
+    let normalized_relative_path = relative_path
+        .as_deref()
+        .map(normalize_relative_data_path)
+        .unwrap_or_default();
+    let data_dir = resolve_data_dir(&app)?.join(&normalized_relative_path);
     fs::create_dir_all(&data_dir)
         .map_err(|error| format!("Datenordner konnte nicht angelegt werden: {error}"))?;
 

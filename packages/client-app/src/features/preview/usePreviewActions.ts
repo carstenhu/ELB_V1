@@ -36,6 +36,19 @@ function formatErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function buildProblemStatus(problem: PreviewProblemDetails | null, fallback: string): string {
+  if (!problem) {
+    return fallback;
+  }
+
+  const reasons = problem.reasons.slice(0, 3).join(" | ");
+  if (!reasons) {
+    return problem.message || fallback;
+  }
+
+  return `${problem.message} ${reasons}`;
+}
+
 function openPendingWindow(title: string, message: string): Window | null {
   let pendingWindow: Window | null = null;
 
@@ -173,7 +186,10 @@ export function usePreviewActions(
 
   async function openDataFolder(): Promise<void> {
     try {
-      const path = await platform.shell.openDataDirectory();
+      const path = await platform.shell.openDataDirectory({
+        clerkId: caseFile.meta.clerkId,
+        masterData: state.masterData
+      });
       onExportStatusChange(`Datenordner geoeffnet: ${path}`);
     } catch {
       onExportStatusChange("Datenordner kann nur in der echten Tauri-App geoeffnet werden.");
@@ -204,7 +220,7 @@ export function usePreviewActions(
       if (problem) {
         onPreviewProblem?.(problem);
       }
-      onExportStatusChange(formatErrorMessage(error, "PDF konnte nicht geoeffnet werden."));
+      onExportStatusChange(problem ? buildProblemStatus(problem, "PDF konnte nicht geoeffnet werden.") : formatErrorMessage(error, "PDF konnte nicht geoeffnet werden."));
     }
   }
 
@@ -236,7 +252,7 @@ export function usePreviewActions(
       if (problem) {
         onPreviewProblem?.(problem);
       }
-      onExportStatusChange(formatErrorMessage(error, "Export fehlgeschlagen."));
+      onExportStatusChange(problem ? buildProblemStatus(problem, "Export fehlgeschlagen.") : formatErrorMessage(error, "Export fehlgeschlagen."));
     }
   }
 

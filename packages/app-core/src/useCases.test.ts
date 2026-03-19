@@ -14,9 +14,9 @@ function buildMasterData() {
 
 describe("application use cases", () => {
   it("reserves the next case number per clerk", () => {
-    const caseA = createEmptyCase({ id: "a", clerkId: "clerk-1", receiptNumber: "0003", createdAt: "2026-03-18T10:00:00.000Z" });
-    const caseB = createEmptyCase({ id: "b", clerkId: "clerk-1", receiptNumber: "0008", createdAt: "2026-03-18T10:00:00.000Z" });
-    expect(reserveNextCaseNumber({ clerkId: "clerk-1", drafts: [caseA], finalized: [caseB] })).toBe("0009");
+    const caseA = createEmptyCase({ id: "a", clerkId: "clerk-1", receiptNumber: "3", createdAt: "2026-03-18T10:00:00.000Z" });
+    const caseB = createEmptyCase({ id: "b", clerkId: "clerk-1", receiptNumber: "8", createdAt: "2026-03-18T10:00:00.000Z" });
+    expect(reserveNextCaseNumber({ clerkId: "clerk-1", drafts: [caseA], finalized: [caseB] })).toBe("9");
   });
 
   it("creates a new case from workspace state", () => {
@@ -33,14 +33,14 @@ describe("application use cases", () => {
     });
 
     expect(created.meta.id).toBe("case-1");
-    expect(created.meta.receiptNumber).toBe("0001");
+    expect(created.meta.receiptNumber).toBe("1");
     expect(created.meta.clerkId).toBe("clerk-1");
   });
 
   it("keeps separate receipt number scopes per platform", () => {
     const masterData = buildMasterData();
-    masterData.clerks[0]!.nextReceiptNumberDesktop = "0010";
-    masterData.clerks[0]!.nextReceiptNumberWeb = "0200";
+    masterData.clerks[0]!.nextReceiptNumberDesktop = "10";
+    masterData.clerks[0]!.nextReceiptNumberWeb = "200";
 
     expect(getSuggestedCaseNumber({
       masterData,
@@ -48,7 +48,7 @@ describe("application use cases", () => {
       scope: "desktop",
       drafts: [],
       finalized: []
-    })).toBe("0010");
+    })).toBe("10");
 
     expect(getSuggestedCaseNumber({
       masterData,
@@ -56,28 +56,28 @@ describe("application use cases", () => {
       scope: "web",
       drafts: [],
       finalized: []
-    })).toBe("0200");
+    })).toBe("200");
 
     const unchanged = consumeReceiptNumberIfNeeded({
       masterData,
       clerkId: "clerk-1",
-      receiptNumber: "0999",
+      receiptNumber: "999",
       scope: "desktop",
       drafts: [],
       finalized: []
     });
-    expect(unchanged.clerks[0]?.nextReceiptNumberDesktop).toBe("0010");
+    expect(unchanged.clerks[0]?.nextReceiptNumberDesktop).toBe("10");
 
     const consumed = consumeReceiptNumberIfNeeded({
       masterData,
       clerkId: "clerk-1",
-      receiptNumber: "0010",
+      receiptNumber: "10",
       scope: "desktop",
       drafts: [],
       finalized: []
     });
-    expect(consumed.clerks[0]?.nextReceiptNumberDesktop).toBe("0011");
-    expect(consumed.clerks[0]?.nextReceiptNumberWeb).toBe("0200");
+    expect(consumed.clerks[0]?.nextReceiptNumberDesktop).toBe("11");
+    expect(consumed.clerks[0]?.nextReceiptNumberWeb).toBe("200");
   });
 
   it("adds objects with inherited auction and department", () => {

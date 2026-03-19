@@ -5,7 +5,7 @@ export interface ExportArtifactPlan {
 }
 
 export interface ExportPlan {
-  folderName: string;
+  baseName: string;
   zipFileName: string;
   artifacts: ExportArtifactPlan[];
 }

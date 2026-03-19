@@ -5,9 +5,12 @@ import { createAuditRepository } from "@elb/persistence/auditRepository";
 import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import {
+  getClerkDataDirectoryRelativePath,
+  listStoredExchangeZipFiles,
   persistCaseAssetImmediately,
   persistExportArtifactsToDisk,
-  persistGeneratedPdfToDisk
+  persistGeneratedPdfToDisk,
+  readStoredExchangeZipFile
 } from "@elb/persistence/filesystem";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
@@ -97,6 +100,18 @@ export const desktopPlatform: AppPlatform = {
         ...(await importExchangeFromZip(await readFile(selectedPath))),
         message: `Austausch-ZIP wurde importiert: ${selectedPath}`
       };
+    },
+    listStoredZipOptions: ({ clerkId, masterData }) => listStoredExchangeZipFiles({ clerkId, masterData }),
+    importStoredZip: async ({ clerkId, masterData, zipId }) => {
+      const zipFile = await readStoredExchangeZipFile({ clerkId, masterData, zipId });
+      if (!zipFile) {
+        return null;
+      }
+
+      return {
+        ...(await importExchangeFromZip(zipFile.content)),
+        message: `Austausch-ZIP wurde geladen: ${zipFile.fileName}`
+      };
     }
   },
   masterDataSync: {
@@ -156,16 +171,18 @@ export const desktopPlatform: AppPlatform = {
   exportArtifacts: {
     persist: async (args) => {
       try {
-        const { exchangeFolder, exchangeZipPath } = await persistExportArtifactsToDisk(args);
-        return { message: `Austauschordner wurde lokal gespeichert: ${exchangeFolder}. ZIP wurde erzeugt: ${exchangeZipPath}` };
+        const { exchangeZipPath } = await persistExportArtifactsToDisk(args);
+        return { message: `ZIP wurde lokal gespeichert: ${exchangeZipPath}` };
       } catch (error) {
         logger.error("Desktop-Exportartefakte konnten nicht gespeichert werden.", error);
-        throw toError(error, "Austauschordner und ZIP konnten in der Desktop-App nicht gespeichert werden.");
+        throw toError(error, "ZIP konnte in der Desktop-App nicht gespeichert werden.");
       }
     }
   },
   shell: {
-    openDataDirectory: () => invoke<string>("open_data_directory")
+    openDataDirectory: ({ clerkId, masterData }) => invoke<string>("open_data_directory", {
+      relativePath: getClerkDataDirectoryRelativePath(clerkId, masterData)
+    })
   }
 };
 

@@ -103,14 +103,9 @@ export async function generateExportBundle(caseFile: CaseFile, masterData: Maste
 
 export async function createExportZipFromBundle(bundle: GeneratedExportBundle): Promise<Blob> {
   const zip = new JSZip();
-  const root = zip.folder(bundle.plan.folderName);
-
-  if (!root) {
-    throw new Error("ZIP-Ordner konnte nicht erstellt werden.");
-  }
 
   for (const artifact of bundle.artifacts) {
-    root.file(artifact.fileName, artifact.content);
+    zip.file(artifact.fileName, artifact.content);
   }
 
   return zip.generateAsync({ type: "blob" });
