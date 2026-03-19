@@ -6,7 +6,7 @@ import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorAction
 import { clearOwnerData, hasSeparateOwnerData } from "../features/owner/ownerState";
 import { findAsset } from "./caseAssets";
 import { OwnerResetConfirmModal, VatCaptureModal } from "./caseModals";
-import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassName, getTextInputClassName, renderFollowUpOption } from "./formSupport";
+import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassName, getTextInputClassName } from "./formSupport";
 
 export function ConsignorPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -60,19 +60,9 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
   return (
     <>
       <div className="page-grid">
-        <Section title="Meta">
+        <Section title="">
           <Field label="ELB-Nummer">
             <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
-          </Field>
-          <Field label="Sachbearbeiter">
-            <select className={getFieldInputClassName(props.caseFile.meta.clerkId)} value={props.caseFile.meta.clerkId} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, clerkId: event.target.value } }))}>
-              {renderFollowUpOption(props.caseFile.meta.clerkId)}
-              {state.masterData.clerks.map((clerk) => (
-                <option key={clerk.id} value={clerk.id}>
-                  {clerk.name}
-                </option>
-              ))}
-            </select>
           </Field>
         </Section>
 

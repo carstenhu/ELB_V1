@@ -17,23 +17,12 @@ import {
 } from "../../ui/formSupport";
 
 export function PdfMetaEditorSection(props: { caseFile: CaseFile }) {
-  const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
 
   return (
-    <Section title="Meta">
+    <Section title="">
       <Field label="ELB-Nummer">
         <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
-      </Field>
-      <Field label="Sachbearbeiter">
-        <select className={getFieldInputClassName(props.caseFile.meta.clerkId)} value={props.caseFile.meta.clerkId} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, clerkId: event.target.value } }))}>
-          {renderFollowUpOption(props.caseFile.meta.clerkId)}
-          {state.masterData.clerks.map((clerk) => (
-            <option key={clerk.id} value={clerk.id}>
-              {clerk.name}
-            </option>
-          ))}
-        </select>
       </Field>
     </Section>
   );

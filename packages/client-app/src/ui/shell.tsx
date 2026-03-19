@@ -21,7 +21,7 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
   return (
     <div className="overlay">
       <div className="overlay__card">
-        <p className="eyebrow">Sachbearbeiter-Auswahl</p>
+        <p className="eyebrow">Sachbearbeiter wechseln</p>
         <h1>{APP_NAME}</h1>
         <div className="clerk-grid">
           {state.masterData.clerks.map((clerk) => (
@@ -47,12 +47,12 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
 export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void }) {
   const state = useAppState();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
+  const brandLabel = activeClerk ? `${APP_NAME} · ${activeClerk.name}` : APP_NAME;
 
   return (
     <header className="topbar">
       <div className="topbar__brand">
-        <strong>{APP_NAME}</strong>
-        <span>{activeClerk?.name ?? "Kein Sachbearbeiter"}</span>
+        <strong>{brandLabel}</strong>
       </div>
       <nav className="topbar__nav">
         {pages.map((page) => (
@@ -66,17 +66,17 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
         ))}
         <details className="topbar__menu">
           <summary className="nav-button topbar__menu-trigger" aria-label="Menue">
-            <span>...</span>
+            <span>Menue</span>
           </summary>
           <div className="topbar__menu-panel">
             <button type="button" className="primary-button" onClick={() => {
               createNewCase();
               props.onPageChange("consignor");
             }}>
-              Neuer Vorgang
+              Neue ELB anlegen
             </button>
             <button type="button" className="primary-button" onClick={props.onOpenClerkSelector}>
-              Sachbearbeiter waehlen
+              Sachbearbeiter wechseln
             </button>
             <button type="button" className="primary-button" onClick={() => props.onPageChange("loadCenter")}>
               Entwuerfe und ZIPs laden
