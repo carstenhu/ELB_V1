@@ -89,6 +89,7 @@ function getHotspots(
     },
     { key: `owner-${pageNumber}`, label: "Eigentümer", ...toCssRect(layout.owner), target: { kind: "owner" } },
     { key: `bank-${pageNumber}`, label: "Bank", ...toCssRect(layout.bank), target: { kind: "bank" } },
+    { key: `commission-${pageNumber}`, label: "Kommission", ...toCssRect(layout.commission), target: { kind: "costs" } },
     { key: `costs-${pageNumber}`, label: "Konditionen", ...toCssRect(layout.costs), target: { kind: "costs" } },
     {
       key: `consignor-signature-${pageNumber}`,

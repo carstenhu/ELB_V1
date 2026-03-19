@@ -42,6 +42,7 @@ export interface PdfHotspotMap {
   vatNumber: PdfHotspotRect;
   owner: PdfHotspotRect;
   bank: PdfHotspotRect;
+  commission: PdfHotspotRect;
   costs: PdfHotspotRect;
   object: PdfObjectHotspotRect;
   consignorSignature: PdfHotspotRect;

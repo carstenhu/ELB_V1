@@ -285,7 +285,8 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
         vatNumber: ["MwSt. Nr "],
         owner: ["Adresse EG"],
         bank: ["BIC/SWIFT", "IBAN/Kontonr", "Bankangaben: Beg\u00fcnstigter"],
-        costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
+        commission: ["Kommission"],
+        costs: ["Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
         object: ["Int-Nr 1", "Erhalten 1", "Kapitel 1", "Kurzbeschreibung 1", "Sch\u00e4tzung 1"],
         consignorSignature: ["der Einlieferer Sig", "der Einlieferer Sig 2"],
         clerkSignature: ["Koller Auktionen Sig 1"]
@@ -298,7 +299,8 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
         vatNumber: [],
         owner: [],
         bank: ["Adresse EL"],
-        costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
+        commission: ["Kommission"],
+        costs: ["Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
         object: ["Int-Nr 2", "Erhalten 2", "Kapitel 2", "Kurzbeschreibung 2", "Sch\u00e4tzung 2"],
         consignorSignature: ["der Einlieferer Sig", "der Einlieferer Sig 2"],
         clerkSignature: ["Koller Auktionen Sig 1"]
@@ -346,6 +348,7 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
     vatNumber: buildHotspot(fieldMap.vatNumber),
     owner: buildHotspot(fieldMap.owner),
     bank: buildHotspot(fieldMap.bank),
+    commission: buildHotspot(fieldMap.commission),
     costs: buildHotspot(fieldMap.costs),
     object: buildObjectHotspot(),
     consignorSignature: buildHotspot(fieldMap.consignorSignature),

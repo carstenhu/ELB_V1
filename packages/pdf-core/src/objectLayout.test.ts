@@ -132,6 +132,7 @@ describe("object layout", () => {
     expect(main.consignorIdentity.widthPct).toBeGreaterThan(0);
     expect(main.vatCategory.widthPct).toBeGreaterThan(0);
     expect(main.vatNumber.widthPct).toBeGreaterThan(0);
+    expect(main.commission.widthPct).toBeGreaterThan(0);
     expect(main.object.contentHeightPct).toBeGreaterThan(0);
     expect(main.clerkSignature.widthPct).toBeGreaterThan(0);
     expect(follow.meta.widthPct).toBeGreaterThan(0);

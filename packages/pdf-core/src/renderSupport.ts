@@ -17,6 +17,33 @@ import {
 
 export const FOLLOW_UP_COLOR = rgb(0.74, 0.14, 0.11);
 
+function appendContactLines(lines: string[], phone: string, email: string): string[] {
+  const nextLines = [...lines];
+
+  if (phone.trim()) {
+    nextLines.push(phone.trim());
+  }
+
+  if (email.trim()) {
+    nextLines.push(email.trim());
+  }
+
+  return nextLines;
+}
+
+function buildOwnerAddressLines(caseFile: CaseFile): string[] {
+  if (caseFile.owner.sameAsConsignor) {
+    return appendContactLines(deriveAddressLines(caseFile.consignor), caseFile.consignor.phone, caseFile.consignor.email);
+  }
+
+  return [
+    [caseFile.owner.firstName, caseFile.owner.lastName].filter(Boolean).join(" ").trim(),
+    [caseFile.owner.street, caseFile.owner.houseNumber].filter(Boolean).join(" ").trim(),
+    [caseFile.owner.zip, caseFile.owner.city].filter(Boolean).join(" ").trim(),
+    caseFile.owner.country
+  ].map((line) => line.trim()).filter(Boolean);
+}
+
 export function drawFieldOverlay(args: {
   page: PDFPage;
   form: PdfForm;
@@ -35,8 +62,8 @@ export function drawFieldOverlay(args: {
     return;
   }
 
-  const fontSize = args.multiline ? 10 : 10.5;
-  const lineHeight = args.multiline ? 12 : 10.5;
+  const fontSize = args.multiline ? 9.4 : 10.5;
+  const lineHeight = args.multiline ? 10.6 : 10.5;
   const lines = args.multiline
     ? wrapText(args.font, args.value, fontSize, Math.max(rect.width - 6, 1))
     : [args.value];
@@ -44,7 +71,7 @@ export function drawFieldOverlay(args: {
   lines.forEach((line, index) => {
     args.page.drawText(line, {
       x: rect.left + 2.5,
-      y: rect.top - fontSize - 2.5 - index * lineHeight,
+      y: rect.top - fontSize - (args.multiline ? 1.2 : 2.5) - index * lineHeight,
       size: fontSize,
       font: args.font,
       color: isFollowUpValue(args.value) ? FOLLOW_UP_COLOR : rgb(0, 0, 0)
@@ -99,15 +126,8 @@ export function fillSharedFields(args: {
   const { form, page, font, caseFile, masterData, pageNumber, totalPages } = args;
   const clerk = masterData.clerks.find((item) => item.id === caseFile.meta.clerkId);
   const beneficiary = deriveBeneficiary(caseFile.consignor, caseFile.bank);
-  const addressLines = deriveAddressLines(caseFile.consignor);
-  const ownerLines = caseFile.owner.sameAsConsignor
-    ? addressLines
-    : [
-        [caseFile.owner.firstName, caseFile.owner.lastName].filter(Boolean).join(" ").trim(),
-        [caseFile.owner.street, caseFile.owner.houseNumber].filter(Boolean).join(" ").trim(),
-        [caseFile.owner.zip, caseFile.owner.city].filter(Boolean).join(" ").trim(),
-        caseFile.owner.country
-      ].map((line) => line.trim()).filter(Boolean);
+  const addressLines = appendContactLines(deriveAddressLines(caseFile.consignor), caseFile.consignor.phone, caseFile.consignor.email);
+  const ownerLines = buildOwnerAddressLines(caseFile);
 
   const receiptFieldName = pageNumber === 1 ? "ELB Nr" : "ELB Nr 2";
   const commissionValue = buildCostFieldValue(caseFile.costs.commission);
@@ -139,8 +159,8 @@ export function fillSharedFields(args: {
   setTextFieldSafe(form, "Datum", new Date(caseFile.meta.createdAt).toLocaleDateString("de-CH"));
   setTextFieldSafe(form, "Internet  1", isFollowUpValue(internetValue) ? "" : internetValue);
   setTextFieldSafe(form, "Sachbearbeiter 2", isFollowUpValue(clerkValue) ? "" : clerkValue);
-  setMultilineTextFieldSafe(form, "Adresse EL", isFollowUpValue(addressValue) ? "" : addressValue);
-  setMultilineTextFieldSafe(form, "Adresse EG", isFollowUpValue(ownerValue) ? "" : ownerValue);
+  setMultilineTextFieldSafe(form, "Adresse EL", "");
+  setMultilineTextFieldSafe(form, "Adresse EG", "");
   setTextFieldSafe(form, "BIC/SWIFT", isFollowUpValue(caseFile.bank.bic) ? "" : caseFile.bank.bic);
   setTextFieldSafe(form, "IBAN/Kontonr", isFollowUpValue(caseFile.bank.iban) ? "" : caseFile.bank.iban);
   setTextFieldSafe(form, "Bankangaben: Beg\u00fcnstigter", isFollowUpValue(beneficiary) ? "" : beneficiary);
@@ -160,8 +180,8 @@ export function fillSharedFields(args: {
   drawFieldOverlay({ page, form, font, fieldName: "Diverses/Provenienz 2", value: provenanceValue });
   drawFieldOverlay({ page, form, font, fieldName: "Internet  1", value: internetValue });
   drawFieldOverlay({ page, form, font, fieldName: "Sachbearbeiter 2", value: clerkValue });
-  drawFieldOverlay({ page, form, font, fieldName: "Adresse EL", value: addressValue, multiline: true });
-  drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true });
+  drawFieldOverlay({ page, form, font, fieldName: "Adresse EL", value: addressValue, multiline: true, forceVisible: true });
+  drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true, forceVisible: true });
   drawFieldOverlay({ page, form, font, fieldName: "BIC/SWIFT", value: caseFile.bank.bic });
   drawFieldOverlay({ page, form, font, fieldName: "IBAN/Kontonr", value: caseFile.bank.iban });
   drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: Beg\u00fcnstigter", value: beneficiary });
