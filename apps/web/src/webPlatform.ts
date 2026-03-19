@@ -264,9 +264,10 @@ export const webPlatform: AppPlatform = {
   exportArtifacts: {
     persist: async (args) => {
       const { exchangeFolder, exchangeZipPath } = await persistExportArtifactsToDisk(args);
+      const exchangeZipFileName = exchangeZipPath.split("/").pop() || args.zipFileName;
       const targetWindow = preparePendingWindow(args.initiatedWindow ?? null, "ZIP wird vorbereitet", "Der Export wird erstellt. Der Download startet automatisch.");
-      completePendingDownload(targetWindow, args.zipFileName, args.zipContent);
-      return { message: `ZIP wurde als Browser-Download bereitgestellt. Austauschordner: ${exchangeFolder}. Interner ZIP-Pfad: ${exchangeZipPath}` };
+      completePendingDownload(targetWindow, exchangeZipFileName, args.zipContent);
+      return { message: `ZIP wurde als Browser-Download bereitgestellt: ${exchangeZipFileName}. Austauschordner: ${exchangeFolder}. Interner ZIP-Pfad: ${exchangeZipPath}` };
     }
   },
   shell: {

@@ -1,5 +1,4 @@
 import { buildFolderName, type CaseFile } from "@elb/domain/index";
-import { getRuntimeConfig } from "@elb/shared/config";
 import type { ExportPlan } from "./types";
 
 function sanitizeSegment(value: string): string {
@@ -7,14 +6,13 @@ function sanitizeSegment(value: string): string {
 }
 
 export function createExportPlan(caseFile: CaseFile): ExportPlan {
-  const config = getRuntimeConfig();
   const folderName = buildFolderName(caseFile.consignor.lastName, caseFile.consignor.firstName, caseFile.meta.receiptNumber);
   const nameSegment = sanitizeSegment(
     caseFile.consignor.useCompanyAddress && caseFile.consignor.company.trim()
       ? caseFile.consignor.company
       : caseFile.consignor.lastName || caseFile.consignor.firstName
   );
-  const zipFileName = `${nameSegment}_${caseFile.meta.receiptNumber}_v${config.appVersion}.zip`;
+  const zipFileName = `${nameSegment}_${caseFile.meta.receiptNumber}.zip`;
 
   return {
     folderName,
