@@ -645,6 +645,12 @@ textarea {
   .topbar__menu-panel {
     min-width: min(18rem, calc(100vw - 2rem));
     right: 0;
+    left: auto;
+  }
+
+  .topbar__menu-panel--pages {
+    left: auto;
+    right: 0;
   }
 }
 
