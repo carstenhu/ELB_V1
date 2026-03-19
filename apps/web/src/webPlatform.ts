@@ -11,7 +11,13 @@ import {
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
-import { createWebWorkspaceRepository, uploadExportZipToSupabase } from "./supabaseWorkspaceRepository";
+import {
+  createWebWorkspaceRepository,
+  downloadExportZipFromSupabase,
+  isSupabaseExportZipId,
+  listExportZipsFromSupabase,
+  uploadExportZipToSupabase
+} from "./supabaseWorkspaceRepository";
 
 function toBlob(content: Blob | ArrayBuffer | Uint8Array, mimeType?: string): Blob {
   if (content instanceof Blob) {
@@ -239,9 +245,18 @@ export const webPlatform: AppPlatform = {
         message: `Austausch-ZIP wurde importiert: ${file.name}`
       };
     },
-    listStoredZipOptions: ({ masterData }) => listStoredExchangeZipFiles({ masterData }),
+    listStoredZipOptions: async ({ masterData }) => {
+      const [localOptions, remoteOptions] = await Promise.all([
+        listStoredExchangeZipFiles({ masterData }),
+        listExportZipsFromSupabase()
+      ]);
+
+      return [...remoteOptions, ...localOptions];
+    },
     importStoredZip: async ({ masterData, zipId }) => {
-      const zipFile = await readStoredExchangeZipFile({ masterData, zipId });
+      const zipFile = isSupabaseExportZipId(zipId)
+        ? await downloadExportZipFromSupabase(zipId)
+        : await readStoredExchangeZipFile({ masterData, zipId });
       if (!zipFile) {
         return null;
       }

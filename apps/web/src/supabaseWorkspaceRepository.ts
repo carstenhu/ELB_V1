@@ -8,6 +8,7 @@ import { getSupabaseClient } from "./utils/supabase";
 const logger = createLogger("web-supabase");
 
 const REMOTE_ASSET_REF_PREFIX = "remote://";
+const REMOTE_EXPORT_ZIP_ID_PREFIX = "supabase-export:";
 const WORKSPACE_META_PATH = "workspace.json";
 const MASTER_DATA_PATH = "Stammdaten/master-data.json";
 const SESSION_FILE_NAME = "session.json";
@@ -138,6 +139,18 @@ export function buildSupabaseRemoteExportPath(clerkId: string, zipFileName: stri
   return `exports/${sanitizeRemoteSegment(clerkId)}/${sanitizeRemoteSegment(zipFileName)}`;
 }
 
+function toSupabaseExportZipId(path: string): string {
+  return `${REMOTE_EXPORT_ZIP_ID_PREFIX}${path}`;
+}
+
+export function isSupabaseExportZipId(zipId: string): boolean {
+  return zipId.startsWith(REMOTE_EXPORT_ZIP_ID_PREFIX);
+}
+
+function fromSupabaseExportZipId(zipId: string): string {
+  return zipId.slice(REMOTE_EXPORT_ZIP_ID_PREFIX.length);
+}
+
 function getRemoteClerkRoot(clerkId: string): string {
   return `clerks/${sanitizeRemoteSegment(clerkId)}`;
 }
@@ -232,6 +245,19 @@ async function downloadBinary(config: SupabaseWorkspaceConfig, path: string): Pr
     mimeType: data.type || "image/jpeg",
     bytes: normalizeBytes(await data.arrayBuffer())
   };
+}
+
+async function listExportFolderEntries(config: SupabaseWorkspaceConfig, path: string) {
+  const { data, error } = await config.client.storage.from(config.bucket).list(path, {
+    limit: 1000,
+    sortBy: { column: "name", order: "desc" }
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
 }
 
 async function persistCaseAssetsRemote(config: SupabaseWorkspaceConfig, masterData: MasterData, caseFile: CaseFile): Promise<CaseFile> {
@@ -444,4 +470,55 @@ export async function uploadExportZipToSupabase(args: {
   const path = buildSupabaseRemoteExportPath(args.clerkId, args.zipFileName);
   await uploadBinary(supabaseConfig, path, await toBinaryBytes(args.zipContent), "application/zip");
   return path;
+}
+
+export async function listExportZipsFromSupabase(): Promise<Array<{ id: string; fileName: string; label: string }>> {
+  const supabaseConfig = getSupabaseWorkspaceConfig();
+  if (!supabaseConfig) {
+    return [];
+  }
+
+  const clerkFolders = await listExportFolderEntries(supabaseConfig, "exports");
+  const exportZips = await Promise.all(
+    clerkFolders
+      .filter((entry) => !entry.id && entry.name)
+      .map(async (folder) => {
+        const folderPath = `exports/${folder.name}`;
+        const files = await listExportFolderEntries(supabaseConfig, folderPath);
+
+        return files
+          .filter((entry) => Boolean(entry.name) && entry.name.toLowerCase().endsWith(".zip"))
+          .map((entry) => ({
+            id: toSupabaseExportZipId(`${folderPath}/${entry.name}`),
+            fileName: entry.name,
+            label: `Online · ${entry.name}`
+          }));
+      })
+  );
+
+  return exportZips
+    .flat()
+    .sort((left, right) => right.fileName.localeCompare(left.fileName, "de-CH", { numeric: true, sensitivity: "base" }));
+}
+
+export async function downloadExportZipFromSupabase(zipId: string): Promise<{ fileName: string; content: Uint8Array } | null> {
+  if (!isSupabaseExportZipId(zipId)) {
+    return null;
+  }
+
+  const supabaseConfig = getSupabaseWorkspaceConfig();
+  if (!supabaseConfig) {
+    return null;
+  }
+
+  const remotePath = fromSupabaseExportZipId(zipId);
+  const binary = await downloadBinary(supabaseConfig, remotePath);
+  if (!binary) {
+    return null;
+  }
+
+  return {
+    fileName: remotePath.split("/").pop() || "austausch.zip",
+    content: binary.bytes
+  };
 }
