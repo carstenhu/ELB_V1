@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkspaceRepository, WorkspaceSnapshot } from "@elb/app-core/index";
 import type { CaseFile, MasterData } from "@elb/domain/index";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
-import { getClerkDataDirectoryRelativePath } from "@elb/persistence/filesystem";
 import { createLogger } from "@elb/shared/logger";
 import { getSupabaseClient } from "./utils/supabase";
 
@@ -12,7 +11,6 @@ const REMOTE_ASSET_REF_PREFIX = "remote://";
 const WORKSPACE_META_PATH = "workspace.json";
 const MASTER_DATA_PATH = "Stammdaten/master-data.json";
 const SESSION_FILE_NAME = "session.json";
-const CURRENT_DIR_NAME = "Aktuell";
 const DEFAULT_BUCKET = "elb-v1-data";
 
 interface WorkspaceMetaStorage {
@@ -119,12 +117,25 @@ function getAssetExtension(mimeType: string, fileName: string): string {
   return ".jpg";
 }
 
-function getCurrentSessionPath(clerkId: string, masterData: MasterData): string {
-  return `${getClerkDataDirectoryRelativePath(clerkId, masterData)}/${CURRENT_DIR_NAME}/${SESSION_FILE_NAME}`;
+function sanitizeRemoteSegment(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[^\p{L}\p{N}._-]+/gu, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase() || "unassigned";
 }
 
-function getRemoteAssetPath(clerkId: string, masterData: MasterData, assetId: string, extension: string): string {
-  return `${getClerkDataDirectoryRelativePath(clerkId, masterData)}/${CURRENT_DIR_NAME}/assets/optimized/${assetId}${extension}`;
+function getRemoteClerkRoot(clerkId: string): string {
+  return `clerks/${sanitizeRemoteSegment(clerkId)}`;
+}
+
+function getCurrentSessionPath(clerkId: string): string {
+  return `${getRemoteClerkRoot(clerkId)}/current/${SESSION_FILE_NAME}`;
+}
+
+function getRemoteAssetPath(clerkId: string, assetId: string, extension: string): string {
+  return `${getRemoteClerkRoot(clerkId)}/current/assets/optimized/${assetId}${extension}`;
 }
 
 function getRelevantClerkIds(snapshot: WorkspaceSnapshot): string[] {
@@ -221,7 +232,7 @@ async function persistCaseAssetsRemote(config: SupabaseWorkspaceConfig, masterDa
 
       const { mimeType, bytes } = parseDataUrl(sourceDataUrl);
       const extension = getAssetExtension(mimeType, asset.fileName);
-      const remotePath = getRemoteAssetPath(caseFile.meta.clerkId, masterData, asset.id, extension);
+      const remotePath = getRemoteAssetPath(caseFile.meta.clerkId, asset.id, extension);
 
       await uploadBinary(config, remotePath, bytes, mimeType);
 
@@ -282,7 +293,7 @@ async function saveRemoteSnapshot(config: SupabaseWorkspaceConfig, snapshot: Wor
     const persistedDrafts = await Promise.all(session.drafts.map((caseFile) => persistCaseAssetsRemote(config, snapshot.masterData, caseFile)));
     const persistedFinalized = await Promise.all(session.finalized.map((caseFile) => persistCaseAssetsRemote(config, snapshot.masterData, caseFile)));
 
-    await uploadText(config, getCurrentSessionPath(clerkId, snapshot.masterData), JSON.stringify({
+    await uploadText(config, getCurrentSessionPath(clerkId), JSON.stringify({
       ...session,
       currentCase: persistedCurrentCase,
       drafts: persistedDrafts,
@@ -291,8 +302,8 @@ async function saveRemoteSnapshot(config: SupabaseWorkspaceConfig, snapshot: Wor
   }
 }
 
-async function loadRemoteClerkSession(config: SupabaseWorkspaceConfig, clerkId: string, masterData: MasterData): Promise<ClerkSessionStorage | null> {
-  const raw = await downloadText(config, getCurrentSessionPath(clerkId, masterData));
+async function loadRemoteClerkSession(config: SupabaseWorkspaceConfig, clerkId: string): Promise<ClerkSessionStorage | null> {
+  const raw = await downloadText(config, getCurrentSessionPath(clerkId));
   if (!raw) {
     return null;
   }
@@ -321,7 +332,7 @@ async function loadRemoteSnapshot(config: SupabaseWorkspaceConfig): Promise<Work
   const clerkSessions = await Promise.all(
     masterData.clerks.map(async (clerk) => ({
       clerkId: clerk.id,
-      session: await loadRemoteClerkSession(config, clerk.id, masterData)
+      session: await loadRemoteClerkSession(config, clerk.id)
     }))
   );
 
