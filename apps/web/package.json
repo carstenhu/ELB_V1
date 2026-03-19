@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "web:dev": "npm run dev",
     "build": "tsc -p tsconfig.app.json && vite build",
+    "web:build": "npm run build",
     "preview": "vite preview",
+    "web:preview": "npm run preview",
     "lint": "eslint ."
   },
   "dependencies": {
