@@ -21,4 +21,10 @@ describe("required field helpers", () => {
       }
     ]);
   });
+
+  it("ignores stale required field keys from older stored configurations", () => {
+    const caseFile = createEmptyCase({ id: "case-1", clerkId: "clerk-1", receiptNumber: "0001", createdAt: "2026-03-18T10:00:00.000Z" });
+
+    expect(collectMissingRequiredFields(caseFile, ["objects[].estimate.low", "meta.receiptNumber"])).toEqual([]);
+  });
 });

@@ -1,3 +1,4 @@
+import { normalizeRequiredFieldKeys } from "./requiredFields";
 import type { CaseFile, Clerk, Costs, MasterData, ObjectItem } from "./types";
 import { DEFAULT_ADMIN_PIN } from "@elb/shared/constants";
 
@@ -49,6 +50,7 @@ export function normalizeMasterData(masterData: MasterData): MasterData {
   return {
     ...createEmptyMasterData(),
     ...masterData,
+    globalPdfRequiredFields: normalizeRequiredFieldKeys(masterData.globalPdfRequiredFields),
     clerks: masterData.clerks.map((clerk) =>
       createEmptyClerk({
         id: clerk.id,

@@ -108,12 +108,13 @@ function isRequiredFieldMissing(caseFile: CaseFile, key: RequiredFieldKey, objec
   return false;
 }
 
-export function collectMissingRequiredFields(caseFile: CaseFile, requiredFields: readonly RequiredFieldKey[]): MissingRequiredField[] {
+export function collectMissingRequiredFields(caseFile: CaseFile, requiredFields: readonly string[]): MissingRequiredField[] {
   const entries: MissingRequiredField[] = [];
+  const normalizedRequiredFields = normalizeRequiredFieldKeys(requiredFields);
 
-  requiredFields.forEach((key) => {
+  normalizedRequiredFields.forEach((key) => {
     const metadata = requiredFieldMetadata[key];
-    if (metadata.objectScoped) {
+    if (!metadata || metadata.objectScoped) {
       return;
     }
 
@@ -127,7 +128,7 @@ export function collectMissingRequiredFields(caseFile: CaseFile, requiredFields:
   });
 
   if (!caseFile.objects.length) {
-    if (requiredFields.some((key) => objectScopedRequiredFieldKeys.includes(key))) {
+    if (normalizedRequiredFields.some((key) => objectScopedRequiredFieldKeys.includes(key))) {
       entries.push({
         key: "objects[].create",
         label: "Mindestens ein Objekt",
@@ -139,7 +140,7 @@ export function collectMissingRequiredFields(caseFile: CaseFile, requiredFields:
 
   caseFile.objects.forEach((_, objectIndex) => {
     objectScopedRequiredFieldKeys.forEach((key) => {
-      if (!requiredFields.includes(key)) {
+      if (!normalizedRequiredFields.includes(key)) {
         return;
       }
 
