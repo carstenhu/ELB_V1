@@ -616,18 +616,26 @@ textarea {
   }
 
   .topbar__nav {
-    padding: 0.16rem;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    justify-content: space-between;
     flex-wrap: nowrap;
-    gap: 0.35rem;
+    gap: 0;
   }
 
   .topbar__page-button {
     display: none;
   }
 
+  .topbar__menu {
+    width: auto;
+  }
+
   .topbar__menu-trigger {
     min-width: auto;
-    padding: 0.56rem 0.8rem;
+    padding: 0.56rem 0.72rem;
   }
 
   .topbar__menu-trigger--pages {
@@ -639,7 +647,7 @@ textarea {
   }
 
   .topbar__menu-label {
-    display: inline;
+    display: none;
   }
 
   .topbar__menu-panel {
@@ -649,8 +657,12 @@ textarea {
   }
 
   .topbar__menu-panel--pages {
-    left: auto;
-    right: 0;
+    left: 0;
+    right: auto;
+  }
+
+  .topbar__menu-panel--pages button {
+    justify-content: flex-start;
   }
 }
 
