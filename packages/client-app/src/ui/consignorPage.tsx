@@ -3,6 +3,7 @@ import { deriveBeneficiary, deriveOwner, type CaseFile } from "@elb/domain/index
 import { Field, Section } from "@elb/ui/forms";
 import { useAppState } from "../useAppState";
 import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorActions";
+import { clearOwnerData, hasSeparateOwnerData } from "../features/owner/ownerState";
 import { findAsset } from "./caseAssets";
 import { VatCaptureModal } from "./caseModals";
 import { InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "./formSupport";
@@ -25,6 +26,28 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
       }
     }));
     setVatModalOpen(value === "C");
+  }
+
+  function handleOwnerSameAsConsignorChange(checked: boolean) {
+    if (!checked) {
+      actions.updateCurrentCase((current) => ({
+        ...current,
+        owner: { ...current.owner, sameAsConsignor: false }
+      }));
+      return;
+    }
+
+    if (hasSeparateOwnerData(props.caseFile.owner)) {
+      const confirmed = window.confirm("Die separat erfassten Eigentuemer-Daten werden geloescht. Moechtest du fortfahren?");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    actions.updateCurrentCase((current) => ({
+      ...current,
+      owner: clearOwnerData()
+    }));
   }
 
   return (
@@ -195,7 +218,7 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
             <InlineToggle
               label="Eigentümer = Einlieferer"
               checked={props.caseFile.owner.sameAsConsignor}
-              onChange={(checked) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, sameAsConsignor: checked } }))}
+              onChange={handleOwnerSameAsConsignorChange}
             />
           </div>
           {props.caseFile.owner.sameAsConsignor ? null : (

@@ -1,6 +1,7 @@
 import { formatAmountForDisplay, type Asset, type CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
+import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
 import { InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
@@ -149,13 +150,35 @@ export function PdfConsignorEditorSection(props: {
 export function PdfOwnerEditorSection(props: { caseFile: CaseFile }) {
   const actions = useCaseEditorActions(props.caseFile);
 
+  function handleOwnerSameAsConsignorChange(checked: boolean) {
+    if (!checked) {
+      actions.updateCurrentCase((current) => ({
+        ...current,
+        owner: { ...current.owner, sameAsConsignor: false }
+      }));
+      return;
+    }
+
+    if (hasSeparateOwnerData(props.caseFile.owner)) {
+      const confirmed = window.confirm("Die separat erfassten Eigentuemer-Daten werden geloescht. Moechtest du fortfahren?");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    actions.updateCurrentCase((current) => ({
+      ...current,
+      owner: clearOwnerData()
+    }));
+  }
+
   return (
     <Section title="Eigentümer">
       <div className="field field--full">
         <InlineToggle
           label="Eigentümer = Einlieferer"
           checked={props.caseFile.owner.sameAsConsignor}
-          onChange={(checked) => actions.updateCurrentCase((current) => ({ ...current, owner: { ...current.owner, sameAsConsignor: checked } }))}
+          onChange={handleOwnerSameAsConsignorChange}
         />
       </div>
       {props.caseFile.owner.sameAsConsignor ? null : (

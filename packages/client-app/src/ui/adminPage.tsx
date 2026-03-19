@@ -118,7 +118,6 @@ export function AdminPage() {
                     }))
                   }
                 />
-                {references.length ? <p className="field-warning">{buildReferenceHint(references.map((item) => item.receiptNumber))}</p> : null}
                 <div className="inline-actions">
                   <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, clerks: current.clerks.filter((item) => item.id !== clerk.id) }))}>
                     Löschen
@@ -152,7 +151,6 @@ export function AdminPage() {
                     <input value={auction.year} onChange={(event) => updateMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, year: event.target.value } : item)) }))} />
                   </Field>
                 </div>
-                {references.length ? <p className="field-warning">{buildReferenceHint(references.map((item) => item.receiptNumber))}</p> : null}
                 <div className="inline-actions">
                   <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, auctions: current.auctions.filter((item) => item.id !== auction.id) }))}>
                     Löschen

@@ -12,6 +12,8 @@ export interface WordPreviewPhoto {
 export interface WordPreviewRow {
   id: string;
   intNumber: string;
+  renderedTitleLines: string[];
+  renderedDetailLines: string[];
   title: string;
   estimate: string;
   priceLabel: string;
@@ -63,6 +65,45 @@ const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationsh
 const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
 let templateAssetsPromise: Promise<{ headerImageSrc: string }> | null = null;
 
+function normalizeDisplayIntNumber(value: string): string {
+  const digits = value.trim();
+  if (!digits) {
+    return "";
+  }
+
+  const parsed = Number.parseInt(digits, 10);
+  return Number.isFinite(parsed) ? String(parsed) : digits;
+}
+
+function wrapPreviewText(text: string, maxCharsPerLine: number): string[] {
+  const normalized = text.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (!words.length) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  let currentLine = words[0] ?? "";
+
+  for (const word of words.slice(1)) {
+    const nextLine = `${currentLine} ${word}`;
+    if (nextLine.length <= maxCharsPerLine) {
+      currentLine = nextLine;
+      continue;
+    }
+
+    lines.push(currentLine);
+    currentLine = word;
+  }
+
+  lines.push(currentLine);
+  return lines;
+}
+
 function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, followPageBudget: number): WordPreviewRow[][] {
   const pages: WordPreviewRow[][] = [];
   let currentPage: WordPreviewRow[] = [];
@@ -107,13 +148,17 @@ function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPrev
     .filter(Boolean)
     .join(" - ");
 
-  const detailLines = Math.max(details.length, 1);
+  const renderedTitleLines = wrapPreviewText(item.shortDescription || item.description || "Ohne Kurzbeschrieb", 52);
+  const renderedDetailLines = details.flatMap((detail) => wrapPreviewText(detail, 52));
+  const detailLines = Math.max(renderedTitleLines.length + renderedDetailLines.length, 1);
   const photoRows = photos[0] ? 1 : 0;
   const heightUnits = BASE_ROW_UNITS + detailLines * DETAIL_LINE_UNITS + photoRows * PHOTO_ROW_UNITS;
 
   return {
     id: item.id,
-    intNumber: item.intNumber,
+    intNumber: normalizeDisplayIntNumber(item.intNumber),
+    renderedTitleLines,
+    renderedDetailLines,
     title: item.shortDescription || item.description || "Ohne Kurzbeschrieb",
     estimate,
     priceLabel: item.pricingMode === "startPrice" ? "Startpreis" : item.pricingMode === "netLimit" ? "Nettolimite" : "Limite",
@@ -315,10 +360,8 @@ function buildTemplateObjectTable(doc: XMLDocument, templateTable: Element, row:
 
   if (textCell) {
     const lines = [
-      { text: row.title },
-      { text: row.details[0] ?? "" },
-      { text: row.details[1] ?? "" },
-      { text: row.details[2] ?? "" },
+      ...row.renderedTitleLines.map((line) => ({ text: line })),
+      ...row.renderedDetailLines.map((line) => ({ text: line })),
       { text: "" },
       { text: row.estimate ? `Schätzung: CHF ${row.estimate}` : "Schätzung offen" },
       { text: row.priceValue ? `${row.priceLabel}: CHF ${row.priceValue}` : "", color: "FF0000" }
@@ -410,12 +453,28 @@ async function drawPdfRow(page: PDFPage, pdfDocument: PDFDocument, font: PDFFont
   });
 
   const titleX = x + 78;
-  const estimateWidth = 120;
-  const titleWidth = A4_WIDTH - PDF_MARGIN_X - estimateWidth - titleX;
-  let cursorY = drawWrappedText(page, font, row.title, titleX, y, titleWidth, 12, 10);
+  let cursorY = y;
 
-  row.details.forEach((detail) => {
-    cursorY = drawWrappedText(page, font, detail, titleX, cursorY, titleWidth, 11, 9, rgb(0.32, 0.39, 0.36));
+  row.renderedTitleLines.forEach((line) => {
+    page.drawText(line, {
+      x: titleX,
+      y: cursorY,
+      size: 10,
+      font,
+      color: rgb(0.15, 0.21, 0.18)
+    });
+    cursorY -= 12;
+  });
+
+  row.renderedDetailLines.forEach((line) => {
+    page.drawText(line, {
+      x: titleX,
+      y: cursorY,
+      size: 9,
+      font,
+      color: rgb(0.32, 0.39, 0.36)
+    });
+    cursorY -= 11;
   });
 
   if (row.primaryPhoto) {

@@ -4,7 +4,14 @@ import templatePdfUrl from "../../../vorlagen/template.pdf?url";
 import templateObjectsPdfUrl from "../../../vorlagen/template_objekte.pdf?url";
 import { buildObjectPageChunks, getObjectFieldGeometry } from "./objectLayout";
 import { createPdfPreviewModel, isFollowUpValue } from "./previewModel";
-import { FOLLOW_UP_COLOR, drawSignatureIntoFields, fillObjectFields, fillSharedFields } from "./renderSupport";
+import {
+  FOLLOW_UP_COLOR,
+  buildMissingObjectFieldMap,
+  drawMissingObjectFieldOverlays,
+  drawSignatureIntoFields,
+  fillObjectFields,
+  fillSharedFields
+} from "./renderSupport";
 import { loadTemplateBytes, type PdfForm } from "./templateSupport";
 import type { ObjectPageChunk } from "./types";
 
@@ -62,6 +69,7 @@ export async function generateElbPdf(caseFile: CaseFile, masterData: MasterData)
   const outputPdf = await PDFDocument.create();
   const totalPages = Math.max(objectPages.length, 1);
   const clerk = masterData.clerks.find((item) => item.id === caseFile.meta.clerkId);
+  const missingObjectFields = buildMissingObjectFieldMap(caseFile, masterData);
 
   for (let index = 0; index < totalPages; index += 1) {
     const row = objectPages[index] ?? {
@@ -88,6 +96,13 @@ export async function generateElbPdf(caseFile: CaseFile, masterData: MasterData)
       form,
       row,
       suffix: index === 0 ? "1" : "2"
+    });
+    drawMissingObjectFieldOverlays({
+      page,
+      font: overlayFont,
+      row,
+      missingByObjectIndex: missingObjectFields,
+      geometry: getObjectFieldGeometry(form, index === 0 ? "1" : "2")
     });
 
     await drawSignatureIntoFields(sourcePdf, 0, form, ["der Einlieferer Sig", "der Einlieferer Sig 2"], caseFile.signatures.consignorSignaturePng);

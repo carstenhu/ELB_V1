@@ -1,4 +1,4 @@
-import { type CaseFile, deriveAddressLines, deriveBeneficiary, type MasterData } from "@elb/domain/index";
+import { collectMissingRequiredFields, type CaseFile, deriveAddressLines, deriveBeneficiary, type MasterData } from "@elb/domain/index";
 import { rgb, type PDFFont, type PDFDocument, type PDFPage } from "pdf-lib";
 import { wrapText } from "./drawingSupport";
 import {
@@ -16,6 +16,7 @@ import {
 } from "./templateSupport";
 
 export const FOLLOW_UP_COLOR = rgb(0.74, 0.14, 0.11);
+export const REQUIRED_FIELD_COLOR = rgb(0.76, 0.08, 0.12);
 
 function appendContactLines(lines: string[], phone: string, email: string): string[] {
   const nextLines = [...lines];
@@ -31,9 +32,18 @@ function appendContactLines(lines: string[], phone: string, email: string): stri
   return nextLines;
 }
 
+function buildConsignorSummaryLine(caseFile: CaseFile): string[] {
+  if (caseFile.consignor.useCompanyAddress && caseFile.consignor.company.trim()) {
+    return [caseFile.consignor.company.trim()];
+  }
+
+  const fullName = [caseFile.consignor.firstName, caseFile.consignor.lastName].filter(Boolean).join(" ").trim();
+  return fullName ? [fullName] : [];
+}
+
 function buildOwnerAddressLines(caseFile: CaseFile): string[] {
   if (caseFile.owner.sameAsConsignor) {
-    return appendContactLines(deriveAddressLines(caseFile.consignor), caseFile.consignor.phone, caseFile.consignor.email);
+    return [];
   }
 
   return [
@@ -52,6 +62,7 @@ export function drawFieldOverlay(args: {
   value: string;
   multiline?: boolean;
   forceVisible?: boolean;
+  color?: ReturnType<typeof rgb>;
 }): void {
   if (!args.forceVisible && !isFollowUpValue(args.value)) {
     return;
@@ -74,8 +85,137 @@ export function drawFieldOverlay(args: {
       y: rect.top - fontSize - (args.multiline ? 1.2 : 2.5) - index * lineHeight,
       size: fontSize,
       font: args.font,
-      color: isFollowUpValue(args.value) ? FOLLOW_UP_COLOR : rgb(0, 0, 0)
+      color: args.color ?? (isFollowUpValue(args.value) ? FOLLOW_UP_COLOR : rgb(0, 0, 0))
     });
+  });
+}
+
+function formatRequiredFieldNotice(label: string): string {
+  const cleanLabel = label.replace(/^Objekt \d+:\s*/, "").trim();
+  return `"${cleanLabel}" zwingend.`;
+}
+
+function drawMissingRequiredFieldOverlay(args: {
+  page: PDFPage;
+  form: PdfForm;
+  font: PDFFont;
+  caseFile: CaseFile;
+  masterData: MasterData;
+  pageNumber: number;
+}): void {
+  const missingFields = collectMissingRequiredFields(args.caseFile, args.masterData.globalPdfRequiredFields);
+
+  if (!missingFields.length) {
+    return;
+  }
+
+  const groupedNotices = new Map<string, string[]>();
+
+  missingFields.forEach((field) => {
+    if (field.key === "objects[].create" || field.objectIndex !== undefined) {
+      return;
+    }
+
+    if (field.key === "consignor.lastName" || field.key === "consignor.street" || field.key === "consignor.zip" || field.key === "consignor.city") {
+      const notices = groupedNotices.get("Adresse EL") ?? [];
+      notices.push(formatRequiredFieldNotice(field.label));
+      groupedNotices.set("Adresse EL", notices);
+      return;
+    }
+
+    if (field.key === "bank.beneficiaryOverride.reason" || field.key === "bank.beneficiaryOverride.name") {
+      const notices = groupedNotices.get("Bankangaben: Begünstigter") ?? [];
+      notices.push(formatRequiredFieldNotice(field.label));
+      groupedNotices.set("Bankangaben: Begünstigter", notices);
+      return;
+    }
+
+    if (field.key === "meta.receiptNumber") {
+      groupedNotices.set(args.pageNumber === 1 ? "ELB Nr" : "ELB Nr 2", [formatRequiredFieldNotice(field.label)]);
+      return;
+    }
+
+    if (field.key === "meta.clerkId") {
+      groupedNotices.set("Sachbearbeiter 2", [formatRequiredFieldNotice(field.label)]);
+    }
+  });
+
+  groupedNotices.forEach((notices, fieldName) => {
+    drawFieldOverlay({
+      page: args.page,
+      form: args.form,
+      font: args.font,
+      fieldName,
+      value: notices.join("\n"),
+      multiline: notices.length > 1 || fieldName === "Adresse EL" || fieldName === "Bankangaben: Begünstigter",
+      forceVisible: true,
+      color: REQUIRED_FIELD_COLOR
+    });
+  });
+}
+
+export function buildMissingObjectFieldMap(caseFile: CaseFile, masterData: MasterData): Map<number, Set<string>> {
+  const missingFields = collectMissingRequiredFields(caseFile, masterData.globalPdfRequiredFields);
+  const missingByObjectIndex = new Map<number, Set<string>>();
+
+  missingFields.forEach((field) => {
+    if (field.objectIndex === undefined) {
+      return;
+    }
+
+    const objectFields = missingByObjectIndex.get(field.objectIndex) ?? new Set<string>();
+    objectFields.add(field.key);
+    missingByObjectIndex.set(field.objectIndex, objectFields);
+  });
+
+  return missingByObjectIndex;
+}
+
+export function drawMissingObjectFieldOverlays(args: {
+  page: PDFPage;
+  font: PDFFont;
+  row: {
+    items: Array<{
+      objectIndex: number;
+      startLine: number;
+    }>;
+  };
+  missingByObjectIndex: Map<number, Set<string>>;
+  geometry: {
+    departmentCode: { left: number };
+    description: { left: number };
+    contentTop: number;
+    lineHeight: number;
+    fontSize: number;
+  };
+}): void {
+  args.row.items.forEach((item) => {
+    const missingFields = args.missingByObjectIndex.get(item.objectIndex);
+    if (!missingFields) {
+      return;
+    }
+
+    const y = args.geometry.contentTop - item.startLine * args.geometry.lineHeight - args.geometry.fontSize;
+
+    if (missingFields.has("objects[].departmentId")) {
+      args.page.drawText(formatRequiredFieldNotice("Abteilung"), {
+        x: args.geometry.departmentCode.left + 1.8,
+        y,
+        size: args.geometry.fontSize,
+        font: args.font,
+        color: REQUIRED_FIELD_COLOR
+      });
+    }
+
+    if (missingFields.has("objects[].shortDescription")) {
+      args.page.drawText(formatRequiredFieldNotice("Kurzbeschrieb"), {
+        x: args.geometry.description.left + 1.8,
+        y,
+        size: args.geometry.fontSize,
+        font: args.font,
+        color: REQUIRED_FIELD_COLOR
+      });
+    }
   });
 }
 
@@ -126,7 +266,9 @@ export function fillSharedFields(args: {
   const { form, page, font, caseFile, masterData, pageNumber, totalPages } = args;
   const clerk = masterData.clerks.find((item) => item.id === caseFile.meta.clerkId);
   const beneficiary = deriveBeneficiary(caseFile.consignor, caseFile.bank);
-  const addressLines = appendContactLines(deriveAddressLines(caseFile.consignor), caseFile.consignor.phone, caseFile.consignor.email);
+  const addressLines = pageNumber === 1
+    ? appendContactLines(deriveAddressLines(caseFile.consignor), caseFile.consignor.phone, caseFile.consignor.email)
+    : buildConsignorSummaryLine(caseFile);
   const ownerLines = buildOwnerAddressLines(caseFile);
 
   const receiptFieldName = pageNumber === 1 ? "ELB Nr" : "ELB Nr 2";
@@ -188,6 +330,7 @@ export function fillSharedFields(args: {
   drawFieldOverlay({ page, form, font, fieldName: "EL Geburtsdatum 1", value: caseFile.consignor.birthDate });
   drawFieldOverlay({ page, form, font, fieldName: "EL Nationalit\u00e4t  1", value: caseFile.consignor.nationality });
   drawFieldOverlay({ page, form, font, fieldName: "EL ID/Passnr  1", value: caseFile.consignor.passportNumber });
+  drawMissingRequiredFieldOverlay({ page, form, font, caseFile, masterData, pageNumber });
 }
 
 export function fillObjectFields(form: PdfForm, suffix: "1" | "2"): void {
