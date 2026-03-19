@@ -25,12 +25,17 @@ export type PageId = z.infer<typeof pageIdSchema>;
 export const caseStatusSchema = z.enum(["draft", "finalized"]);
 export type CaseStatus = z.infer<typeof caseStatusSchema>;
 
+export const receiptNumberScopeSchema = z.enum(["desktop", "web"]);
+export type ReceiptNumberScope = z.infer<typeof receiptNumberScopeSchema>;
+
 export const clerkSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: emailLikeSchema,
   phone: z.string(),
   signaturePng: z.string(),
+  nextReceiptNumberDesktop: receiptNumberSchema.default("0001"),
+  nextReceiptNumberWeb: receiptNumberSchema.default("0001"),
 });
 
 export type Clerk = z.infer<typeof clerkSchema>;

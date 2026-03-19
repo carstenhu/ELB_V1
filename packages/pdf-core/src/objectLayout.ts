@@ -279,7 +279,10 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
   const fieldMap = pageKind === "main"
     ? {
         meta: ["ELB Nr"],
-        consignor: ["Adresse EL", "EL Geburtsdatum 1", "EL Nationalit\u00e4t  1", "EL ID/Passnr  1"],
+        consignor: ["Adresse EL"],
+        consignorIdentity: ["EL Geburtsdatum 1", "EL Nationalit\u00e4t  1", "EL ID/Passnr  1"],
+        vatCategory: ["MwSt. Kategorie"],
+        vatNumber: ["MwSt. Nr "],
         owner: ["Adresse EG"],
         bank: ["BIC/SWIFT", "IBAN/Kontonr", "Bankangaben: Beg\u00fcnstigter"],
         costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
@@ -290,6 +293,9 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
     : {
         meta: ["ELB Nr 2", "Seite N/N"],
         consignor: ["Adresse EL"],
+        consignorIdentity: [],
+        vatCategory: [],
+        vatNumber: [],
         owner: [],
         bank: ["Adresse EL"],
         costs: ["Kommission", "Versicherung ", "Transport", "Abb.-Kosten", "Kosten ", "Internet  1", "Diverses/Provenienz 2"],
@@ -335,6 +341,9 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
   return {
     meta: buildHotspot(fieldMap.meta),
     consignor: buildHotspot(fieldMap.consignor),
+    consignorIdentity: buildHotspot(fieldMap.consignorIdentity),
+    vatCategory: buildHotspot(fieldMap.vatCategory),
+    vatNumber: buildHotspot(fieldMap.vatNumber),
     owner: buildHotspot(fieldMap.owner),
     bank: buildHotspot(fieldMap.bank),
     costs: buildHotspot(fieldMap.costs),

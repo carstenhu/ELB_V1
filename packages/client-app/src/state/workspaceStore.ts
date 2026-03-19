@@ -1,5 +1,5 @@
 import type { AdminSession, AuditSink, WorkspaceSnapshot } from "@elb/app-core/index";
-import { loadSeedMasterData, type CaseFile, type MasterData } from "@elb/domain/index";
+import { loadSeedMasterData, normalizeMasterData, type CaseFile, type MasterData } from "@elb/domain/index";
 
 export interface AppState {
   masterData: MasterData;
@@ -80,6 +80,7 @@ export function createWorkspaceSnapshot(): WorkspaceSnapshot {
 export function replaceWorkspaceSnapshot(snapshot: WorkspaceSnapshot): void {
   setState({
     ...snapshot,
+    masterData: normalizeMasterData(snapshot.masterData),
     adminSession: state.adminSession
   });
 }

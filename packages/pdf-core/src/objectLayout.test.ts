@@ -37,6 +37,8 @@ beforeAll(() => {
       "EL Geburtsdatum 1",
       "EL Nationalit\u00e4t  1",
       "EL ID/Passnr  1",
+      "MwSt. Kategorie",
+      "MwSt. Nr ",
       "Adresse EG",
       "BIC/SWIFT",
       "IBAN/Kontonr",
@@ -127,6 +129,9 @@ describe("object layout", () => {
     const follow = await getPdfHotspotMap("follow");
 
     expect(main.meta.widthPct).toBeGreaterThan(0);
+    expect(main.consignorIdentity.widthPct).toBeGreaterThan(0);
+    expect(main.vatCategory.widthPct).toBeGreaterThan(0);
+    expect(main.vatNumber.widthPct).toBeGreaterThan(0);
     expect(main.object.contentHeightPct).toBeGreaterThan(0);
     expect(main.clerkSignature.widthPct).toBeGreaterThan(0);
     expect(follow.meta.widthPct).toBeGreaterThan(0);

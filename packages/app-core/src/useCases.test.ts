@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyCase, createEmptyMasterData } from "@elb/domain/index";
-import { addObjectToCase, assignAuction, createCase, reserveNextCaseNumber, validateCaseReadiness } from "./useCases";
+import { createEmptyCase, createEmptyClerk, createEmptyMasterData } from "@elb/domain/index";
+import { addObjectToCase, assignAuction, consumeReceiptNumberIfNeeded, createCase, getSuggestedCaseNumber, reserveNextCaseNumber, validateCaseReadiness } from "./useCases";
 
 function buildMasterData() {
   const masterData = createEmptyMasterData();
-  masterData.clerks.push({ id: "clerk-1", name: "Anna Test", email: "anna@example.com", phone: "123", signaturePng: "" });
+  masterData.clerks.push(createEmptyClerk({ id: "clerk-1", name: "Anna Test", email: "anna@example.com", phone: "123" }));
   masterData.auctions.push({ id: "auction-1", number: "123", month: "03", year: "2026" });
   masterData.auctions.push({ id: "auction-2", number: "ibid 44", month: "06", year: "2026" });
   masterData.departments.push({ id: "dep-1", code: "MOB", name: "Mobiliar" });
@@ -27,7 +27,7 @@ describe("application use cases", () => {
       currentCase: null,
       drafts: [],
       finalized: []
-    }, {
+    }, "desktop", {
       now: () => "2026-03-18T10:00:00.000Z",
       createId: () => "case-1"
     });
@@ -35,6 +35,49 @@ describe("application use cases", () => {
     expect(created.meta.id).toBe("case-1");
     expect(created.meta.receiptNumber).toBe("0001");
     expect(created.meta.clerkId).toBe("clerk-1");
+  });
+
+  it("keeps separate receipt number scopes per platform", () => {
+    const masterData = buildMasterData();
+    masterData.clerks[0]!.nextReceiptNumberDesktop = "0010";
+    masterData.clerks[0]!.nextReceiptNumberWeb = "0200";
+
+    expect(getSuggestedCaseNumber({
+      masterData,
+      clerkId: "clerk-1",
+      scope: "desktop",
+      drafts: [],
+      finalized: []
+    })).toBe("0010");
+
+    expect(getSuggestedCaseNumber({
+      masterData,
+      clerkId: "clerk-1",
+      scope: "web",
+      drafts: [],
+      finalized: []
+    })).toBe("0200");
+
+    const unchanged = consumeReceiptNumberIfNeeded({
+      masterData,
+      clerkId: "clerk-1",
+      receiptNumber: "0999",
+      scope: "desktop",
+      drafts: [],
+      finalized: []
+    });
+    expect(unchanged.clerks[0]?.nextReceiptNumberDesktop).toBe("0010");
+
+    const consumed = consumeReceiptNumberIfNeeded({
+      masterData,
+      clerkId: "clerk-1",
+      receiptNumber: "0010",
+      scope: "desktop",
+      drafts: [],
+      finalized: []
+    });
+    expect(consumed.clerks[0]?.nextReceiptNumberDesktop).toBe("0011");
+    expect(consumed.clerks[0]?.nextReceiptNumberWeb).toBe("0200");
   });
 
   it("adds objects with inherited auction and department", () => {

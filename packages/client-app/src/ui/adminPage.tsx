@@ -1,5 +1,5 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
-import { normalizeRequiredFieldKeys } from "@elb/domain/index";
+import { createEmptyClerk, normalizeRequiredFieldKeys } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { hasAdminAccess, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
 import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
@@ -92,6 +92,14 @@ export function AdminPage() {
                     <input value={clerk.phone} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, phone: event.target.value } : item)) }))} />
                   </Field>
                 </div>
+                <div className="form-row form-row--double">
+                  <Field label="Naechste ELB Desktop">
+                    <input value={clerk.nextReceiptNumberDesktop} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, nextReceiptNumberDesktop: event.target.value } : item)) }))} />
+                  </Field>
+                  <Field label="Naechste ELB Web">
+                    <input value={clerk.nextReceiptNumberWeb} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, nextReceiptNumberWeb: event.target.value } : item)) }))} />
+                  </Field>
+                </div>
                 <PdfSignatureEditor
                   title="Signatur"
                   value={clerk.signaturePng}
@@ -120,7 +128,7 @@ export function AdminPage() {
             );
           })}
           <div className="inline-actions">
-            <button type="button" className="primary" onClick={() => updateMasterData((current) => ({ ...current, clerks: [...current.clerks, { id: crypto.randomUUID(), name: "", email: "", phone: "", signaturePng: "" }] }))}>
+            <button type="button" className="primary" onClick={() => updateMasterData((current) => ({ ...current, clerks: [...current.clerks, createEmptyClerk({ id: crypto.randomUUID() })] }))}>
               Sachbearbeiter hinzufügen
             </button>
           </div>

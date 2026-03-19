@@ -10,7 +10,7 @@ export function useWorkspaceLifecycle(): boolean {
   const firstSaveRef = useRef(true);
 
   useEffect(() => {
-    configureStateServices({ auditSink: platform.auditSink });
+    configureStateServices({ auditSink: platform.auditSink, receiptNumberScope: platform.receiptNumberScope });
   }, [platform]);
 
   useEffect(() => {

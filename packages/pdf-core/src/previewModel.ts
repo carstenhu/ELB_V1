@@ -53,8 +53,6 @@ function collectMissingRequiredFields(caseFile: CaseFile, masterData: MasterData
   caseFile.objects.forEach((item, index) => {
     if (!item.departmentId.trim()) missing.push(`Objekt ${index + 1}: Abteilung`);
     if (!item.shortDescription.trim()) missing.push(`Objekt ${index + 1}: Kurzbeschrieb`);
-    if (!item.estimate.low.trim()) missing.push(`Objekt ${index + 1}: Schaetzung von`);
-    if (!item.estimate.high.trim()) missing.push(`Objekt ${index + 1}: Schaetzung bis`);
   });
 
   if (caseFile.objects.length === 0) {
@@ -65,7 +63,7 @@ function collectMissingRequiredFields(caseFile: CaseFile, masterData: MasterData
 }
 
 export function joinAddressLines(lines: string[]): string {
-  return lines.filter(Boolean).join("\r\n");
+  return lines.map((line) => line.trim()).filter(Boolean).join("\r\n");
 }
 
 export function isFollowUpValue(value: string): boolean {

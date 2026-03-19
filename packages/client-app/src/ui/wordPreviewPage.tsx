@@ -175,7 +175,7 @@ export function WordTemplatePreviewPage(props: {
       ) : null}
       {previewProblem ? (
         <Suspense fallback={<RequiredFieldsFallback />}>
-          <PreviewProblemModal problem={previewProblem} onClose={() => setPreviewProblem(null)} />
+          <PreviewProblemModal caseFile={props.caseFile} problem={previewProblem} onClose={() => setPreviewProblem(null)} />
         </Suspense>
       ) : null}
     </div>

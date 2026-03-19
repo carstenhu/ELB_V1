@@ -33,6 +33,7 @@ function toError(error: unknown, fallback: string): Error {
 }
 
 export const desktopPlatform: AppPlatform = {
+  receiptNumberScope: "desktop",
   workspaceRepository: createWorkspaceRepository(),
   auditSink: createAuditRepository(),
   caseAssets: {

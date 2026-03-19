@@ -107,7 +107,7 @@ export function fillSharedFields(args: {
         [caseFile.owner.street, caseFile.owner.houseNumber].filter(Boolean).join(" ").trim(),
         [caseFile.owner.zip, caseFile.owner.city].filter(Boolean).join(" ").trim(),
         caseFile.owner.country
-      ].filter(Boolean);
+      ].map((line) => line.trim()).filter(Boolean);
 
   const receiptFieldName = pageNumber === 1 ? "ELB Nr" : "ELB Nr 2";
   const commissionValue = buildCostFieldValue(caseFile.costs.commission);

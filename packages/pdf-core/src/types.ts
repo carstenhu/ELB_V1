@@ -37,6 +37,9 @@ export interface PdfObjectHotspotRect extends PdfHotspotRect {
 export interface PdfHotspotMap {
   meta: PdfHotspotRect;
   consignor: PdfHotspotRect;
+  consignorIdentity: PdfHotspotRect;
+  vatCategory: PdfHotspotRect;
+  vatNumber: PdfHotspotRect;
   owner: PdfHotspotRect;
   bank: PdfHotspotRect;
   costs: PdfHotspotRect;

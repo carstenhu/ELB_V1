@@ -4,9 +4,9 @@ import { collectMissingRequiredFields, normalizeRequiredFieldKeys } from "./requ
 
 describe("required field helpers", () => {
   it("normalizes and filters configured required fields", () => {
-    expect(normalizeRequiredFieldKeys([" meta.receiptNumber ", "unknown", "meta.receiptNumber", "objects[].estimate.low"])).toEqual([
+    expect(normalizeRequiredFieldKeys([" meta.receiptNumber ", "unknown", "meta.receiptNumber", "objects[].shortDescription"])).toEqual([
       "meta.receiptNumber",
-      "objects[].estimate.low"
+      "objects[].shortDescription"
     ]);
   });
 

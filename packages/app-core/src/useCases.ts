@@ -6,7 +6,8 @@ import {
   type CaseFile,
   type Clerk,
   type MasterData,
-  type ObjectItem
+  type ObjectItem,
+  type ReceiptNumberScope
 } from "@elb/domain/index";
 import { AppError } from "./errors";
 import { validateCaseBusinessRules, validateCaseForExport, validateCaseSchema } from "./validation";
@@ -43,7 +44,64 @@ export function reserveNextCaseNumber(args: {
   return formatReceiptNumber(maxValue + 1);
 }
 
-export function createCase(state: WorkspaceStateLike, context: UseCaseContext = defaultUseCaseContext): CaseFile {
+function getClerkReceiptCounter(clerk: Clerk, scope: ReceiptNumberScope): string {
+  return scope === "desktop" ? clerk.nextReceiptNumberDesktop : clerk.nextReceiptNumberWeb;
+}
+
+function setClerkReceiptCounter(clerk: Clerk, scope: ReceiptNumberScope, receiptNumber: string): Clerk {
+  return scope === "desktop"
+    ? { ...clerk, nextReceiptNumberDesktop: receiptNumber }
+    : { ...clerk, nextReceiptNumberWeb: receiptNumber };
+}
+
+export function getSuggestedCaseNumber(args: {
+  masterData: MasterData;
+  clerkId: string;
+  scope: ReceiptNumberScope;
+  drafts: CaseFile[];
+  finalized: CaseFile[];
+}): string {
+  const clerk = args.masterData.clerks.find((item) => item.id === args.clerkId);
+  const storedValue = clerk ? Number.parseInt(getClerkReceiptCounter(clerk, args.scope), 10) : 0;
+  const fallbackValue = Number.parseInt(reserveNextCaseNumber({
+    clerkId: args.clerkId,
+    drafts: args.drafts,
+    finalized: args.finalized
+  }), 10);
+
+  return formatReceiptNumber(Math.max(storedValue || 0, fallbackValue || 1));
+}
+
+export function consumeReceiptNumberIfNeeded(args: {
+  masterData: MasterData;
+  clerkId: string;
+  receiptNumber: string;
+  scope: ReceiptNumberScope;
+  drafts: CaseFile[];
+  finalized: CaseFile[];
+}): MasterData {
+  const clerk = args.masterData.clerks.find((item) => item.id === args.clerkId);
+  if (!clerk) {
+    return args.masterData;
+  }
+
+  const suggestedNumber = getSuggestedCaseNumber(args);
+  if (args.receiptNumber.trim() !== suggestedNumber) {
+    return args.masterData;
+  }
+
+  const nextNumber = formatReceiptNumber((Number.parseInt(suggestedNumber, 10) || 0) + 1);
+  return {
+    ...args.masterData,
+    clerks: args.masterData.clerks.map((item) => (item.id === clerk.id ? setClerkReceiptCounter(item, args.scope, nextNumber) : item))
+  };
+}
+
+export function createCase(
+  state: WorkspaceStateLike,
+  scope: ReceiptNumberScope,
+  context: UseCaseContext = defaultUseCaseContext
+): CaseFile {
   if (!state.activeClerkId) {
     throw new AppError("NO_ACTIVE_CLERK", "Ein neuer Vorgang benötigt einen aktiven Sachbearbeiter.");
   }
@@ -52,8 +110,10 @@ export function createCase(state: WorkspaceStateLike, context: UseCaseContext = 
   return createEmptyCase({
     id: context.createId(),
     clerkId: state.activeClerkId,
-    receiptNumber: reserveNextCaseNumber({
+    receiptNumber: getSuggestedCaseNumber({
+      masterData: state.masterData,
       clerkId: state.activeClerkId,
+      scope,
       drafts: state.drafts,
       finalized: state.finalized
     }),

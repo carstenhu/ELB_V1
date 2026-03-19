@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyCase, createEmptyMasterData } from "@elb/domain/index";
+import { createEmptyCase, createEmptyClerk, createEmptyMasterData } from "@elb/domain/index";
 import {
   buildCostFieldValue,
   buildEstimateText,
@@ -25,13 +25,12 @@ describe("pdf preview model", () => {
     });
     const masterData = createEmptyMasterData();
 
-    masterData.clerks.push({
+    masterData.clerks.push(createEmptyClerk({
       id: "clerk-1",
       name: "Anna Admin",
       email: "anna@example.com",
-      phone: "123",
-      signaturePng: ""
-    });
+      phone: "123"
+    }));
     masterData.auctions.push({
       id: "auction-1",
       number: "123",
@@ -47,9 +46,7 @@ describe("pdf preview model", () => {
       "meta.receiptNumber",
       "meta.clerkId",
       "consignor.street",
-      "objects[].shortDescription",
-      "objects[].estimate.low",
-      "objects[].estimate.high"
+      "objects[].shortDescription"
     ];
 
     caseFile.consignor.firstName = "Eva";
@@ -85,11 +82,7 @@ describe("pdf preview model", () => {
     expect(model.objectRows[0]?.departmentCode).toBe("A1");
     expect(model.objectRows[0]?.priceLabel).toBe("Limite");
     expect(model.objectRows[0]?.priceValue).toBe("1 200");
-    expect(model.missingRequiredFields).toEqual([
-      "Objekt 1: Kurzbeschrieb",
-      "Objekt 1: Schaetzung von",
-      "Objekt 1: Schaetzung bis"
-    ]);
+    expect(model.missingRequiredFields).toEqual(["Objekt 1: Kurzbeschrieb"]);
   });
 
   it("supports small pure helpers deterministically", () => {

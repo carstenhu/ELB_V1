@@ -1,6 +1,7 @@
 import {
   addObjectToCase,
   assignAuction,
+  consumeReceiptNumberIfNeeded,
   createAuditEntry,
   createCase,
   finalizeCase,
@@ -10,7 +11,7 @@ import {
   unlockAdminSession,
   type WorkspaceStateLike
 } from "@elb/app-core/index";
-import type { CaseFile, MasterData } from "@elb/domain/index";
+import type { CaseFile, MasterData, ReceiptNumberScope } from "@elb/domain/index";
 import { createLogger } from "@elb/shared/logger";
 import {
   consumePendingObjectSelectionId,
@@ -29,8 +30,28 @@ const logger = createLogger("workspace-actions");
 
 export { consumePendingObjectSelectionId, createWorkspaceSnapshot as createSnapshot, getState, replaceWorkspaceSnapshot as replaceState, subscribe };
 
-export function configureStateServices(services: { auditSink?: AuditSink | null }): void {
+let receiptNumberScope: ReceiptNumberScope = "desktop";
+
+function applyReceiptNumberConsumption(current: ReturnType<typeof getState>, caseFile: CaseFile | null) {
+  if (!caseFile?.meta.clerkId.trim() || !caseFile.meta.receiptNumber.trim()) {
+    return current;
+  }
+
+  const nextMasterData = consumeReceiptNumberIfNeeded({
+    masterData: current.masterData,
+    clerkId: caseFile.meta.clerkId,
+    receiptNumber: caseFile.meta.receiptNumber,
+    scope: receiptNumberScope,
+    drafts: current.drafts,
+    finalized: current.finalized
+  });
+
+  return nextMasterData === current.masterData ? current : { ...current, masterData: nextMasterData };
+}
+
+export function configureStateServices(services: { auditSink?: AuditSink | null; receiptNumberScope?: ReceiptNumberScope }): void {
   setAuditSink(services.auditSink ?? null);
+  receiptNumberScope = services.receiptNumberScope ?? "desktop";
 }
 
 function appendAudit(entry: ReturnType<typeof createAuditEntry>): void {
@@ -86,7 +107,7 @@ export function createNewCase(): void {
     return;
   }
 
-  const nextCase = createCase(currentState as WorkspaceStateLike);
+  const nextCase = createCase(currentState as WorkspaceStateLike, receiptNumberScope);
   updateState((current) => ({
     ...current,
     currentCase: nextCase
@@ -129,16 +150,20 @@ export function updateCurrentCase(updater: (current: CaseFile) => CaseFile): voi
     return;
   }
 
-  updateState((current) => ({
-    ...current,
-    currentCase: updater({
+  updateState((current) => {
+    const nextCase = updater({
       ...currentCase,
       meta: {
         ...currentCase.meta,
         updatedAt: new Date().toISOString()
       }
-    })
-  }));
+    });
+
+    return applyReceiptNumberConsumption({
+      ...current,
+      currentCase: nextCase
+    }, nextCase);
+  });
 }
 
 export function saveDraft(): void {
@@ -148,7 +173,7 @@ export function saveDraft(): void {
   }
 
   updateState((current) => ({
-    ...current,
+    ...applyReceiptNumberConsumption(current, currentCase),
     drafts: saveDraftCase(currentCase, current.drafts)
   }));
   appendAudit(createAuditEntry({
@@ -168,7 +193,7 @@ export function finalizeCurrentCase(): void {
 
   const finalizedCase = finalizeCase(currentCase);
   updateState((current) => ({
-    ...current,
+    ...applyReceiptNumberConsumption(current, finalizedCase),
     currentCase: finalizedCase,
     drafts: current.drafts.filter((draft) => draft.meta.id !== finalizedCase.meta.id),
     finalized: [...current.finalized.filter((item) => item.meta.id !== finalizedCase.meta.id), finalizedCase]
@@ -213,10 +238,12 @@ export function addObject(): string | null {
 
   const result = addObjectToCase(state.currentCase, state.masterData);
   setPendingObjectSelectionId(result.objectId);
-  updateState((current) => ({
-    ...current,
-    currentCase: result.caseFile
-  }));
+  updateState((current) =>
+    applyReceiptNumberConsumption({
+      ...current,
+      currentCase: result.caseFile
+    }, result.caseFile)
+  );
 
   return result.objectId;
 }
@@ -250,10 +277,13 @@ export function applyAuctionPricingRules(objectId: string): void {
     return;
   }
 
-  updateState((current) => ({
-    ...current,
-    currentCase: assignAuction(currentCase, current.masterData, objectId, objectItem.auctionId)
-  }));
+  updateState((current) => {
+    const nextCase = assignAuction(currentCase, current.masterData, objectId, objectItem.auctionId);
+    return applyReceiptNumberConsumption({
+      ...current,
+      currentCase: nextCase
+    }, nextCase);
+  });
 }
 
 export function resetStateForTests(snapshot: ReturnType<typeof createWorkspaceSnapshot>): void {

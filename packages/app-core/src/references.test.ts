@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyCase, createEmptyMasterData, createEmptyObject } from "@elb/domain/index";
+import { createEmptyCase, createEmptyClerk, createEmptyMasterData, createEmptyObject } from "@elb/domain/index";
 import { collectMasterDataReferences, validateCaseReferenceIntegrity } from "./references";
 
 describe("reference integrity", () => {
@@ -28,7 +28,7 @@ describe("reference integrity", () => {
 
   it("meldet fehlende referenzierte Stammdaten und Assets", () => {
     const masterData = createEmptyMasterData();
-    masterData.clerks.push({ id: "clerk-1", name: "A", email: "", phone: "", signaturePng: "" });
+    masterData.clerks.push(createEmptyClerk({ id: "clerk-1", name: "A" }));
     const caseFile = createEmptyCase({
       id: "case-1",
       receiptNumber: "0001",

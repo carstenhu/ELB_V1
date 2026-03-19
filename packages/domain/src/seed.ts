@@ -4,17 +4,20 @@ import departmentsData from "../../../vorlagen/departments.json";
 import titlesData from "../../../vorlagen/titles.json";
 import { DEFAULT_ADMIN_PIN } from "@elb/shared/constants";
 import { repairMojibake } from "@elb/shared/mojibake";
+import { createEmptyClerk } from "./defaults";
 import type { MasterData } from "./types";
 
 export function loadSeedMasterData(): MasterData {
   return {
-    clerks: clerksData.map((clerk, index) => ({
-      id: `clerk-${index + 1}`,
-      name: repairMojibake(clerk.name),
-      email: clerk.email,
-      phone: clerk.phone,
-      signaturePng: clerk.signature_png,
-    })),
+    clerks: clerksData.map((clerk, index) =>
+      createEmptyClerk({
+        id: `clerk-${index + 1}`,
+        name: repairMojibake(clerk.name),
+        email: clerk.email,
+        phone: clerk.phone,
+        signaturePng: clerk.signature_png
+      })
+    ),
     auctions: auctionsData.map((auction, index) => ({
       id: `auction-${index + 1}`,
       number: auction.number,
@@ -35,11 +38,8 @@ export function loadSeedMasterData(): MasterData {
       "consignor.zip",
       "consignor.city",
       "objects[].departmentId",
-      "objects[].shortDescription",
-      "objects[].estimate.low",
-      "objects[].estimate.high"
+      "objects[].shortDescription"
     ],
     adminPin: DEFAULT_ADMIN_PIN,
   };
 }
-

@@ -1,5 +1,11 @@
-import type { CaseFile, Costs, MasterData, ObjectItem } from "./types";
+import type { CaseFile, Clerk, Costs, MasterData, ObjectItem } from "./types";
 import { DEFAULT_ADMIN_PIN } from "@elb/shared/constants";
+
+const INITIAL_RECEIPT_NUMBER = "0001";
+
+function normalizeReceiptCounter(value: unknown): string {
+  return typeof value === "string" && /^\d{4}$/.test(value.trim()) ? value.trim() : INITIAL_RECEIPT_NUMBER;
+}
 
 function makeStructuredCost(): Costs["commission"] {
   return {
@@ -16,6 +22,44 @@ export function createEmptyMasterData(): MasterData {
     titles: [],
     globalPdfRequiredFields: [],
     adminPin: DEFAULT_ADMIN_PIN,
+  };
+}
+
+export function createEmptyClerk(seed: {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  signaturePng?: string;
+  nextReceiptNumberDesktop?: string;
+  nextReceiptNumberWeb?: string;
+}): Clerk {
+  return {
+    id: seed.id,
+    name: seed.name ?? "",
+    email: seed.email ?? "",
+    phone: seed.phone ?? "",
+    signaturePng: seed.signaturePng ?? "",
+    nextReceiptNumberDesktop: normalizeReceiptCounter(seed.nextReceiptNumberDesktop),
+    nextReceiptNumberWeb: normalizeReceiptCounter(seed.nextReceiptNumberWeb)
+  };
+}
+
+export function normalizeMasterData(masterData: MasterData): MasterData {
+  return {
+    ...createEmptyMasterData(),
+    ...masterData,
+    clerks: masterData.clerks.map((clerk) =>
+      createEmptyClerk({
+        id: clerk.id,
+        name: clerk.name,
+        email: clerk.email,
+        phone: clerk.phone,
+        signaturePng: clerk.signaturePng,
+        nextReceiptNumberDesktop: clerk.nextReceiptNumberDesktop,
+        nextReceiptNumberWeb: clerk.nextReceiptNumberWeb
+      })
+    )
   };
 }
 

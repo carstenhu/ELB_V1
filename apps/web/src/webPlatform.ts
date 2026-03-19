@@ -71,6 +71,7 @@ function completePendingDownload(targetWindow: Window | null, fileName: string, 
 }
 
 export const webPlatform: AppPlatform = {
+  receiptNumberScope: "web",
   workspaceRepository: createWorkspaceRepository(),
   auditSink: createAuditRepository(),
   caseAssets: {

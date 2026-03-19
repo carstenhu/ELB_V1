@@ -4,6 +4,7 @@ import { createLogger } from "@elb/shared/logger";
 import { finalizeCurrentCase, saveDraft } from "../../appState";
 import { usePlatform } from "../../platform/platformContext";
 import { useAppState } from "../../useAppState";
+import type { PreviewEditableFieldIssue } from "./previewProblemFields";
 
 const logger = createLogger("preview-actions");
 
@@ -11,6 +12,7 @@ export interface PreviewProblemDetails {
   title: string;
   message: string;
   reasons: string[];
+  fields: PreviewEditableFieldIssue[];
 }
 
 function formatErrorMessage(error: unknown, fallback: string): string {
@@ -120,16 +122,17 @@ function extractProblemDetails(error: unknown, title: string): PreviewProblemDet
 
   const message = "message" in error && typeof error.message === "string" ? error.message : "";
   const details = "details" in error ? error.details : undefined;
-  const reasons = Array.isArray(details)
+  const fieldIssues = Array.isArray(details)
     ? details
       .filter(isValidationIssue)
-      .map((issue) => {
-        const issueMessage = issue.message.trim();
-        const fieldLabel = formatIssuePath(issue.path);
-        return fieldLabel ? `${fieldLabel}: ${issueMessage}` : issueMessage;
-      })
-      .filter(Boolean)
+      .map((issue) => ({
+        path: issue.path,
+        label: formatIssuePath(issue.path),
+        message: issue.message.trim()
+      }))
+      .filter((issue) => issue.message)
     : [];
+  const reasons = fieldIssues.map((issue) => (issue.label ? `${issue.label}: ${issue.message}` : issue.message));
 
   if (!message && !reasons.length) {
     return null;
@@ -138,7 +141,8 @@ function extractProblemDetails(error: unknown, title: string): PreviewProblemDet
   return {
     title,
     message: message || "Die Aktion konnte nicht abgeschlossen werden.",
-    reasons: Array.from(new Set(reasons))
+    reasons: Array.from(new Set(reasons)),
+    fields: fieldIssues.filter((issue, index, items) => items.findIndex((candidate) => candidate.path === issue.path) === index)
   };
 }
 

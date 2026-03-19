@@ -69,6 +69,24 @@ function getHotspots(
   const hotspots: HotspotDefinition[] = [
     { key: `meta-${pageNumber}`, label: "Meta", ...toCssRect(layout.meta), target: { kind: "meta" } },
     { key: `consignor-${pageNumber}`, label: "Einlieferer", ...toCssRect(layout.consignor), target: { kind: "consignor" } },
+    {
+      key: `consignor-identity-${pageNumber}`,
+      label: "Einlieferer-Identitaet",
+      ...toCssRect(layout.consignorIdentity),
+      target: { kind: "consignor" }
+    },
+    {
+      key: `vat-category-${pageNumber}`,
+      label: "MwSt-Kategorie",
+      ...toCssRect(layout.vatCategory),
+      target: { kind: "consignor" }
+    },
+    {
+      key: `vat-number-${pageNumber}`,
+      label: "MwSt-Nummer",
+      ...toCssRect(layout.vatNumber),
+      target: { kind: "consignor" }
+    },
     { key: `owner-${pageNumber}`, label: "Eigentümer", ...toCssRect(layout.owner), target: { kind: "owner" } },
     { key: `bank-${pageNumber}`, label: "Bank", ...toCssRect(layout.bank), target: { kind: "bank" } },
     { key: `costs-${pageNumber}`, label: "Konditionen", ...toCssRect(layout.costs), target: { kind: "costs" } },
@@ -229,10 +247,9 @@ export function PdfCanvasPreview(props: {
                     height: hotspot.height
                   }}
                   onClick={() => props.onEdit(hotspot.target)}
+                  aria-label={`${hotspot.label} bearbeiten`}
                   title={`${hotspot.label} bearbeiten`}
-                >
-                  <span>{hotspot.label}</span>
-                </button>
+                />
               ))}
             </div>
           </div>

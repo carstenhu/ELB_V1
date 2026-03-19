@@ -1,5 +1,5 @@
 import type { AuditSink, WorkspaceRepository } from "@elb/app-core/index";
-import type { Asset, CaseFile } from "@elb/domain/index";
+import type { Asset, CaseFile, ReceiptNumberScope } from "@elb/domain/index";
 
 export interface CaseAssetPort {
   persistAsset(caseFile: CaseFile, asset: Asset): Promise<Asset>;
@@ -29,6 +29,7 @@ export interface AppShellPort {
 }
 
 export interface AppPlatform {
+  receiptNumberScope: ReceiptNumberScope;
   workspaceRepository: WorkspaceRepository;
   auditSink: AuditSink;
   caseAssets: CaseAssetPort;
