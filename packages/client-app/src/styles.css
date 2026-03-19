@@ -28,9 +28,8 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: grid;
-  gap: 0.85rem;
-  justify-items: center;
+  display: flex;
+  justify-content: center;
   padding: 0.8rem 1.15rem;
   border-bottom: 1px solid rgba(189, 198, 186, 0.8);
   background: rgba(250, 247, 241, 0.9);
@@ -46,8 +45,7 @@ textarea {
 }
 
 .topbar__brand {
-  justify-content: center;
-  text-align: center;
+  gap: 0.45rem;
 }
 
 .topbar__brand strong {
@@ -55,6 +53,11 @@ textarea {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #17372f;
+}
+
+.topbar__brand span {
+  font-size: 0.96rem;
+  color: #587062;
 }
 
 .topbar__nav {
@@ -127,14 +130,6 @@ textarea {
 
 .topbar__menu {
   position: relative;
-}
-
-.topbar__menu > summary {
-  list-style: none;
-}
-
-.topbar__menu > summary::-webkit-details-marker {
-  display: none;
 }
 
 .topbar__menu-trigger {
@@ -565,7 +560,7 @@ textarea {
 
 @media (max-width: 980px) {
   .topbar {
-    justify-items: stretch;
+    justify-content: center;
   }
 
   .topbar__brand,

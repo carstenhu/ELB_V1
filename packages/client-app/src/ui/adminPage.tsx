@@ -122,6 +122,26 @@ export function AdminPage() {
     }
   }
 
+  async function handleSupabaseMasterDataImport() {
+    setMasterDataBusy(true);
+    setMasterDataStatus("");
+
+    try {
+      const imported = await platform.masterDataSync.importFromSupabase?.();
+      if (!imported) {
+        setMasterDataStatus("Keine Supabase-Stammdaten verfuegbar.");
+        return;
+      }
+
+      importMasterDataSnapshot(imported.masterData);
+      setMasterDataStatus(imported.message);
+    } catch (error) {
+      setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht aus Supabase geladen werden.");
+    } finally {
+      setMasterDataBusy(false);
+    }
+  }
+
   async function handleDataDirectoryLink() {
     setDataDirectoryBusy(true);
 
@@ -360,6 +380,11 @@ export function AdminPage() {
             <button type="button" disabled={masterDataBusy} onClick={() => void handleMasterDataImport()}>
               Stammdaten importieren
             </button>
+            {platform.masterDataSync.importFromSupabase ? (
+              <button type="button" disabled={masterDataBusy} onClick={() => void handleSupabaseMasterDataImport()}>
+                Stammdaten aus Supabase laden
+              </button>
+            ) : null}
           </div>
           {masterDataStatus ? <p>{masterDataStatus}</p> : null}
           <p>Importiert einen versionierten Austauschordner oder direkt eine Austausch-ZIP und stellt ihn als aktuelle Session des zugehoerigen Sachbearbeiters wieder her.</p>

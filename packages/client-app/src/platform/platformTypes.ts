@@ -52,6 +52,7 @@ export interface MasterDataSyncResult {
 export interface MasterDataSyncPort {
   exportCurrent(masterData: MasterData): Promise<{ message: string }>;
   importFromSelection(): Promise<MasterDataSyncResult | null>;
+  importFromSupabase?(): Promise<MasterDataSyncResult | null>;
 }
 
 export interface DataDirectoryStatus {

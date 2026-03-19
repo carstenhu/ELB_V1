@@ -15,8 +15,11 @@ import {
 import { createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
+import type { MasterData } from "@elb/domain/index";
 
 const logger = createLogger("desktop-platform");
+const DEFAULT_SUPABASE_BUCKET = "elb-v1-data";
+const REMOTE_MASTER_DATA_PATH = "Stammdaten/master-data.json";
 
 function toError(error: unknown, fallback: string): Error {
   if (error instanceof Error) {
@@ -37,6 +40,52 @@ function toError(error: unknown, fallback: string): Error {
   }
 
   return new Error(fallback);
+}
+
+function getDesktopSupabaseConfig(): { url: string; key: string; bucket: string } | null {
+  const url = import.meta.env.VITE_SUPABASE_URL?.trim();
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY?.trim()
+    || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
+    || import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+
+  if (!url || !key) {
+    return null;
+  }
+
+  return {
+    url,
+    key,
+    bucket: import.meta.env.VITE_SUPABASE_BUCKET?.trim() || DEFAULT_SUPABASE_BUCKET
+  };
+}
+
+function buildSupabaseObjectUrl(url: string, bucket: string, path: string): string {
+  const encodedPath = path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  return `${url.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
+}
+
+async function loadMasterDataFromSupabase(): Promise<MasterData> {
+  const config = getDesktopSupabaseConfig();
+  if (!config) {
+    throw new Error("Supabase ist in der Desktop-App nicht konfiguriert.");
+  }
+
+  const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, REMOTE_MASTER_DATA_PATH), {
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Supabase-Stammdaten konnten nicht geladen werden (${response.status}).`);
+  }
+
+  return importMasterDataFromJson(await response.text());
 }
 
 export const desktopPlatform: AppPlatform = {
@@ -146,7 +195,11 @@ export const desktopPlatform: AppPlatform = {
         masterData: importMasterDataFromJson(await readTextFile(selectedPath)),
         message: `Stammdaten wurden importiert: ${selectedPath}`
       };
-    }
+    },
+    importFromSupabase: async () => ({
+      masterData: await loadMasterDataFromSupabase(),
+      message: "Stammdaten wurden aus Supabase geladen."
+    })
   },
   dataDirectory: {
     getStatus: async () => ({

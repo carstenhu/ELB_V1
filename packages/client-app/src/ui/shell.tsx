@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { useEffect, useRef, useState } from "react";
 import type { PageId } from "@elb/domain/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { createNewCase, selectClerk } from "../appState";
@@ -47,14 +48,96 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
 export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void }) {
   const state = useAppState();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
-  const brandLabel = activeClerk ? `${APP_NAME} · ${activeClerk.name}` : APP_NAME;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <header className="topbar">
-      <div className="topbar__brand">
-        <strong>{brandLabel}</strong>
-      </div>
       <nav className="topbar__nav">
+        <div className="topbar__menu" ref={menuRef}>
+          <button
+            type="button"
+            className={menuOpen ? "nav-button nav-button--active topbar__menu-trigger" : "nav-button topbar__menu-trigger"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((current) => !current)}
+          >
+            Menue
+          </button>
+          {menuOpen ? (
+            <div className="topbar__menu-panel">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  createNewCase();
+                  props.onPageChange("consignor");
+                  setMenuOpen(false);
+                }}
+              >
+                Neue ELB anlegen
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  props.onOpenClerkSelector();
+                  setMenuOpen(false);
+                }}
+              >
+                Sachbearbeiter wechseln
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  props.onPageChange("loadCenter");
+                  setMenuOpen(false);
+                }}
+              >
+                Entwuerfe und ZIPs laden
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  props.onPageChange("admin");
+                  setMenuOpen(false);
+                }}
+              >
+                Admin
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <div className="topbar__brand">
+          <strong>{APP_NAME}</strong>
+          <span>{activeClerk?.name ?? "Kein Sachbearbeiter"}</span>
+        </div>
         {pages.map((page) => (
           <button
             key={page.id}
@@ -64,28 +147,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
             {page.label}
           </button>
         ))}
-        <details className="topbar__menu">
-          <summary className="nav-button topbar__menu-trigger" aria-label="Menue">
-            <span>Menue</span>
-          </summary>
-          <div className="topbar__menu-panel">
-            <button type="button" className="primary-button" onClick={() => {
-              createNewCase();
-              props.onPageChange("consignor");
-            }}>
-              Neue ELB anlegen
-            </button>
-            <button type="button" className="primary-button" onClick={props.onOpenClerkSelector}>
-              Sachbearbeiter wechseln
-            </button>
-            <button type="button" className="primary-button" onClick={() => props.onPageChange("loadCenter")}>
-              Entwuerfe und ZIPs laden
-            </button>
-            <button type="button" className="primary-button" onClick={() => props.onPageChange("admin")}>
-              Admin
-            </button>
-          </div>
-        </details>
       </nav>
     </header>
   );
