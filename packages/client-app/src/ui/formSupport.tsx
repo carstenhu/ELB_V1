@@ -10,6 +10,21 @@ export const VAT_CATEGORY_OPTIONS = [
   { value: "C", label: "C - Händler Schweiz" }
 ] as const;
 
+export const COUNTRY_OPTIONS = [
+  { value: "", label: "Bitte waehlen" },
+  { value: "Schweiz", label: "Schweiz" },
+  { value: "Deutschland", label: "Deutschland" },
+  { value: "Oesterreich", label: "Oesterreich" },
+  { value: "__separator__", label: "----------------" },
+  { value: "Liechtenstein", label: "Liechtenstein" },
+  { value: "Frankreich", label: "Frankreich" },
+  { value: "Italien", label: "Italien" },
+  { value: "Spanien", label: "Spanien" },
+  { value: "Vereinigtes Koenigreich", label: "Vereinigtes Koenigreich" },
+  { value: "USA", label: "USA" },
+  { value: "Andere", label: "Andere" }
+] as const;
+
 export function normalizeFieldValue(value: string | null | undefined) {
   return typeof value === "string" ? value : "";
 }

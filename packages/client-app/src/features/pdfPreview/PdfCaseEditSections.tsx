@@ -4,7 +4,7 @@ import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
 import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
-import { InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
+import { COUNTRY_OPTIONS, InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
 
 export function PdfMetaEditorSection(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -88,7 +88,21 @@ export function PdfConsignorEditorSection(props: {
           <input value={props.caseFile.consignor.city} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
         </Field>
         <Field label="Land">
-          <input value={props.caseFile.consignor.country} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))} />
+          <select value={props.caseFile.consignor.country} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))}>
+            {COUNTRY_OPTIONS.map((option) => (
+              <option key={option.value || "empty"} value={option.value} disabled={option.value === "__separator__"}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <div className="form-row form-row--double">
+        <Field label="Telefon">
+          <input value={props.caseFile.consignor.phone} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, phone: event.target.value } }))} />
+        </Field>
+        <Field label="E-Mail">
+          <input type="email" value={props.caseFile.consignor.email} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, email: event.target.value } }))} />
         </Field>
       </div>
       <div className="form-row form-row--double">
