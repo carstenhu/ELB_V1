@@ -39,6 +39,31 @@ npm run web:preview
 
 Die SPA-Rewrite-Regel ist bereits in [vercel.json](/abs/path/c:/ELB_V1/vercel.json) hinterlegt.
 
+Alternativ ueber die CLI auf diesem Rechner:
+
+```bash
+npm run vercel:login
+npm run vercel:link
+```
+
+Danach:
+
+```bash
+npm run vercel:deploy
+```
+
+Oder fuer Production:
+
+```bash
+npm run vercel:prod
+```
+
+Unter Windows liegen dafuer auch Batch-Dateien im Repo:
+
+- `ELB-V1-Vercel-Einrichten.bat`
+- `ELB-V1-Vercel-Preview-Deploy.bat`
+- `ELB-V1-Vercel-Production-Deploy.bat`
+
 ## Nach dem ersten Deploy pruefen
 
 - App startet und Routing funktioniert
