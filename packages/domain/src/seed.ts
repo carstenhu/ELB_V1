@@ -37,6 +37,7 @@ export function loadSeedMasterData(): MasterData {
       "consignor.street",
       "consignor.zip",
       "consignor.city",
+      "objects[].auctionId",
       "objects[].departmentId",
       "objects[].shortDescription"
     ],

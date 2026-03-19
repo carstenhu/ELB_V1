@@ -303,6 +303,9 @@ function toExportValidationIssue(entry: MissingRequiredField): ValidationIssue {
   if (entry.key === "objects[].departmentId") {
     return { code: "OBJECT_DEPARTMENT_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.departmentId`, message: `${entry.label} fehlt.` };
   }
+  if (entry.key === "objects[].auctionId") {
+    return { code: "OBJECT_AUCTION_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.auctionId`, message: `${entry.label} fehlt.` };
+  }
   if (entry.key === "objects[].shortDescription") {
     return { code: "OBJECT_SHORT_DESCRIPTION_REQUIRED", scope: "export", severity: "error", path: `objects.${entry.objectIndex}.shortDescription`, message: `${entry.label} fehlt.` };
   }

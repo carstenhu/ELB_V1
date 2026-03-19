@@ -10,8 +10,11 @@ export const requiredFieldKeySchema = z.enum([
   "consignor.city",
   "bank.beneficiaryOverride.reason",
   "bank.beneficiaryOverride.name",
+  "objects[].auctionId",
   "objects[].departmentId",
-  "objects[].shortDescription"
+  "objects[].shortDescription",
+  "objects[].estimate.low",
+  "objects[].estimate.high"
 ]);
 
 export type RequiredFieldKey = z.infer<typeof requiredFieldKeySchema>;
@@ -34,8 +37,11 @@ const requiredFieldMetadata: Record<RequiredFieldKey, { label: string; inputKind
   "consignor.city": { label: "Stadt Einlieferer", inputKind: "text", objectScoped: false },
   "bank.beneficiaryOverride.reason": { label: "Grund abweichender Beguenstigter", inputKind: "text", objectScoped: false },
   "bank.beneficiaryOverride.name": { label: "Name abweichender Beguenstigter", inputKind: "text", objectScoped: false },
+  "objects[].auctionId": { label: "Auktion", inputKind: "select", objectScoped: true },
   "objects[].departmentId": { label: "Abteilung", inputKind: "select", objectScoped: true },
-  "objects[].shortDescription": { label: "Kurzbeschrieb", inputKind: "text", objectScoped: true }
+  "objects[].shortDescription": { label: "Kurzbeschrieb", inputKind: "text", objectScoped: true },
+  "objects[].estimate.low": { label: "Schaetzung von", inputKind: "text", objectScoped: true },
+  "objects[].estimate.high": { label: "Schaetzung bis", inputKind: "text", objectScoped: true }
 };
 
 const objectScopedRequiredFieldKeys = requiredFieldKeySchema.options.filter((key) => requiredFieldMetadata[key].objectScoped);
@@ -101,8 +107,17 @@ function isRequiredFieldMissing(caseFile: CaseFile, key: RequiredFieldKey, objec
   if (key === "objects[].departmentId") {
     return !objectItem.departmentId.trim();
   }
+  if (key === "objects[].auctionId") {
+    return !objectItem.auctionId.trim();
+  }
   if (key === "objects[].shortDescription") {
     return !objectItem.shortDescription.trim();
+  }
+  if (key === "objects[].estimate.low") {
+    return !objectItem.estimate.low.trim();
+  }
+  if (key === "objects[].estimate.high") {
+    return !objectItem.estimate.high.trim();
   }
 
   return false;

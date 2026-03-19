@@ -93,6 +93,23 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
                 );
               }
 
+              if (entry.key === "objects[].auctionId") {
+                return (
+                  <Field key={entry.label} label={entry.label} full>
+                    <select value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)}>
+                      {renderFollowUpOption(currentValue)}
+                      <option value="">Bitte waehlen</option>
+                      {state.masterData.auctions.map((auction) => (
+                        <option key={auction.id} value={auction.id}>
+                          {auction.number} {auction.month}/{auction.year.slice(-2)}
+                        </option>
+                      ))}
+                    </select>
+                    <FollowUpFieldControl value={currentValue} onChange={(nextValue) => updateRequiredFieldValue(entry, nextValue)} />
+                  </Field>
+                );
+              }
+
               return (
                 <Field key={entry.label} label={entry.label} full>
                   <input className={getTextInputClassName(currentValue)} value={currentValue} onChange={(event) => updateRequiredFieldValue(entry, event.target.value)} />
