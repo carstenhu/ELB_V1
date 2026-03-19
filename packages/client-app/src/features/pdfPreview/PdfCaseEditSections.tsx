@@ -4,7 +4,7 @@ import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
 import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
-import { COUNTRY_OPTIONS, InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
+import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
 
 export function PdfMetaEditorSection(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -88,13 +88,7 @@ export function PdfConsignorEditorSection(props: {
           <input value={props.caseFile.consignor.city} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, city: event.target.value } }))} />
         </Field>
         <Field label="Land">
-          <select value={props.caseFile.consignor.country} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: event.target.value } }))}>
-            {COUNTRY_OPTIONS.map((option) => (
-              <option key={option.value || "empty"} value={option.value} disabled={option.value === "__separator__"}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <CountryInput value={props.caseFile.consignor.country} onChange={(value) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, country: value } }))} />
         </Field>
       </div>
       <div className="form-row form-row--double">

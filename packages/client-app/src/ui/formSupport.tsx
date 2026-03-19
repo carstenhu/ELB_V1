@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 export const FOLLOW_UP_VALUE = "Angaben folgen";
 
@@ -10,19 +10,17 @@ export const VAT_CATEGORY_OPTIONS = [
   { value: "C", label: "C - Händler Schweiz" }
 ] as const;
 
-export const COUNTRY_OPTIONS = [
-  { value: "", label: "Bitte waehlen" },
-  { value: "Schweiz", label: "Schweiz" },
-  { value: "Deutschland", label: "Deutschland" },
-  { value: "Oesterreich", label: "Oesterreich" },
-  { value: "__separator__", label: "----------------" },
-  { value: "Liechtenstein", label: "Liechtenstein" },
-  { value: "Frankreich", label: "Frankreich" },
-  { value: "Italien", label: "Italien" },
-  { value: "Spanien", label: "Spanien" },
-  { value: "Vereinigtes Koenigreich", label: "Vereinigtes Koenigreich" },
-  { value: "USA", label: "USA" },
-  { value: "Andere", label: "Andere" }
+export const COUNTRY_SUGGESTIONS = [
+  "Schweiz",
+  "Deutschland",
+  "Oesterreich",
+  "Liechtenstein",
+  "Frankreich",
+  "Italien",
+  "Spanien",
+  "Vereinigtes Koenigreich",
+  "USA",
+  "Andere"
 ] as const;
 
 export function normalizeFieldValue(value: string | null | undefined) {
@@ -191,6 +189,21 @@ export function InlineToggle(props: { label: string; checked: boolean; onChange:
       <input type="checkbox" checked={props.checked} onChange={(event) => props.onChange(event.target.checked)} />
       <span className="inline-toggle__box" aria-hidden="true" />
     </label>
+  );
+}
+
+export function CountryInput(props: { value: string; onChange: (value: string) => void }) {
+  const listId = useId();
+
+  return (
+    <>
+      <input list={listId} value={props.value} onChange={(event) => props.onChange(event.target.value)} />
+      <datalist id={listId}>
+        {COUNTRY_SUGGESTIONS.map((country) => (
+          <option key={country} value={country} />
+        ))}
+      </datalist>
+    </>
   );
 }
 
