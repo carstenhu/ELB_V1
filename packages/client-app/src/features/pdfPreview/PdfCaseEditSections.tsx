@@ -4,7 +4,17 @@ import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
 import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
-import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassName, getTextInputClassName, renderFollowUpOption } from "../../ui/formSupport";
+import {
+  CountryInput,
+  InlineToggle,
+  VAT_CATEGORY_OPTIONS,
+  getEstimateRangeIssue,
+  getFieldInputClassName,
+  getFieldInputStateClassName,
+  getTextInputClassName,
+  normalizeIntNumberFieldValue,
+  renderFollowUpOption
+} from "../../ui/formSupport";
 
 export function PdfMetaEditorSection(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -302,13 +312,14 @@ export function PdfObjectEditorSection(props: {
   const objectAssets = objectItem.photoAssetIds
     .map((assetId) => props.caseFile.assets.find((asset) => asset.id === assetId))
     .filter((asset): asset is Asset => Boolean(asset));
+  const estimateIssue = getEstimateRangeIssue(objectItem.estimate.low, objectItem.estimate.high);
 
   return (
     <Section title={`Objekt ${objectItem.intNumber}`}>
       <div className="inline-actions">
         <button
           type="button"
-          className="primary"
+          className="primary-button"
           onClick={() => {
             const objectId = actions.addObject();
             if (!objectId) {
@@ -325,6 +336,7 @@ export function PdfObjectEditorSection(props: {
         </button>
         <button
           type="button"
+          className="primary-button"
           onClick={() => {
             actions.deleteObject(objectItem.id);
             props.onClose();
@@ -335,7 +347,7 @@ export function PdfObjectEditorSection(props: {
       </div>
       <div className="form-row form-row--triple">
         <Field label="Int.-Nr.">
-          <input className={getFieldInputClassName(objectItem.intNumber)} value={objectItem.intNumber} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, intNumber: event.target.value }))} />
+          <input className={getFieldInputClassName(objectItem.intNumber)} value={objectItem.intNumber} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, intNumber: normalizeIntNumberFieldValue(event.target.value) }))} />
         </Field>
         <Field label="Auktion">
           <select
@@ -370,11 +382,17 @@ export function PdfObjectEditorSection(props: {
         <textarea className={getFieldInputClassName(objectItem.description)} value={objectItem.description} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, description: event.target.value }))} />
       </Field>
       <div className={objectItem.pricingMode === "startPrice" ? "form-row form-row--triple" : "form-row form-row--quad"}>
-        <Field label="Schätzung von">
-          <input className={getFieldInputClassName(objectItem.estimate.low)} value={formatAmountForDisplay(objectItem.estimate.low)} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
+        <Field label="Untere Schaetzung">
+          <>
+            <input className={getFieldInputStateClassName(objectItem.estimate.low, estimateIssue)} title={estimateIssue || undefined} aria-invalid={Boolean(estimateIssue)} value={formatAmountForDisplay(objectItem.estimate.low)} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
+            {estimateIssue ? <p className="field-warning">{estimateIssue}</p> : null}
+          </>
         </Field>
-        <Field label="Schätzung bis">
-          <input className={getFieldInputClassName(objectItem.estimate.high)} value={formatAmountForDisplay(objectItem.estimate.high)} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+        <Field label="Obere Schaetzung">
+          <>
+            <input className={getFieldInputStateClassName(objectItem.estimate.high, estimateIssue)} title={estimateIssue || undefined} aria-invalid={Boolean(estimateIssue)} value={formatAmountForDisplay(objectItem.estimate.high)} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+            {estimateIssue ? <p className="field-warning">{estimateIssue}</p> : null}
+          </>
         </Field>
         <Field label={objectItem.pricingMode === "startPrice" ? "Startpreis" : "Limite"}>
           <input className={getFieldInputClassName(objectItem.priceValue)} value={formatAmountForDisplay(objectItem.priceValue)} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, priceValue: event.target.value }))} />

@@ -1,9 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useState } from "react";
 import type { PageId } from "@elb/domain/index";
 import { APP_NAME } from "@elb/shared/constants";
-import { createNewCase, importExchangeData, loadCaseById, selectClerk } from "../appState";
-import { usePlatform } from "../platform/platformContext";
+import { createNewCase, selectClerk } from "../appState";
 import { useAppState } from "../useAppState";
 
 export const pages: Array<{ id: PageId; label: string }> = [
@@ -14,9 +12,9 @@ export const pages: Array<{ id: PageId; label: string }> = [
   { id: "wordPreview", label: "Schaetzliste" }
 ];
 
-export function SessionOverlay() {
+export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
   const state = useAppState();
-  if (state.activeClerkId) {
+  if (!props.open) {
     return null;
   }
 
@@ -27,7 +25,14 @@ export function SessionOverlay() {
         <h1>{APP_NAME}</h1>
         <div className="clerk-grid">
           {state.masterData.clerks.map((clerk) => (
-            <button key={clerk.id} className="clerk-card" onClick={() => selectClerk(clerk.id)}>
+            <button
+              key={clerk.id}
+              className="clerk-card"
+              onClick={() => {
+                selectClerk(clerk.id);
+                props.onSelect();
+              }}
+            >
               <strong>{clerk.name}</strong>
               <span>{clerk.email}</span>
               <span>{clerk.phone || "Keine Telefonnummer"}</span>
@@ -39,86 +44,9 @@ export function SessionOverlay() {
   );
 }
 
-export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
+export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void }) {
   const state = useAppState();
-  const platform = usePlatform();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
-  const [showStoredZipSelect, setShowStoredZipSelect] = useState(false);
-  const [storedZipOptions, setStoredZipOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [storedZipStatus, setStoredZipStatus] = useState("");
-  const [storedZipBusy, setStoredZipBusy] = useState(false);
-
-  useEffect(() => {
-    if (!showStoredZipSelect || !state.activeClerkId) {
-      return;
-    }
-
-    let active = true;
-    setStoredZipBusy(true);
-    setStoredZipStatus("");
-
-    void platform.exchangeImport
-      .listStoredZipOptions({
-        clerkId: state.activeClerkId,
-        masterData: state.masterData
-      })
-      .then((options) => {
-        if (!active) {
-          return;
-        }
-
-        setStoredZipOptions(options.map((option) => ({ id: option.id, label: option.label })));
-        setStoredZipStatus(options.length ? "" : "Keine bestehenden ZIP-Dateien gefunden.");
-      })
-      .catch((error) => {
-        if (!active) {
-          return;
-        }
-
-        setStoredZipOptions([]);
-        setStoredZipStatus(error instanceof Error ? error.message : "ZIP-Dateien konnten nicht geladen werden.");
-      })
-      .finally(() => {
-        if (active) {
-          setStoredZipBusy(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [platform, showStoredZipSelect, state.activeClerkId, state.masterData]);
-
-  async function handleStoredZipImport(zipId: string) {
-    if (!zipId || !state.activeClerkId) {
-      return;
-    }
-
-    setStoredZipBusy(true);
-    setStoredZipStatus("");
-
-    try {
-      const imported = await platform.exchangeImport.importStoredZip({
-        clerkId: state.activeClerkId,
-        masterData: state.masterData,
-        zipId
-      });
-
-      if (!imported) {
-        setStoredZipStatus("Die ausgewaehlte ZIP konnte nicht geladen werden.");
-        return;
-      }
-
-      importExchangeData(imported);
-      setStoredZipStatus(imported.message);
-      setShowStoredZipSelect(false);
-      props.onPageChange("consignor");
-    } catch (error) {
-      setStoredZipStatus(error instanceof Error ? error.message : "ZIP konnte nicht geladen werden.");
-    } finally {
-      setStoredZipBusy(false);
-    }
-  }
 
   return (
     <header className="topbar">
@@ -136,67 +64,29 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
             {page.label}
           </button>
         ))}
-      </nav>
-      <div className="topbar__actions">
-        <select
-          value=""
-          onChange={(event) => {
-            const value = event.target.value;
-            if (value === "new-case") {
+        <details className="topbar__menu">
+          <summary className="nav-button topbar__menu-trigger" aria-label="Menue">
+            <span>...</span>
+          </summary>
+          <div className="topbar__menu-panel">
+            <button type="button" className="primary-button" onClick={() => {
               createNewCase();
-              setShowStoredZipSelect(false);
-            }
-            if (value.startsWith("case:")) {
-              loadCaseById(value.replace("case:", ""));
-              setShowStoredZipSelect(false);
-            }
-            if (value === "admin") {
-              props.onPageChange("admin");
-              setShowStoredZipSelect(false);
-            }
-            if (value === "load-stored-zip") {
-              setShowStoredZipSelect(true);
-            }
-            event.target.value = "";
-          }}
-        >
-          <option value="">Menue</option>
-          <option value="new-case">Neuer Vorgang</option>
-          <option value="load-stored-zip">Bestehende ZIP laden</option>
-          <option value="admin">Admin</option>
-          {state.drafts.map((draft) => (
-            <option key={draft.meta.id} value={`case:${draft.meta.id}`}>
-              Draft laden: {draft.consignor.lastName || "Unbenannt"} {draft.meta.receiptNumber}
-            </option>
-          ))}
-          {state.finalized.map((caseFile) => (
-            <option key={caseFile.meta.id} value={`case:${caseFile.meta.id}`}>
-              Finalisiert laden: {caseFile.consignor.lastName || "Unbenannt"} {caseFile.meta.receiptNumber}
-            </option>
-          ))}
-        </select>
-        {showStoredZipSelect ? (
-          <div>
-            <select
-              value=""
-              disabled={storedZipBusy}
-              onChange={(event) => {
-                const zipId = event.target.value;
-                event.target.value = "";
-                void handleStoredZipImport(zipId);
-              }}
-            >
-              <option value="">{storedZipBusy ? "ZIPs werden geladen..." : "ZIP waehlen"}</option>
-              {storedZipOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {storedZipStatus ? <small>{storedZipStatus}</small> : null}
+              props.onPageChange("consignor");
+            }}>
+              Neuer Vorgang
+            </button>
+            <button type="button" className="primary-button" onClick={props.onOpenClerkSelector}>
+              Sachbearbeiter waehlen
+            </button>
+            <button type="button" className="primary-button" onClick={() => props.onPageChange("loadCenter")}>
+              Entwuerfe und ZIPs laden
+            </button>
+            <button type="button" className="primary-button" onClick={() => props.onPageChange("admin")}>
+              Admin
+            </button>
           </div>
-        ) : null}
-      </div>
+        </details>
+      </nav>
     </header>
   );
 }

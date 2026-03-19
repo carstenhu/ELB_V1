@@ -1,4 +1,4 @@
-import type { CaseFile } from "@elb/domain/index";
+import { normalizeIntNumberInput, type CaseFile } from "@elb/domain/index";
 import { updateCurrentCase } from "../../appState";
 
 export interface PreviewEditableFieldIssue {
@@ -92,7 +92,7 @@ export function updatePreviewFieldValue(path: string, value: string): void {
             return item;
           }
 
-          if (fieldPath === "intNumber") return { ...item, intNumber: value };
+          if (fieldPath === "intNumber") return { ...item, intNumber: normalizeIntNumberInput(value) };
           if (fieldPath === "auctionId") return { ...item, auctionId: value };
           if (fieldPath === "departmentId") return { ...item, departmentId: value };
           if (fieldPath === "shortDescription") return { ...item, shortDescription: value };

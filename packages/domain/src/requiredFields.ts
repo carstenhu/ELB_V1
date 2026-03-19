@@ -40,8 +40,8 @@ const requiredFieldMetadata: Record<RequiredFieldKey, { label: string; inputKind
   "objects[].auctionId": { label: "Auktion", inputKind: "select", objectScoped: true },
   "objects[].departmentId": { label: "Abteilung", inputKind: "select", objectScoped: true },
   "objects[].shortDescription": { label: "Kurzbeschrieb", inputKind: "text", objectScoped: true },
-  "objects[].estimate.low": { label: "Schaetzung von", inputKind: "text", objectScoped: true },
-  "objects[].estimate.high": { label: "Schaetzung bis", inputKind: "text", objectScoped: true }
+  "objects[].estimate.low": { label: "Untere Schaetzung", inputKind: "text", objectScoped: true },
+  "objects[].estimate.high": { label: "Obere Schaetzung", inputKind: "text", objectScoped: true }
 };
 
 const objectScopedRequiredFieldKeys = requiredFieldKeySchema.options.filter((key) => requiredFieldMetadata[key].objectScoped);

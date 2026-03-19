@@ -71,9 +71,13 @@ function WordTemplatePageView(props: {
                   {item.primaryPhoto ? <img src={item.primaryPhoto.src} alt={item.primaryPhoto.alt} /> : null}
                 </div>
                 <div className="word-template-row__text">
-                  <div className="word-template-row__title">{item.title}</div>
-                  {item.details.map((detail) => (
-                    <div key={detail} className="word-template-row__line">
+                  {item.renderedTitleLines.map((line, index) => (
+                    <div key={`${item.id}-title-${index}`} className="word-template-row__title">
+                      {line}
+                    </div>
+                  ))}
+                  {item.renderedDetailLines.map((detail, index) => (
+                    <div key={`${item.id}-detail-${index}`} className="word-template-row__line">
                       {detail}
                     </div>
                   ))}

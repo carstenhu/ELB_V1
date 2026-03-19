@@ -102,12 +102,18 @@ export function hasAdminAccess(): boolean {
 }
 
 export function selectClerk(clerkId: string): void {
-  updateState((current) => ({
-    ...current,
-    activeClerkId: clerkId
-  }));
+  updateState((current) => {
+    const currentCaseForClerk = current.currentCase?.meta.clerkId === clerkId ? current.currentCase : null;
+    const draftForClerk = current.drafts.find((caseFile) => caseFile.meta.clerkId === clerkId) ?? null;
 
-  if (!getState().currentCase) {
+    return {
+      ...current,
+      activeClerkId: clerkId,
+      currentCase: currentCaseForClerk ?? draftForClerk ?? null
+    };
+  });
+
+  if (!getState().currentCase || getState().currentCase?.meta.clerkId !== clerkId) {
     createNewCase();
   }
 }

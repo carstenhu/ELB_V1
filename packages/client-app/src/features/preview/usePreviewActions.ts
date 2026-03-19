@@ -119,8 +119,8 @@ function formatIssuePath(path: string): string {
     if (fieldPath === "departmentId") return `Objekt ${objectNumber}: Abteilung`;
     if (fieldPath === "shortDescription") return `Objekt ${objectNumber}: Kurzbeschreibung`;
     if (fieldPath === "priceValue") return `Objekt ${objectNumber}: Preis`;
-    if (fieldPath === "estimate.low") return `Objekt ${objectNumber}: Schaetzung von`;
-    if (fieldPath === "estimate.high") return `Objekt ${objectNumber}: Schaetzung bis`;
+    if (fieldPath === "estimate.low") return `Objekt ${objectNumber}: Untere Schaetzung`;
+    if (fieldPath === "estimate.high") return `Objekt ${objectNumber}: Obere Schaetzung`;
 
     return `Objekt ${objectNumber}: ${fieldPath}`;
   }

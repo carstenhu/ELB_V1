@@ -4,7 +4,14 @@ import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorActions";
 import { consumePendingObjectSelectionId } from "../appState";
 import { useAppState } from "../useAppState";
-import { InlineToggle, getFieldInputClassName, renderFollowUpOption } from "./formSupport";
+import {
+  InlineToggle,
+  getEstimateRangeIssue,
+  getFieldInputClassName,
+  getFieldInputStateClassName,
+  normalizeIntNumberFieldValue,
+  renderFollowUpOption
+} from "./formSupport";
 
 export function ObjectsPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
@@ -32,6 +39,7 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
   const selectedObjectAssets = selectedObject
     ? selectedObject.photoAssetIds.map((assetId) => props.caseFile.assets.find((asset) => asset.id === assetId)).filter((asset): asset is Asset => Boolean(asset))
     : [];
+  const estimateIssue = selectedObject ? getEstimateRangeIssue(selectedObject.estimate.low, selectedObject.estimate.high) : "";
 
   return (
     <div className="page-grid">
@@ -57,7 +65,7 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                 {index + 1}/{props.caseFile.objects.length} - {item.intNumber} - {item.shortDescription || "Ohne Kurzbeschrieb"}
               </option>
             ))}
-            <option value="new-object">+ Objekt hinzufügen</option>
+            <option value="new-object">+ Objekt hinzufuegen</option>
           </select>
         </div>
         {!selectedObject ? <p>Noch keine Objekte erfasst.</p> : null}
@@ -69,7 +77,16 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
             <>
               <div className="form-row form-row--triple">
                 <Field label="Int.-Nr.">
-                  <input className={getFieldInputClassName(selectedObject.intNumber)} value={selectedObject.intNumber} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, intNumber: event.target.value }))} />
+                  <input
+                    className={getFieldInputClassName(selectedObject.intNumber)}
+                    value={selectedObject.intNumber}
+                    onChange={(event) =>
+                      actions.updateObject(selectedObject.id, (current) => ({
+                        ...current,
+                        intNumber: normalizeIntNumberFieldValue(event.target.value)
+                      }))
+                    }
+                  />
                 </Field>
                 <Field label="Auktion">
                   <select
@@ -87,7 +104,11 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                   </select>
                 </Field>
                 <Field label="Abteilung">
-                  <select className={getFieldInputClassName(selectedObject.departmentId)} value={selectedObject.departmentId} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value }))}>
+                  <select
+                    className={getFieldInputClassName(selectedObject.departmentId)}
+                    value={selectedObject.departmentId}
+                    onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, departmentId: event.target.value }))}
+                  >
                     {renderFollowUpOption(selectedObject.departmentId)}
                     {state.masterData.departments.map((department) => (
                       <option key={department.id} value={department.id}>
@@ -98,33 +119,85 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                 </Field>
               </div>
               <Field label="Kurzbeschrieb" full>
-                <input className={getFieldInputClassName(selectedObject.shortDescription)} value={selectedObject.shortDescription} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value }))} />
+                <input
+                  className={getFieldInputClassName(selectedObject.shortDescription)}
+                  value={selectedObject.shortDescription}
+                  onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value }))}
+                />
               </Field>
               <Field label="Beschreibung" full>
-                <textarea className={getFieldInputClassName(selectedObject.description)} value={selectedObject.description} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))} />
+                <textarea
+                  className={getFieldInputClassName(selectedObject.description)}
+                  value={selectedObject.description}
+                  onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, description: event.target.value }))}
+                />
               </Field>
               <div className={ibid ? "form-row form-row--triple" : "form-row form-row--quad"}>
-                <Field label="Schätzung von">
-                  <input className={getFieldInputClassName(selectedObject.estimate.low)} value={formatAmountForDisplay(selectedObject.estimate.low)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, low: event.target.value } }))} />
+                <Field label="Untere Schaetzung">
+                  <>
+                    <input
+                      className={getFieldInputStateClassName(selectedObject.estimate.low, estimateIssue)}
+                      title={estimateIssue || undefined}
+                      aria-invalid={Boolean(estimateIssue)}
+                      value={formatAmountForDisplay(selectedObject.estimate.low)}
+                      onChange={(event) =>
+                        actions.updateObject(selectedObject.id, (current) => ({
+                          ...current,
+                          estimate: { ...current.estimate, low: event.target.value }
+                        }))
+                      }
+                    />
+                    {estimateIssue ? <p className="field-warning">{estimateIssue}</p> : null}
+                  </>
                 </Field>
-                <Field label="Schätzung bis">
-                  <input className={getFieldInputClassName(selectedObject.estimate.high)} value={formatAmountForDisplay(selectedObject.estimate.high)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, estimate: { ...current.estimate, high: event.target.value } }))} />
+                <Field label="Obere Schaetzung">
+                  <>
+                    <input
+                      className={getFieldInputStateClassName(selectedObject.estimate.high, estimateIssue)}
+                      title={estimateIssue || undefined}
+                      aria-invalid={Boolean(estimateIssue)}
+                      value={formatAmountForDisplay(selectedObject.estimate.high)}
+                      onChange={(event) =>
+                        actions.updateObject(selectedObject.id, (current) => ({
+                          ...current,
+                          estimate: { ...current.estimate, high: event.target.value }
+                        }))
+                      }
+                    />
+                    {estimateIssue ? <p className="field-warning">{estimateIssue}</p> : null}
+                  </>
                 </Field>
                 <Field label={ibid ? "Startpreis" : "Limite"}>
-                  <input className={getFieldInputClassName(selectedObject.priceValue)} value={formatAmountForDisplay(selectedObject.priceValue)} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))} />
+                  <input
+                    className={getFieldInputClassName(selectedObject.priceValue)}
+                    value={formatAmountForDisplay(selectedObject.priceValue)}
+                    onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, priceValue: event.target.value }))}
+                  />
                 </Field>
                 {!ibid ? (
                   <div className="field">
-                    <InlineToggle label="Nettolimite" checked={selectedObject.pricingMode === "netLimit"} onChange={(checked) => actions.updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: checked ? "netLimit" : "limit" }))} />
+                    <InlineToggle
+                      label="Nettolimite"
+                      checked={selectedObject.pricingMode === "netLimit"}
+                      onChange={(checked) => actions.updateObject(selectedObject.id, (current) => ({ ...current, pricingMode: checked ? "netLimit" : "limit" }))}
+                    />
                   </div>
                 ) : null}
               </div>
               <div className="form-row form-row--double">
                 <Field label="Referenznr.">
-                  <input className={getFieldInputClassName(selectedObject.referenceNumber)} value={selectedObject.referenceNumber} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))} />
+                  <input
+                    className={getFieldInputClassName(selectedObject.referenceNumber)}
+                    value={selectedObject.referenceNumber}
+                    onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, referenceNumber: event.target.value }))}
+                  />
                 </Field>
                 <Field label="Bemerkungen">
-                  <input className={getFieldInputClassName(selectedObject.remarks)} value={selectedObject.remarks} onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))} />
+                  <input
+                    className={getFieldInputClassName(selectedObject.remarks)}
+                    value={selectedObject.remarks}
+                    onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, remarks: event.target.value }))}
+                  />
                 </Field>
               </div>
               <Field label="Objektfotos" full>
@@ -158,17 +231,28 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                 </div>
               </Field>
               <div className="inline-actions object-actions object-actions--bottom">
-                <button className="primary" onClick={() => { const objectId = actions.addObject(); if (objectId) setSelectedObjectId(objectId); }}>
-                  Objekt hinzufügen
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    const objectId = actions.addObject();
+                    if (objectId) {
+                      setSelectedObjectId(objectId);
+                    }
+                  }}
+                >
+                  Objekt hinzufuegen
                 </button>
-                <button onClick={() => actions.deleteObject(selectedObject.id)}>Objekt löschen</button>
+                <button type="button" className="primary-button" onClick={() => actions.deleteObject(selectedObject.id)}>
+                  Objekt loeschen
+                </button>
               </div>
             </>
           );
         })() : null}
       </Section>
 
-      <Section title="Konditionen für alle Objekte">
+      <Section title="Konditionen fuer alle Objekte">
         <div className="form-row form-row--six">
           <Field label="Kommission">
             <input className={getFieldInputClassName(props.caseFile.costs.commission.amount)} value={props.caseFile.costs.commission.amount} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, commission: { ...current.costs.commission, amount: event.target.value } } }))} />

@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { normalizeIntNumberInput, parseAmountNumber } from "@elb/domain/index";
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 export const FOLLOW_UP_VALUE = "Angaben folgen";
@@ -37,6 +38,26 @@ export function getFieldInputClassName(value: string | null | undefined) {
 
 export function getTextInputClassName(value: string | null | undefined) {
   return getFieldInputClassName(value);
+}
+
+export function getFieldInputStateClassName(value: string | null | undefined, issue: string | null | undefined) {
+  const baseClassName = getFieldInputClassName(value);
+  return issue ? `${baseClassName} field-input--error` : baseClassName;
+}
+
+export function normalizeIntNumberFieldValue(value: string) {
+  return normalizeIntNumberInput(value);
+}
+
+export function getEstimateRangeIssue(low: string, high: string): string {
+  const lowValue = parseAmountNumber(low);
+  const highValue = parseAmountNumber(high);
+
+  if (lowValue === null || highValue === null || highValue >= lowValue) {
+    return "";
+  }
+
+  return "Obere Schaetzung muss gleich gross oder groesser als die untere Schaetzung sein.";
 }
 
 export function renderFollowUpOption(value: string | null | undefined) {

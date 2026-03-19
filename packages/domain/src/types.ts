@@ -16,6 +16,7 @@ export const pageIdSchema = z.enum([
   "objects",
   "internal",
   "admin",
+  "loadCenter",
   "pdfPreview",
   "wordPreview",
 ]);

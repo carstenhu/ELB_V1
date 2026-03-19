@@ -11,6 +11,7 @@ export function App() {
   const state = useAppState();
   const [page, setPage] = useState<PageId>("consignor");
   const [exportStatus, setExportStatus] = useState("");
+  const [clerkSelectorOpen, setClerkSelectorOpen] = useState(true);
 
   if (!hydrated) {
     return (
@@ -25,9 +26,9 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <SessionOverlay />
-      <TopBar page={page} onPageChange={setPage} />
-      <WorkspacePageContent page={page} caseFile={state.currentCase} exportStatus={exportStatus} onExportStatusChange={setExportStatus} />
+      <SessionOverlay open={clerkSelectorOpen} onSelect={() => setClerkSelectorOpen(false)} />
+      <TopBar page={page} onPageChange={setPage} onOpenClerkSelector={() => setClerkSelectorOpen(true)} />
+      <WorkspacePageContent page={page} caseFile={state.currentCase} exportStatus={exportStatus} onExportStatusChange={setExportStatus} onPageChange={setPage} />
     </div>
   );
 }

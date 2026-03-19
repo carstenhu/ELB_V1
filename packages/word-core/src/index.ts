@@ -46,9 +46,11 @@ const PAGE_HEIGHT_UNITS = 980;
 const FIRST_PAGE_HEADER_UNITS = 250;
 const FOLLOW_PAGE_HEADER_UNITS = 96;
 const FOOTER_RESERVE_UNITS = 116;
-const BASE_ROW_UNITS = 88;
-const DETAIL_LINE_UNITS = 18;
-const PHOTO_ROW_UNITS = 118;
+const TEXT_LINE_UNITS = 18;
+const ROW_VERTICAL_PADDING_UNITS = 20;
+const ROW_BORDER_UNITS = 8;
+const MIN_ROW_UNITS = 72;
+const PHOTO_ROW_UNITS = 132;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -150,9 +152,11 @@ function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPrev
 
   const renderedTitleLines = wrapPreviewText(item.shortDescription || item.description || "Ohne Kurzbeschrieb", 52);
   const renderedDetailLines = details.flatMap((detail) => wrapPreviewText(detail, 52));
-  const detailLines = Math.max(renderedTitleLines.length + renderedDetailLines.length, 1);
-  const photoRows = photos[0] ? 1 : 0;
-  const heightUnits = BASE_ROW_UNITS + detailLines * DETAIL_LINE_UNITS + photoRows * PHOTO_ROW_UNITS;
+  const priceLines = item.priceValue.trim() ? 1 : 0;
+  const totalRenderedLines = Math.max(renderedTitleLines.length + renderedDetailLines.length + 1 + priceLines, 1);
+  const textHeightUnits = ROW_VERTICAL_PADDING_UNITS * 2 + totalRenderedLines * TEXT_LINE_UNITS + ROW_BORDER_UNITS;
+  const photoHeightUnits = photos[0] ? PHOTO_ROW_UNITS : 0;
+  const heightUnits = Math.max(textHeightUnits, photoHeightUnits, MIN_ROW_UNITS);
 
   return {
     id: item.id,

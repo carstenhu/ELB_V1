@@ -8,6 +8,25 @@ export function formatIntNumber(index: number): string {
   return String(index).padStart(4, "0");
 }
 
+export function normalizeIntNumberInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+  if (!digits) {
+    return "";
+  }
+
+  return digits.padStart(4, "0");
+}
+
+export function parseAmountNumber(raw: string): number | null {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(digits, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function formatAmountForDisplay(raw: string): string {
   const digits = raw.replace(/[^\d]/g, "");
   if (!digits) {

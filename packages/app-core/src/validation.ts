@@ -4,6 +4,7 @@ import {
   collectMissingRequiredFields,
   deriveBeneficiary,
   deriveOwner,
+  parseAmountNumber,
   type CaseFile,
   type MasterData,
   type MissingRequiredField,
@@ -232,6 +233,19 @@ function validateObject(objectItem: ObjectItem, index: number): ValidationIssue[
       severity: "error",
       path: `objects.${index}.departmentId`,
       message: `Objekt ${index + 1} benoetigt eine Abteilung.`
+    });
+  }
+
+  const lowEstimate = parseAmountNumber(objectItem.estimate.low);
+  const highEstimate = parseAmountNumber(objectItem.estimate.high);
+
+  if (lowEstimate !== null && highEstimate !== null && highEstimate < lowEstimate) {
+    issues.push({
+      code: "OBJECT_ESTIMATE_RANGE_INVALID",
+      scope: "domain",
+      severity: "error",
+      path: `objects.${index}.estimate.high`,
+      message: "Obere Schaetzung muss gleich gross oder groesser als die untere Schaetzung sein."
     });
   }
 
