@@ -4,6 +4,7 @@ import type { AppStorageSnapshot } from "./storage";
 
 interface FileSystemModule {
   BaseDirectory: {
+    Download?: number | string;
     AppLocalData: number | string;
   };
   exists(path: string, options?: { baseDir?: number | string }): Promise<boolean>;
@@ -29,7 +30,7 @@ interface ExchangeIndexStorage {
   nextVersion: number;
 }
 
-const ROOT_DIR = "Daten";
+const ROOT_DIR = "ELB_V1_Daten";
 const WORKSPACE_META_FILE = `${ROOT_DIR}/workspace.json`;
 const MASTER_DATA_FILE = `${ROOT_DIR}/Stammdaten/master-data.json`;
 const AUDIT_FILE = `${ROOT_DIR}/Audit/audit-log.json`;
@@ -125,6 +126,10 @@ async function loadTauriFs(): Promise<FileSystemModule | null> {
   }
 }
 
+function getDesktopBaseDir(fsModule: FileSystemModule): number | string {
+  return fsModule.BaseDirectory.Download ?? fsModule.BaseDirectory.AppLocalData;
+}
+
 function openIndexedDb(): Promise<IDBDatabase | null> {
   if (!("indexedDB" in globalThis)) {
     return Promise.resolve(null);
@@ -179,7 +184,7 @@ async function indexedDbRead(path: string): Promise<string | null> {
 async function ensureDir(fsModule: FileSystemModule | null, path: string): Promise<void> {
   if (fsModule) {
     await fsModule.mkdir(path, {
-      baseDir: fsModule.BaseDirectory.AppLocalData,
+      baseDir: getDesktopBaseDir(fsModule),
       recursive: true
     });
     return;
@@ -204,7 +209,7 @@ async function ensureParentDir(fsModule: FileSystemModule | null, path: string):
 async function writeTextData(fsModule: FileSystemModule | null, path: string, data: string): Promise<void> {
   if (fsModule) {
     await fsModule.writeTextFile(path, data, {
-      baseDir: fsModule.BaseDirectory.AppLocalData
+      baseDir: getDesktopBaseDir(fsModule)
     });
     return;
   }
@@ -227,7 +232,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 async function writeBinaryData(fsModule: FileSystemModule | null, path: string, data: Uint8Array): Promise<void> {
   if (fsModule?.writeFile) {
     await fsModule.writeFile(path, data, {
-      baseDir: fsModule.BaseDirectory.AppLocalData
+      baseDir: getDesktopBaseDir(fsModule)
     });
     return;
   }
@@ -238,14 +243,14 @@ async function writeBinaryData(fsModule: FileSystemModule | null, path: string, 
 async function readTextData(fsModule: FileSystemModule | null, path: string): Promise<string | null> {
   if (fsModule) {
     const exists = await fsModule.exists(path, {
-      baseDir: fsModule.BaseDirectory.AppLocalData
+      baseDir: getDesktopBaseDir(fsModule)
     });
     if (!exists) {
       return null;
     }
 
     return fsModule.readTextFile(path, {
-      baseDir: fsModule.BaseDirectory.AppLocalData
+      baseDir: getDesktopBaseDir(fsModule)
     });
   }
 
@@ -546,12 +551,13 @@ export async function persistExportArtifactsToDisk(args: {
   artifacts: Array<{ fileName: string; content: string | ArrayBuffer | Blob | Uint8Array }>;
   zipFileName: string;
   zipContent: Blob | ArrayBuffer | Uint8Array;
-}): Promise<string> {
+}): Promise<{ exchangeFolder: string; exchangeZipPath: string }> {
   const fsModule = await loadTauriFs();
   const clerkId = args.caseFile.meta.clerkId;
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, clerkId);
   const version = await getNextExchangeVersion(fsModule, clerkId);
   const exchangeFolder = `${getExchangeRoot(clerkFolderSegment)}/${getExchangeFolderName(args.caseFile, version)}`;
+  const exchangeZipPath = `${getExchangeRoot(clerkFolderSegment)}/${getExchangeFolderName(args.caseFile, version)}.zip`;
 
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, CLERKS_ROOT);
@@ -570,7 +576,12 @@ export async function persistExportArtifactsToDisk(args: {
     }
   }
 
-  return exchangeFolder;
+  await writeBinaryData(fsModule, exchangeZipPath, await toBytes(args.zipContent));
+
+  return {
+    exchangeFolder,
+    exchangeZipPath
+  };
 }
 
 export async function persistGeneratedPdfToDisk(args: {

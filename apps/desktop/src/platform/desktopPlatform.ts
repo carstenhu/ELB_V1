@@ -136,11 +136,11 @@ export const desktopPlatform: AppPlatform = {
   exportArtifacts: {
     persist: async (args) => {
       try {
-        const exportFolder = await persistExportArtifactsToDisk(args);
-        return { message: `Austauschordner wurde lokal gespeichert: ${exportFolder}` };
+        const { exchangeFolder, exchangeZipPath } = await persistExportArtifactsToDisk(args);
+        return { message: `Austauschordner wurde lokal gespeichert: ${exchangeFolder}. ZIP wurde erzeugt: ${exchangeZipPath}` };
       } catch (error) {
         logger.error("Desktop-Exportartefakte konnten nicht gespeichert werden.", error);
-        throw toError(error, "Austauschordner konnte in der Desktop-App nicht gespeichert werden.");
+        throw toError(error, "Austauschordner und ZIP konnten in der Desktop-App nicht gespeichert werden.");
       }
     }
   },

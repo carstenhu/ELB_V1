@@ -4,12 +4,14 @@ use std::fs;
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 
+const DATA_DIR_NAME: &str = "ELB_V1_Daten";
+
 fn resolve_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let base_dir = app
         .path()
-        .app_local_data_dir()
-        .map_err(|error| format!("App-Datenpfad konnte nicht ermittelt werden: {error}"))?;
-    Ok(base_dir.join("Daten"))
+        .download_dir()
+        .map_err(|error| format!("Download-Datenpfad konnte nicht ermittelt werden: {error}"))?;
+    Ok(base_dir.join(DATA_DIR_NAME))
 }
 
 #[tauri::command]
@@ -21,11 +23,7 @@ fn get_data_directory_path(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 fn open_app_local_data_path(app: AppHandle, relative_path: String) -> Result<String, String> {
-    let target_path = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|error| format!("App-Datenpfad konnte nicht ermittelt werden: {error}"))?
-        .join(&relative_path);
+    let target_path = resolve_data_dir(&app)?.join(&relative_path);
 
     if !target_path.exists() {
         return Err(format!(

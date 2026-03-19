@@ -6,7 +6,7 @@
   "permissions": [
     "core:default",
     "fs:default",
-    "fs:allow-applocaldata-read-recursive",
-    "fs:allow-applocaldata-write-recursive"
+    "fs:allow-download-read-recursive",
+    "fs:allow-download-write-recursive"
   ]
 }
