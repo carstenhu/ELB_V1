@@ -1,5 +1,5 @@
 import type { AuditSink, WorkspaceRepository } from "@elb/app-core/index";
-import type { Asset, CaseFile, ReceiptNumberScope } from "@elb/domain/index";
+import type { Asset, CaseFile, MasterData, ReceiptNumberScope } from "@elb/domain/index";
 
 export interface CaseAssetPort {
   persistAsset(caseFile: CaseFile, asset: Asset): Promise<Asset>;
@@ -24,6 +24,27 @@ export interface PdfPreviewPort {
   }): Promise<{ message: string }>;
 }
 
+export interface ExchangeImportResult {
+  caseFile: CaseFile;
+  masterData: MasterData;
+  warnings: string[];
+  message: string;
+}
+
+export interface ExchangeImportPort {
+  importFromSelection(): Promise<ExchangeImportResult | null>;
+}
+
+export interface MasterDataSyncResult {
+  masterData: MasterData;
+  message: string;
+}
+
+export interface MasterDataSyncPort {
+  exportCurrent(masterData: MasterData): Promise<{ message: string }>;
+  importFromSelection(): Promise<MasterDataSyncResult | null>;
+}
+
 export interface AppShellPort {
   openDataDirectory(): Promise<string>;
 }
@@ -35,5 +56,7 @@ export interface AppPlatform {
   caseAssets: CaseAssetPort;
   exportArtifacts: ExportArtifactPort;
   pdfPreview: PdfPreviewPort;
+  exchangeImport: ExchangeImportPort;
+  masterDataSync: MasterDataSyncPort;
   shell: AppShellPort;
 }

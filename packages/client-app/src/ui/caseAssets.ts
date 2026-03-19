@@ -39,7 +39,7 @@ export async function createOptimizedImageAsset(file: File): Promise<Asset> {
   return {
     id: crypto.randomUUID(),
     fileName: file.name,
-    originalPath: originalDataUrl,
+    originalPath: optimizedDataUrl,
     optimizedPath: optimizedDataUrl,
     width: targetWidth,
     height: targetHeight

@@ -13,6 +13,7 @@ import {
 } from "@elb/app-core/index";
 import type { CaseFile, MasterData, ReceiptNumberScope } from "@elb/domain/index";
 import { createLogger } from "@elb/shared/logger";
+import type { ExchangeImportResult } from "../platform/platformTypes";
 import {
   consumePendingObjectSelectionId,
   createWorkspaceSnapshot,
@@ -31,6 +32,16 @@ const logger = createLogger("workspace-actions");
 export { consumePendingObjectSelectionId, createWorkspaceSnapshot as createSnapshot, getState, replaceWorkspaceSnapshot as replaceState, subscribe };
 
 let receiptNumberScope: ReceiptNumberScope = "desktop";
+
+function dedupeCases(caseFiles: readonly CaseFile[]): CaseFile[] {
+  const byId = new Map<string, CaseFile>();
+
+  caseFiles.forEach((caseFile) => {
+    byId.set(caseFile.meta.id, caseFile);
+  });
+
+  return [...byId.values()];
+}
 
 function applyReceiptNumberConsumption(current: ReturnType<typeof getState>, caseFile: CaseFile | null) {
   if (!caseFile?.meta.clerkId.trim() || !caseFile.meta.receiptNumber.trim()) {
@@ -228,6 +239,75 @@ export function loadCaseById(id: string): void {
     entityId: found.meta.id,
     summary: `Vorgang ${found.meta.receiptNumber} wurde geladen.`
   }));
+}
+
+export function importExchangeData(result: ExchangeImportResult): void {
+  updateState((current) => {
+    const preservedCurrentDraft =
+      current.currentCase && current.currentCase.meta.clerkId !== result.caseFile.meta.clerkId && current.currentCase.meta.id !== result.caseFile.meta.id
+        ? [current.currentCase]
+        : [];
+
+    const remainingDrafts = current.drafts.filter(
+      (caseFile) => caseFile.meta.clerkId !== result.caseFile.meta.clerkId && caseFile.meta.id !== result.caseFile.meta.id
+    );
+    const remainingFinalized = current.finalized.filter(
+      (caseFile) => caseFile.meta.clerkId !== result.caseFile.meta.clerkId && caseFile.meta.id !== result.caseFile.meta.id
+    );
+
+    return {
+      ...current,
+      masterData: result.masterData,
+      activeClerkId: result.caseFile.meta.clerkId,
+      currentCase: result.caseFile,
+      drafts: dedupeCases([...preservedCurrentDraft, ...remainingDrafts]),
+      finalized: dedupeCases(remainingFinalized)
+    };
+  });
+
+  appendAudit(
+    createAuditEntry({
+      actorId: result.caseFile.meta.clerkId,
+      action: "exchange.imported",
+      entityType: "import",
+      entityId: result.caseFile.meta.id,
+      summary: `Austauschdaten fuer Vorgang ${result.caseFile.meta.receiptNumber} wurden importiert.`,
+      metadata: {
+        clerkId: result.caseFile.meta.clerkId,
+        receiptNumber: result.caseFile.meta.receiptNumber,
+        warningCount: String(result.warnings.length)
+      }
+    })
+  );
+}
+
+export function importMasterDataSnapshot(masterData: MasterData): void {
+  updateState((current) => {
+    const hasActiveClerk = current.activeClerkId
+      ? masterData.clerks.some((clerk) => clerk.id === current.activeClerkId)
+      : true;
+
+    return {
+      ...current,
+      masterData,
+      activeClerkId: hasActiveClerk ? current.activeClerkId : null
+    };
+  });
+
+  appendAudit(
+    createAuditEntry({
+      actorId: getState().activeClerkId,
+      action: "master-data.imported",
+      entityType: "import",
+      entityId: "master-data",
+      summary: "Stammdaten wurden importiert.",
+      metadata: {
+        clerkCount: String(masterData.clerks.length),
+        auctionCount: String(masterData.auctions.length),
+        departmentCount: String(masterData.departments.length)
+      }
+    })
+  );
 }
 
 export function addObject(): string | null {

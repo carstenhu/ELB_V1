@@ -10,6 +10,8 @@ export {
   finalizeCurrentCase,
   getState,
   hasAdminAccess,
+  importExchangeData,
+  importMasterDataSnapshot,
   loadCaseById,
   lockAdmin,
   replaceState,

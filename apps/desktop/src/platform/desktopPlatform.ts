@@ -1,5 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readDir, readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { createAuditRepository } from "@elb/persistence/auditRepository";
+import { importExchangeFromEntries, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
+import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import {
   persistCaseAssetImmediately,
   persistExportArtifactsToDisk,
@@ -55,14 +59,70 @@ export const desktopPlatform: AppPlatform = {
       }
     }
   },
+  exchangeImport: {
+    importFromSelection: async () => {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: "Austauschordner auswaehlen"
+      });
+
+      const selectedPath = Array.isArray(selected) ? selected[0] : selected;
+      if (!selectedPath) {
+        return null;
+      }
+
+      const entries = await collectExchangeEntries(selectedPath, selectedPath);
+      const imported = await importExchangeFromEntries(entries);
+
+      return {
+        ...imported,
+        message: `Austauschordner wurde importiert: ${selectedPath}`
+      };
+    }
+  },
+  masterDataSync: {
+    exportCurrent: async (masterData) => {
+      const targetPath = await save({
+        defaultPath: "master-data.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        title: "Stammdaten speichern"
+      });
+
+      if (!targetPath) {
+        return { message: "Export der Stammdaten wurde abgebrochen." };
+      }
+
+      await writeTextFile(targetPath, serializeMasterData(masterData));
+      return { message: `Stammdaten wurden gespeichert: ${targetPath}` };
+    },
+    importFromSelection: async () => {
+      const selected = await open({
+        directory: false,
+        multiple: false,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        title: "Stammdaten-Datei auswaehlen"
+      });
+
+      const selectedPath = Array.isArray(selected) ? selected[0] : selected;
+      if (!selectedPath) {
+        return null;
+      }
+
+      return {
+        masterData: importMasterDataFromJson(await readTextFile(selectedPath)),
+        message: `Stammdaten wurden importiert: ${selectedPath}`
+      };
+    }
+  },
   exportArtifacts: {
     persist: async (args) => {
       try {
         const exportFolder = await persistExportArtifactsToDisk(args);
-        return { message: `ZIP wurde lokal gespeichert: ${exportFolder}` };
+        return { message: `Austauschordner wurde lokal gespeichert: ${exportFolder}` };
       } catch (error) {
         logger.error("Desktop-Exportartefakte konnten nicht gespeichert werden.", error);
-        throw toError(error, "ZIP konnte in der Desktop-App nicht gespeichert werden.");
+        throw toError(error, "Austauschordner konnte in der Desktop-App nicht gespeichert werden.");
       }
     }
   },
@@ -70,3 +130,52 @@ export const desktopPlatform: AppPlatform = {
     openDataDirectory: () => invoke<string>("open_data_directory")
   }
 };
+
+function normalizePathSegment(value: string): string {
+  return value.replaceAll("\\", "/");
+}
+
+function getRelativeEntryPath(rootPath: string, entryPath: string): string {
+  const normalizedRoot = normalizePathSegment(rootPath).replace(/\/+$/, "");
+  const normalizedEntry = normalizePathSegment(entryPath);
+  return normalizedEntry.startsWith(`${normalizedRoot}/`) ? normalizedEntry.slice(normalizedRoot.length + 1) : normalizedEntry;
+}
+
+function isTextExchangeFile(path: string): boolean {
+  return path.toLowerCase().endsWith(".json");
+}
+
+async function collectExchangeEntries(currentDirectory: string, rootDirectory: string): Promise<ExchangeImportEntry[]> {
+  const directoryEntries = await readDir(currentDirectory);
+  const collected: ExchangeImportEntry[] = [];
+
+  for (const entry of directoryEntries) {
+    const entryPath = `${currentDirectory}/${entry.name}`;
+
+    if (entry.isDirectory) {
+      collected.push(...await collectExchangeEntries(entryPath, rootDirectory));
+      continue;
+    }
+
+    if (!entry.isFile) {
+      continue;
+    }
+
+    const relativePath = getRelativeEntryPath(rootDirectory, entryPath);
+
+    if (isTextExchangeFile(relativePath)) {
+      collected.push({
+        path: relativePath,
+        content: await readTextFile(entryPath)
+      });
+      continue;
+    }
+
+    collected.push({
+      path: relativePath,
+      content: await readFile(entryPath)
+    });
+  }
+
+  return collected;
+}

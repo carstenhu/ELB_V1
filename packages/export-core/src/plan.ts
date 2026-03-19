@@ -20,14 +20,14 @@ export function createExportPlan(caseFile: CaseFile): ExportPlan {
     folderName,
     zipFileName,
     artifacts: [
-      { fileName: "payload.json", type: "json", required: true },
-      { fileName: "metadata.json", type: "json", required: true },
+      { fileName: "case.json", type: "json", required: true },
+      { fileName: "master-data.json", type: "json", required: true },
+      { fileName: "manifest.json", type: "json", required: true },
       { fileName: "elb.pdf", type: "pdf", required: true },
       { fileName: "zusatz.pdf", type: "pdf", required: true },
       { fileName: "schaetzliste.docx", type: "docx", required: true },
       { fileName: "schaetzliste.pdf", type: "pdf", required: true },
-      { fileName: "bilder/manifest.json", type: "image", required: true },
-      { fileName: zipFileName, type: "zip", required: true }
+      { fileName: "bilder/manifest.json", type: "image", required: true }
     ]
   };
 }

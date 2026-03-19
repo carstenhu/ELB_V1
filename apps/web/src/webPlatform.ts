@@ -1,5 +1,7 @@
 import { createAuditRepository } from "@elb/persistence/auditRepository";
-import { persistCaseAssetImmediately } from "@elb/persistence/filesystem";
+import { importExchangeFromEntries, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
+import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
+import { persistCaseAssetImmediately, persistExportArtifactsToDisk, persistGeneratedPdfToDisk } from "@elb/persistence/filesystem";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
 
@@ -70,6 +72,108 @@ function completePendingDownload(targetWindow: Window | null, fileName: string, 
   }
 }
 
+function normalizeWebPath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\/+/, "");
+}
+
+async function collectBrowserDirectoryEntries(): Promise<ExchangeImportEntry[] | null> {
+  const picker = Reflect.get(globalThis, "showDirectoryPicker") as (() => Promise<unknown>) | undefined;
+  if (typeof picker === "function") {
+    const rootHandle = await picker();
+    return collectEntriesFromHandle(rootHandle, "");
+  }
+
+  return new Promise<ExchangeImportEntry[] | null>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    (input as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory = true;
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+
+    input.addEventListener("change", async () => {
+      const files = Array.from(input.files ?? []);
+      input.remove();
+
+      if (!files.length) {
+        resolve(null);
+        return;
+      }
+
+      const entries = await Promise.all(
+        files.map(async (file) => ({
+          path: normalizeWebPath(file.webkitRelativePath || file.name),
+          content: file.name.toLowerCase().endsWith(".json")
+            ? await file.text()
+            : new Uint8Array(await file.arrayBuffer())
+        }))
+      );
+
+      resolve(entries);
+    }, { once: true });
+
+    document.body.append(input);
+    input.click();
+  });
+}
+
+async function selectBrowserFile(accept: string): Promise<File | null> {
+  return new Promise<File | null>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+
+    input.addEventListener("change", () => {
+      const file = input.files?.[0] ?? null;
+      input.remove();
+      resolve(file);
+    }, { once: true });
+
+    document.body.append(input);
+    input.click();
+  });
+}
+
+async function collectEntriesFromHandle(handle: unknown, prefix: string): Promise<ExchangeImportEntry[]> {
+  const directoryHandle = handle as {
+    values: () => AsyncIterable<unknown>;
+    kind?: string;
+    name?: string;
+  };
+  const entries: ExchangeImportEntry[] = [];
+
+  for await (const childHandle of directoryHandle.values()) {
+    const nextHandle = childHandle as {
+      kind: "file" | "directory";
+      name: string;
+      getFile?: () => Promise<File>;
+      values?: () => AsyncIterable<unknown>;
+    };
+    const relativePath = normalizeWebPath(prefix ? `${prefix}/${nextHandle.name}` : nextHandle.name);
+
+    if (nextHandle.kind === "directory" && typeof nextHandle.values === "function") {
+      entries.push(...await collectEntriesFromHandle(nextHandle, relativePath));
+      continue;
+    }
+
+    if (nextHandle.kind !== "file" || typeof nextHandle.getFile !== "function") {
+      continue;
+    }
+
+    const file = await nextHandle.getFile();
+    entries.push({
+      path: relativePath,
+      content: file.name.toLowerCase().endsWith(".json")
+        ? await file.text()
+        : new Uint8Array(await file.arrayBuffer())
+    });
+  }
+
+  return entries;
+}
+
 export const webPlatform: AppPlatform = {
   receiptNumberScope: "web",
   workspaceRepository: createWorkspaceRepository(),
@@ -79,6 +183,11 @@ export const webPlatform: AppPlatform = {
   },
   pdfPreview: {
     open: async (args) => {
+      await persistGeneratedPdfToDisk({
+        caseFile: args.caseFile,
+        fileName: args.fileName,
+        pdfContent: args.pdfContent
+      });
       const targetWindow = preparePendingWindow(
         args.initiatedWindow ?? null,
         "PDF wird vorbereitet",
@@ -97,8 +206,40 @@ export const webPlatform: AppPlatform = {
       return { message: "PDF wurde geoeffnet." };
     }
   },
+  exchangeImport: {
+    importFromSelection: async () => {
+      const entries = await collectBrowserDirectoryEntries();
+      if (!entries?.length) {
+        return null;
+      }
+
+      const imported = await importExchangeFromEntries(entries);
+      return {
+        ...imported,
+        message: "Austauschordner wurde aus dem Browser-Dateisystem importiert."
+      };
+    }
+  },
+  masterDataSync: {
+    exportCurrent: async (masterData) => {
+      triggerDownload("master-data.json", new Blob([serializeMasterData(masterData)], { type: "application/json" }), "application/json");
+      return { message: "Stammdaten wurden als Download bereitgestellt." };
+    },
+    importFromSelection: async () => {
+      const file = await selectBrowserFile(".json,application/json");
+      if (!file) {
+        return null;
+      }
+
+      return {
+        masterData: importMasterDataFromJson(await file.text()),
+        message: `Stammdaten wurden importiert: ${file.name}`
+      };
+    }
+  },
   exportArtifacts: {
     persist: async (args) => {
+      await persistExportArtifactsToDisk(args);
       const targetWindow = preparePendingWindow(args.initiatedWindow ?? null, "ZIP wird vorbereitet", "Der Export wird erstellt. Der Download startet automatisch.");
       completePendingDownload(targetWindow, args.zipFileName, args.zipContent);
       return { message: "ZIP wurde als Browser-Download bereitgestellt und der Vorgang wurde finalisiert." };

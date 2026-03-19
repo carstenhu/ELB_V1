@@ -1,17 +1,80 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
 import { createEmptyClerk, normalizeRequiredFieldKeys } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
-import { hasAdminAccess, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
+import { hasAdminAccess, importExchangeData, importMasterDataSnapshot, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
 import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
+import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
 import { useState } from "react";
 
 export function AdminPage() {
   const state = useAppState();
+  const platform = usePlatform();
   const [pinInput, setPinInput] = useState("");
-  const [section, setSection] = useState<"security" | "required" | "clerks" | "auctions" | "departments">("security");
+  const [section, setSection] = useState<"security" | "required" | "clerks" | "auctions" | "departments" | "exchange">("security");
+  const [exchangeStatus, setExchangeStatus] = useState("");
+  const [exchangeWarnings, setExchangeWarnings] = useState<string[]>([]);
+  const [exchangeBusy, setExchangeBusy] = useState(false);
+  const [masterDataStatus, setMasterDataStatus] = useState("");
+  const [masterDataBusy, setMasterDataBusy] = useState(false);
   const cases = [state.currentCase, ...state.drafts, ...state.finalized].filter((caseFile): caseFile is NonNullable<typeof caseFile> => Boolean(caseFile));
   const unlocked = hasAdminAccess();
+
+  async function handleExchangeImport() {
+    setExchangeBusy(true);
+    setExchangeStatus("");
+    setExchangeWarnings([]);
+
+    try {
+      const imported = await platform.exchangeImport.importFromSelection();
+      if (!imported) {
+        setExchangeStatus("Kein Austauschordner ausgewaehlt.");
+        return;
+      }
+
+      importExchangeData(imported);
+      setExchangeWarnings(imported.warnings);
+      setExchangeStatus(imported.message);
+    } catch (error) {
+      setExchangeStatus(error instanceof Error ? error.message : "Austauschordner konnte nicht importiert werden.");
+    } finally {
+      setExchangeBusy(false);
+    }
+  }
+
+  async function handleMasterDataExport() {
+    setMasterDataBusy(true);
+    setMasterDataStatus("");
+
+    try {
+      const result = await platform.masterDataSync.exportCurrent(state.masterData);
+      setMasterDataStatus(result.message);
+    } catch (error) {
+      setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht exportiert werden.");
+    } finally {
+      setMasterDataBusy(false);
+    }
+  }
+
+  async function handleMasterDataImport() {
+    setMasterDataBusy(true);
+    setMasterDataStatus("");
+
+    try {
+      const imported = await platform.masterDataSync.importFromSelection();
+      if (!imported) {
+        setMasterDataStatus("Keine Stammdaten-Datei ausgewaehlt.");
+        return;
+      }
+
+      importMasterDataSnapshot(imported.masterData);
+      setMasterDataStatus(imported.message);
+    } catch (error) {
+      setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht importiert werden.");
+    } finally {
+      setMasterDataBusy(false);
+    }
+  }
 
   if (!unlocked) {
     return (
@@ -39,6 +102,7 @@ export function AdminPage() {
           <button type="button" className={section === "clerks" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("clerks")}>Sachbearbeiter</button>
           <button type="button" className={section === "auctions" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("auctions")}>Auktionen</button>
           <button type="button" className={section === "departments" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("departments")}>Abteilungen</button>
+          <button type="button" className={section === "exchange" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("exchange")}>Austausch</button>
         </div>
         <div className="inline-actions">
           <button type="button" onClick={() => lockAdmin()}>
@@ -190,6 +254,37 @@ export function AdminPage() {
               Abteilung hinzufügen
             </button>
           </div>
+        </Section>
+      ) : null}
+
+      {section === "exchange" ? (
+        <Section title="Datenaustausch">
+          <div className="inline-actions">
+            <button type="button" disabled={masterDataBusy} onClick={() => void handleMasterDataExport()}>
+              Stammdaten exportieren
+            </button>
+            <button type="button" disabled={masterDataBusy} onClick={() => void handleMasterDataImport()}>
+              Stammdaten importieren
+            </button>
+          </div>
+          {masterDataStatus ? <p>{masterDataStatus}</p> : null}
+          <p>Importiert einen versionierten Austauschordner und stellt ihn als aktuelle Session des zugehoerigen Sachbearbeiters wieder her.</p>
+          <div className="inline-actions">
+            <button type="button" className="primary" disabled={exchangeBusy} onClick={() => void handleExchangeImport()}>
+              {exchangeBusy ? "Import laeuft..." : "Austauschordner importieren"}
+            </button>
+          </div>
+          {exchangeStatus ? <p>{exchangeStatus}</p> : null}
+          {exchangeWarnings.length ? (
+            <>
+              <h4>Import-Hinweise</h4>
+              <ul className="simple-list">
+                {exchangeWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </Section>
       ) : null}
     </div>

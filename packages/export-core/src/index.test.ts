@@ -9,7 +9,8 @@ describe("export-core", () => {
     caseFile.consignor.firstName = "Eva";
     const plan = createExportPlan(caseFile);
     expect(plan.zipFileName).toContain("0042");
-    expect(plan.artifacts.some((artifact) => artifact.fileName === "payload.json")).toBe(true);
+    expect(plan.artifacts.some((artifact) => artifact.fileName === "case.json")).toBe(true);
+    expect(plan.artifacts.some((artifact) => artifact.fileName === "master-data.json")).toBe(true);
   });
 
   it("includes metadata for productive traceability", () => {
