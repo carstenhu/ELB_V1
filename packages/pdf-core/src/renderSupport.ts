@@ -90,6 +90,21 @@ export function drawFieldOverlay(args: {
   });
 }
 
+function clearFieldOverlay(page: PDFPage, form: PdfForm, fieldName: string): void {
+  const rect = getFieldRects(form, fieldName)[0];
+  if (!rect) {
+    return;
+  }
+
+  page.drawRectangle({
+    x: rect.left,
+    y: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+    color: rgb(1, 1, 1)
+  });
+}
+
 function formatRequiredFieldNotice(label: string): string {
   const cleanLabel = label.replace(/^Objekt \d+:\s*/, "").trim();
   return `"${cleanLabel}" zwingend.`;
@@ -323,7 +338,11 @@ export function fillSharedFields(args: {
   drawFieldOverlay({ page, form, font, fieldName: "Internet  1", value: internetValue });
   drawFieldOverlay({ page, form, font, fieldName: "Sachbearbeiter 2", value: clerkValue });
   drawFieldOverlay({ page, form, font, fieldName: "Adresse EL", value: addressValue, multiline: true, forceVisible: true });
-  drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true, forceVisible: true });
+  if (ownerValue) {
+    drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true, forceVisible: true });
+  } else {
+    clearFieldOverlay(page, form, "Adresse EG");
+  }
   drawFieldOverlay({ page, form, font, fieldName: "BIC/SWIFT", value: caseFile.bank.bic });
   drawFieldOverlay({ page, form, font, fieldName: "IBAN/Kontonr", value: caseFile.bank.iban });
   drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: Beg\u00fcnstigter", value: beneficiary });

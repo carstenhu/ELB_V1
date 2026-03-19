@@ -41,4 +41,34 @@ export function VatCaptureModal(props: {
   );
 }
 
+export function OwnerResetConfirmModal(props: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="pin-modal">
+      <div className="overlay__card overlay__card--narrow">
+        <div className="admin-header">
+          <h2>Eigentuemer loeschen?</h2>
+        </div>
+        <div className="page-grid">
+          <Section title="Warnhinweis">
+            <p className="modal-hint">
+              Wenn "Eigentuemer = Einlieferer" aktiviert wird, werden die separat erfassten Eigentuemer-Daten geloescht.
+            </p>
+            <div className="pin-modal__actions">
+              <button type="button" onClick={props.onCancel}>
+                Abbrechen
+              </button>
+              <button type="button" className="primary-button" onClick={props.onConfirm}>
+                Loeschen und uebernehmen
+              </button>
+            </div>
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export type VatCaptureModalCase = Pick<CaseFile, "consignor">;

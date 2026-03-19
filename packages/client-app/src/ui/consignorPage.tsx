@@ -5,7 +5,7 @@ import { useAppState } from "../useAppState";
 import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorActions";
 import { clearOwnerData, hasSeparateOwnerData } from "../features/owner/ownerState";
 import { findAsset } from "./caseAssets";
-import { VatCaptureModal } from "./caseModals";
+import { OwnerResetConfirmModal, VatCaptureModal } from "./caseModals";
 import { InlineToggle, VAT_CATEGORY_OPTIONS, getTextInputClassName, renderFollowUpOption } from "./formSupport";
 
 export function ConsignorPage(props: { caseFile: CaseFile }) {
@@ -15,6 +15,7 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
   const beneficiary = deriveBeneficiary(props.caseFile.consignor, props.caseFile.bank);
   const consignorPhoto = findAsset(props.caseFile, props.caseFile.consignor.photoAssetId);
   const [vatModalOpen, setVatModalOpen] = useState(false);
+  const [ownerResetConfirmOpen, setOwnerResetConfirmOpen] = useState(false);
 
   function applyVatCategory(value: CaseFile["consignor"]["vatCategory"]) {
     actions.updateCurrentCase((current) => ({
@@ -38,16 +39,22 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
     }
 
     if (hasSeparateOwnerData(props.caseFile.owner)) {
-      const confirmed = window.confirm("Die separat erfassten Eigentuemer-Daten werden geloescht. Moechtest du fortfahren?");
-      if (!confirmed) {
-        return;
-      }
+      setOwnerResetConfirmOpen(true);
+      return;
     }
 
     actions.updateCurrentCase((current) => ({
       ...current,
       owner: clearOwnerData()
     }));
+  }
+
+  function confirmOwnerReset() {
+    actions.updateCurrentCase((current) => ({
+      ...current,
+      owner: clearOwnerData()
+    }));
+    setOwnerResetConfirmOpen(false);
   }
 
   return (
@@ -253,6 +260,12 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
           value={props.caseFile.consignor.vatNumber}
           onValueChange={(value) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: value } }))}
           onConfirm={() => setVatModalOpen(false)}
+        />
+      ) : null}
+      {ownerResetConfirmOpen ? (
+        <OwnerResetConfirmModal
+          onConfirm={confirmOwnerReset}
+          onCancel={() => setOwnerResetConfirmOpen(false)}
         />
       ) : null}
     </>
