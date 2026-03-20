@@ -359,7 +359,15 @@ async function getBrowserDirectoryHandle(path: string, options?: { create?: bool
   let currentHandle = rootHandle;
 
   for (const segment of segments) {
-    currentHandle = await currentHandle.getDirectoryHandle(segment, { create: options?.create ?? false });
+    try {
+      currentHandle = await currentHandle.getDirectoryHandle(segment, { create: options?.create ?? false });
+    } catch {
+      if (options?.create) {
+        throw new Error(`Der Browser-Datenordner konnte nicht erstellt werden: ${path}`);
+      }
+
+      return null;
+    }
   }
 
   return currentHandle;

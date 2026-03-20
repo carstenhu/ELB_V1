@@ -246,10 +246,23 @@ export const webPlatform: AppPlatform = {
       };
     },
     listStoredZipOptions: async ({ masterData }) => {
-      const [localOptions, remoteOptions] = await Promise.all([
+      const [localResult, remoteResult] = await Promise.allSettled([
         listStoredExchangeZipFiles({ masterData }),
         listExportZipsFromSupabase()
       ]);
+
+      const localOptions = localResult.status === "fulfilled" ? localResult.value : [];
+      const remoteOptions = remoteResult.status === "fulfilled" ? remoteResult.value : [];
+
+      if (!localOptions.length && !remoteOptions.length) {
+        if (remoteResult.status === "rejected") {
+          throw remoteResult.reason;
+        }
+
+        if (localResult.status === "rejected") {
+          throw localResult.reason;
+        }
+      }
 
       return [...remoteOptions, ...localOptions];
     },
