@@ -635,7 +635,10 @@ textarea {
 
   .topbar__menu-trigger {
     min-width: auto;
-    padding: 0.56rem 0.72rem;
+    padding: 0.56rem 0.9rem;
+    gap: 0.4rem;
+    border-color: #c6cec5;
+    background: rgba(255, 255, 255, 0.94);
   }
 
   .topbar__menu-trigger--pages {
@@ -643,11 +646,12 @@ textarea {
   }
 
   .topbar__menu-icon {
-    display: inline;
+    display: none;
   }
 
   .topbar__menu-label {
-    display: none;
+    display: inline;
+    font-size: 0.92rem;
   }
 
   .topbar__menu-panel {
