@@ -112,8 +112,8 @@ export function DossierCreateModal(props: {
           <h2>Dossier eroeffnen</h2>
         </div>
         <div className="page-grid">
-          <Section title="Pflichtangaben">
-            {props.currentDossierLabel ? (
+          {props.currentDossierLabel ? (
+            <Section title="Aktueller Stand">
               <div className="dossier-current-block">
                 <div className="dossier-current-block__copy">
                   <strong>Aktuelles Dossier</strong>
@@ -125,7 +125,9 @@ export function DossierCreateModal(props: {
                   </button>
                 ) : null}
               </div>
-            ) : null}
+            </Section>
+          ) : null}
+          <Section title="Pflichtangaben">
             <Field label="ELB Name" full>
               <input
                 className={getTextInputClassName(customerName)}

@@ -77,7 +77,9 @@ export function App() {
       {dossierModalOpen && state.activeClerkId ? (
         <DossierCreateModal
           errorMessage={dossierError}
-          initialIsCompany={false}
+          initialCustomerName={state.currentCase ? (state.currentCase.consignor.company.trim() || state.currentCase.consignor.lastName.trim()) : ""}
+          initialReceiptNumber={state.currentCase?.meta.receiptNumber ?? ""}
+          initialIsCompany={state.currentCase?.consignor.useCompanyAddress ?? false}
           onConfirm={handleCreateDossier}
           {...(currentDossierLabel ? { currentDossierLabel } : {})}
           {...(state.currentCase
