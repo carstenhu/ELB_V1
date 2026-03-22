@@ -17,8 +17,8 @@ function dedupeCases(caseFiles: Array<CaseFile | null>): CaseFile[] {
   return [...byId.values()];
 }
 
-function getDossierStatusLabel(caseFile: CaseFile, currentCaseId: string | null): string {
-  if (caseFile.meta.id === currentCaseId) {
+function getDossierStatusLabel(caseFile: CaseFile, currentDossierIdByClerk: Record<string, string | null>): string {
+  if (caseFile.meta.id === currentDossierIdByClerk[caseFile.meta.clerkId]) {
     return "Aktuell";
   }
 
@@ -115,7 +115,7 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
                 }}
               >
                 <strong>{`${clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} · ${dossier.consignor.lastName || dossier.consignor.company || "Unbenannt"}`}</strong>
-                <span>{`${getDossierStatusLabel(dossier, state.currentCase?.meta.id ?? null)} · ELB ${dossier.meta.receiptNumber}`}</span>
+                <span>{`${getDossierStatusLabel(dossier, state.currentDossierIdByClerk)} · ELB ${dossier.meta.receiptNumber}`}</span>
               </button>
             ))}
           </div>

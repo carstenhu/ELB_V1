@@ -4,6 +4,7 @@ export interface WorkspaceSnapshot {
   masterData: MasterData;
   activeClerkId: string | null;
   currentCase: CaseFile | null;
+  currentDossierIdByClerk: Record<string, string | null>;
   drafts: CaseFile[];
   finalized: CaseFile[];
 }

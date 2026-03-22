@@ -59,9 +59,17 @@ export function App() {
   const resumableCase =
     state.currentCase ??
     (state.activeClerkId
-      ? [...state.drafts, ...state.finalized]
-          .filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId)
-          .sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" }))[0] ?? null
+      ? (() => {
+          const currentDossierId = state.currentDossierIdByClerk[state.activeClerkId];
+          const allCases = [...state.drafts, ...state.finalized].filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId);
+          const matched = currentDossierId
+            ? allCases.find((caseFile) => caseFile.meta.id === currentDossierId) ?? null
+            : null;
+
+          return matched
+            ?? allCases.sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" }))[0]
+            ?? null;
+        })()
       : null);
 
   const currentDossierLabel = resumableCase
@@ -105,7 +113,6 @@ export function App() {
                 }
               }
             : {})}
-          {...(resumableCase ? { onCancel: () => setDossierModalOpen(false) } : {})}
         />
       ) : null}
       <TopBar page={page} onPageChange={setPage} onOpenClerkSelector={() => setClerkSelectorOpen(true)} onOpenDossierCreate={handleOpenDossierModal} />

@@ -5,6 +5,7 @@ export interface AppState {
   masterData: MasterData;
   activeClerkId: string | null;
   currentCase: CaseFile | null;
+  currentDossierIdByClerk: Record<string, string | null>;
   drafts: CaseFile[];
   finalized: CaseFile[];
   adminSession: AdminSession | null;
@@ -15,6 +16,7 @@ function createInitialState(): AppState {
     masterData: loadSeedMasterData(),
     activeClerkId: null,
     currentCase: null,
+    currentDossierIdByClerk: {},
     drafts: [],
     finalized: [],
     adminSession: null
@@ -72,6 +74,7 @@ export function createWorkspaceSnapshot(): WorkspaceSnapshot {
     masterData: state.masterData,
     activeClerkId: state.activeClerkId,
     currentCase: state.currentCase,
+    currentDossierIdByClerk: state.currentDossierIdByClerk,
     drafts: state.drafts,
     finalized: state.finalized
   };
@@ -81,6 +84,7 @@ export function replaceWorkspaceSnapshot(snapshot: WorkspaceSnapshot): void {
   setState({
     ...snapshot,
     masterData: normalizeMasterData(snapshot.masterData),
+    currentDossierIdByClerk: snapshot.currentDossierIdByClerk ?? {},
     adminSession: state.adminSession
   });
 }

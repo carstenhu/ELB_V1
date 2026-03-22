@@ -846,10 +846,20 @@ async function loadClerkSession(fsModule: FileSystemModule | null, clerkId: stri
 }
 
 function buildClerkSessionSnapshot(snapshot: AppStorageSnapshot, clerkId: string): ClerkSessionStorage {
+  const allCasesForClerk = [snapshot.currentCase, ...snapshot.drafts, ...snapshot.finalized]
+    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+    .filter((caseFile) => caseFile.meta.clerkId === clerkId);
+  const currentCaseId = snapshot.currentDossierIdByClerk[clerkId]
+    ?? (snapshot.currentCase?.meta.clerkId === clerkId ? snapshot.currentCase.meta.id : null);
+  const currentCase = currentCaseId
+    ? allCasesForClerk.find((caseFile) => caseFile.meta.id === currentCaseId) ?? null
+    : null;
+  const remainingCases = allCasesForClerk.filter((caseFile) => caseFile.meta.id !== currentCase?.meta.id);
+
   return {
-    currentCase: snapshot.currentCase?.meta.clerkId === clerkId ? snapshot.currentCase : null,
-    drafts: snapshot.drafts.filter((caseFile) => caseFile.meta.clerkId === clerkId),
-    finalized: snapshot.finalized.filter((caseFile) => caseFile.meta.clerkId === clerkId),
+    currentCase,
+    drafts: remainingCases.filter((caseFile) => caseFile.meta.status !== "finalized"),
+    finalized: remainingCases.filter((caseFile) => caseFile.meta.status === "finalized"),
     savedAt: new Date().toISOString()
   };
 }
@@ -909,12 +919,15 @@ export async function hydrateSnapshotFromDisk(): Promise<AppStorageSnapshot | nu
 
   const drafts: CaseFile[] = [];
   const finalized: CaseFile[] = [];
+  const currentDossierIdByClerk: Record<string, string | null> = {};
   let currentCase: CaseFile | null = null;
 
   clerkSessions.forEach(({ clerkId, session }) => {
     if (!session) {
       return;
     }
+
+    currentDossierIdByClerk[clerkId] = session.currentCase?.meta.id ?? null;
 
     if (session.currentCase) {
       if (clerkId === workspaceMeta?.activeClerkId && !currentCase) {
@@ -945,6 +958,7 @@ export async function hydrateSnapshotFromDisk(): Promise<AppStorageSnapshot | nu
     masterData,
     activeClerkId: workspaceMeta?.activeClerkId ?? null,
     currentCase,
+    currentDossierIdByClerk,
     drafts: dedupedDrafts,
     finalized: dedupedFinalized
   };

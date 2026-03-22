@@ -81,7 +81,6 @@ export function DossierCreateModal(props: {
   currentDossierLabel?: string;
   errorMessage?: string;
   onConfirm: (input: { customerName: string; isCompany: boolean; receiptNumber: string }) => void;
-  onCancel?: () => void;
   onLoadExisting?: () => void;
   onContinueCurrent?: () => void;
 }) {
@@ -171,16 +170,6 @@ export function DossierCreateModal(props: {
             </Field>
             {props.errorMessage ? <p className="field-warning">{props.errorMessage}</p> : null}
             <div className="pin-modal__actions">
-              {props.onLoadExisting ? (
-                <button type="button" onClick={props.onLoadExisting}>
-                  Dossier laden
-                </button>
-              ) : null}
-              {props.onCancel ? (
-                <button type="button" onClick={props.onCancel}>
-                  Abbrechen
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="primary-button"

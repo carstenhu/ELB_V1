@@ -34,6 +34,24 @@ export { consumePendingObjectSelectionId, createWorkspaceSnapshot as createSnaps
 
 let receiptNumberScope: ReceiptNumberScope = "desktop";
 
+function findCurrentDossierForClerk(state: ReturnType<typeof getState>, clerkId: string): CaseFile | null {
+  const currentDossierId = state.currentDossierIdByClerk[clerkId];
+  const allCases = [state.currentCase, ...state.drafts, ...state.finalized]
+    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+    .filter((caseFile) => caseFile.meta.clerkId === clerkId);
+
+  if (currentDossierId) {
+    const matched = allCases.find((caseFile) => caseFile.meta.id === currentDossierId);
+    if (matched) {
+      return matched;
+    }
+  }
+
+  return allCases
+    .sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" }))[0]
+    ?? null;
+}
+
 function dedupeCases(caseFiles: readonly CaseFile[]): CaseFile[] {
   const byId = new Map<string, CaseFile>();
 
@@ -104,13 +122,12 @@ export function hasAdminAccess(): boolean {
 
 export function selectClerk(clerkId: string): void {
   updateState((current) => {
-    const currentCaseForClerk = current.currentCase?.meta.clerkId === clerkId ? current.currentCase : null;
-    const draftForClerk = current.drafts.find((caseFile) => caseFile.meta.clerkId === clerkId) ?? null;
+    const currentCaseForClerk = findCurrentDossierForClerk(current, clerkId);
 
     return {
       ...current,
       activeClerkId: clerkId,
-      currentCase: currentCaseForClerk ?? draftForClerk ?? null
+      currentCase: currentCaseForClerk
     };
   });
 }
@@ -124,7 +141,11 @@ export function createNewCase(): void {
   const nextCase = createCase(currentState as WorkspaceStateLike, receiptNumberScope);
   updateState((current) => ({
     ...current,
-    currentCase: nextCase
+    currentCase: nextCase,
+    currentDossierIdByClerk: {
+      ...current.currentDossierIdByClerk,
+      [nextCase.meta.clerkId]: nextCase.meta.id
+    }
   }));
   appendAudit(createAuditEntry({
     actorId: getState().activeClerkId,
@@ -257,7 +278,13 @@ export function loadCaseById(id: string): void {
   updateState((current) => ({
     ...current,
     currentCase: found,
-    activeClerkId: found?.meta.clerkId ?? current.activeClerkId
+    activeClerkId: found?.meta.clerkId ?? current.activeClerkId,
+    currentDossierIdByClerk: found
+      ? {
+          ...current.currentDossierIdByClerk,
+          [found.meta.clerkId]: found.meta.id
+        }
+      : current.currentDossierIdByClerk
   }));
 
   if (!found) {
@@ -292,6 +319,10 @@ export function importExchangeData(result: ExchangeImportResult): void {
       masterData: result.masterData,
       activeClerkId: result.caseFile.meta.clerkId,
       currentCase: result.caseFile,
+      currentDossierIdByClerk: {
+        ...current.currentDossierIdByClerk,
+        [result.caseFile.meta.clerkId]: result.caseFile.meta.id
+      },
       drafts: dedupeCases([...preservedCurrentDraft, ...remainingDrafts]),
       finalized: dedupeCases(remainingFinalized)
     };
