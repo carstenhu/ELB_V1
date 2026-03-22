@@ -2,6 +2,7 @@ import {
   addObjectToCase,
   assignAuction,
   consumeReceiptNumberIfNeeded,
+  createCase,
   createAuditEntry,
   finalizeCase,
   isAdminSessionActive,
@@ -152,6 +153,33 @@ export function openNewDossier(input: { customerName: string; isCompany: boolean
     isCompany: input.isCompany,
     receiptNumber: input.receiptNumber
   });
+
+  updateState((current) => ({
+    ...applyReceiptNumberConsumption(current, nextCase),
+    currentCase: nextCase,
+    currentDossierIdByClerk: {
+      ...current.currentDossierIdByClerk,
+      [nextCase.meta.clerkId]: nextCase.meta.id
+    },
+    dossiers: upsertDossier(current.dossiers, nextCase)
+  }));
+
+  appendAudit(createAuditEntry({
+    actorId: getState().activeClerkId,
+    action: "case.created",
+    entityType: "case",
+    entityId: nextCase.meta.id,
+    summary: `Dossier ${nextCase.meta.receiptNumber} wurde eroeffnet.`
+  }));
+}
+
+export function startNewDossier(): void {
+  const currentState = getState();
+  if (!currentState.activeClerkId) {
+    return;
+  }
+
+  const nextCase = createCase(currentState as WorkspaceStateLike, receiptNumberScope);
 
   updateState((current) => ({
     ...applyReceiptNumberConsumption(current, nextCase),

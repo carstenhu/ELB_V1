@@ -14,6 +14,7 @@ export {
   loadCaseById,
   lockAdmin,
   openNewDossier,
+  startNewDossier,
   replaceState,
   saveDraft,
   selectClerk,

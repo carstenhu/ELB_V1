@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { type PageId } from "@elb/domain/index";
+import { startNewDossier } from "./appState";
 import { useAppState } from "./useAppState";
 import { WorkspacePageContent } from "./app/WorkspacePageContent";
 import { useWorkspaceLifecycle } from "./app/useWorkspaceLifecycle";
@@ -25,8 +26,8 @@ export function App() {
       return;
     }
 
-    if (!state.currentCase) {
-      setPage("loadCenter");
+    if (!state.currentCase && page === "consignor") {
+      startNewDossier();
       return;
     }
 
@@ -62,7 +63,10 @@ export function App() {
         exportStatus={exportStatus}
         onExportStatusChange={setExportStatus}
         onPageChange={setPage}
-        onOpenDossierCreate={() => setPage("loadCenter")}
+        onOpenDossierCreate={() => {
+          startNewDossier();
+          setPage("consignor");
+        }}
         onOpenClerkSelector={() => setClerkSelectorOpen(true)}
         onOpenAdmin={() => setPage("admin")}
       />
