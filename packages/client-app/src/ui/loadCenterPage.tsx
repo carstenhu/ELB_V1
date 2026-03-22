@@ -1,8 +1,29 @@
 import { useEffect, useState } from "react";
+import type { CaseFile } from "@elb/domain/index";
 import { Section } from "@elb/ui/forms";
 import { importExchangeData, loadCaseById } from "../appState";
 import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
+
+function dedupeCases(caseFiles: Array<CaseFile | null>): CaseFile[] {
+  const byId = new Map<string, CaseFile>();
+
+  caseFiles.forEach((caseFile) => {
+    if (caseFile) {
+      byId.set(caseFile.meta.id, caseFile);
+    }
+  });
+
+  return [...byId.values()];
+}
+
+function getDossierStatusLabel(caseFile: CaseFile, currentCaseId: string | null): string {
+  if (caseFile.meta.id === currentCaseId) {
+    return "Aktuell";
+  }
+
+  return caseFile.meta.status === "finalized" ? "Abgeschlossen" : "Entwurf";
+}
 
 export function LoadCenterPage(props: { onDone?: () => void }) {
   const state = useAppState();
@@ -48,7 +69,7 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
     };
   }, [platform, state.masterData]);
 
-  const availableDrafts = [...state.drafts].sort((left, right) =>
+  const availableDossiers = dedupeCases([state.currentCase, ...state.drafts, ...state.finalized]).sort((left, right) =>
     right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
   );
 
@@ -80,21 +101,21 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
   return (
     <div className="page-grid">
       <Section title="Dossiers laden">
-        {!availableDrafts.length ? <p>Keine gespeicherten Dossiers vorhanden.</p> : null}
-        {availableDrafts.length ? (
+        {!availableDossiers.length ? <p>Keine gespeicherten Dossiers vorhanden.</p> : null}
+        {availableDossiers.length ? (
           <div className="load-list">
-            {availableDrafts.map((draft) => (
+            {availableDossiers.map((dossier) => (
               <button
-                key={draft.meta.id}
+                key={dossier.meta.id}
                 type="button"
                 className="primary-button load-list__item"
                 onClick={() => {
-                  loadCaseById(draft.meta.id);
+                  loadCaseById(dossier.meta.id);
                   props.onDone?.();
                 }}
               >
-                <strong>{`${clerkNameById.get(draft.meta.clerkId) ?? "Unbekannt"} · ${draft.consignor.lastName || draft.consignor.company || "Unbenannt"}`}</strong>
-                <span>{`ELB ${draft.meta.receiptNumber}`}</span>
+                <strong>{`${clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} · ${dossier.consignor.lastName || dossier.consignor.company || "Unbenannt"}`}</strong>
+                <span>{`${getDossierStatusLabel(dossier, state.currentCase?.meta.id ?? null)} · ELB ${dossier.meta.receiptNumber}`}</span>
               </button>
             ))}
           </div>

@@ -59,9 +59,9 @@ export function App() {
   const resumableCase =
     state.currentCase ??
     (state.activeClerkId
-      ? state.drafts.find((caseFile) => caseFile.meta.clerkId === state.activeClerkId) ??
-        state.finalized.find((caseFile) => caseFile.meta.clerkId === state.activeClerkId) ??
-        null
+      ? [...state.drafts, ...state.finalized]
+          .filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId)
+          .sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" }))[0] ?? null
       : null);
 
   const currentDossierLabel = resumableCase
