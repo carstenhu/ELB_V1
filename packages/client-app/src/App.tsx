@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { type PageId } from "@elb/domain/index";
-import { startNewDossier } from "./appState";
+import { getSuggestedCaseNumber } from "@elb/app-core/index";
+import { getReceiptNumberScope, openNewDossier } from "./appState";
 import { useAppState } from "./useAppState";
 import { WorkspacePageContent } from "./app/WorkspacePageContent";
 import { useWorkspaceLifecycle } from "./app/useWorkspaceLifecycle";
+import { NewDossierModal } from "./ui/caseModals";
 import { SessionOverlay, TopBar } from "./ui/shell";
 
 export function App() {
@@ -12,6 +14,16 @@ export function App() {
   const [page, setPage] = useState<PageId>("consignor");
   const [exportStatus, setExportStatus] = useState("");
   const [clerkSelectorOpen, setClerkSelectorOpen] = useState(false);
+  const [newDossierModalOpen, setNewDossierModalOpen] = useState(false);
+
+  const suggestedReceiptNumber = state.activeClerkId
+    ? getSuggestedCaseNumber({
+        masterData: state.masterData,
+        clerkId: state.activeClerkId,
+        scope: getReceiptNumberScope(),
+        dossiers: state.dossiers
+      })
+    : "";
 
   useEffect(() => {
     if (!hydrated) {
@@ -26,9 +38,8 @@ export function App() {
       return;
     }
 
-    if (!state.currentCase && page === "consignor") {
-      startNewDossier();
-      return;
+    if (!state.currentCase && page !== "loadCenter") {
+      setNewDossierModalOpen(true);
     }
 
     if (page === "loadCenter") {
@@ -56,6 +67,21 @@ export function App() {
           setPage("consignor");
         }}
       />
+      <NewDossierModal
+        open={newDossierModalOpen && Boolean(state.activeClerkId)}
+        suggestedReceiptNumber={suggestedReceiptNumber}
+        onCreate={(input) => {
+          openNewDossier(input);
+          setNewDossierModalOpen(false);
+          setPage("consignor");
+        }}
+        onCancel={() => {
+          setNewDossierModalOpen(false);
+          if (!state.currentCase) {
+            setPage("loadCenter");
+          }
+        }}
+      />
       <TopBar page={page} onPageChange={setPage} />
       <WorkspacePageContent
         page={page}
@@ -63,10 +89,7 @@ export function App() {
         exportStatus={exportStatus}
         onExportStatusChange={setExportStatus}
         onPageChange={setPage}
-        onOpenDossierCreate={() => {
-          startNewDossier();
-          setPage("consignor");
-        }}
+        onOpenDossierCreate={() => setNewDossierModalOpen(true)}
         onOpenClerkSelector={() => setClerkSelectorOpen(true)}
         onOpenAdmin={() => setPage("admin")}
       />
