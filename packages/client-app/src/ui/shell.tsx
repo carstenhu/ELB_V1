@@ -45,24 +45,19 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
   );
 }
 
-export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void; onOpenDossierCreate: () => void }) {
+export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
   const state = useAppState();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
-  const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
-  const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!actionMenuOpen && !pageMenuOpen) {
+    if (!pageMenuOpen) {
       return;
     }
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
-      if (!actionMenuRef.current?.contains(target)) {
-        setActionMenuOpen(false);
-      }
       if (!pageMenuRef.current?.contains(target)) {
         setPageMenuOpen(false);
       }
@@ -70,7 +65,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
 
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setActionMenuOpen(false);
         setPageMenuOpen(false);
       }
     }
@@ -81,7 +75,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [actionMenuOpen, pageMenuOpen]);
+  }, [pageMenuOpen]);
 
   return (
     <header className="topbar">
@@ -98,7 +92,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
             aria-label="Navigation oeffnen"
             onClick={() => {
               setPageMenuOpen((current) => !current);
-              setActionMenuOpen(false);
             }}
           >
             <span className="topbar__menu-icon" aria-hidden="true">
@@ -121,67 +114,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                   {page.label}
                 </button>
               ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="topbar__menu" ref={actionMenuRef}>
-          <button
-            type="button"
-            className={actionMenuOpen ? "nav-button nav-button--active topbar__menu-trigger" : "nav-button topbar__menu-trigger"}
-            aria-expanded={actionMenuOpen}
-            aria-label="Menue oeffnen"
-            onClick={() => {
-              setActionMenuOpen((current) => !current);
-              setPageMenuOpen(false);
-            }}
-          >
-            <span className="topbar__menu-icon" aria-hidden="true">
-              &#9776;
-            </span>
-            <span className="topbar__menu-label">Aktionen</span>
-          </button>
-          {actionMenuOpen ? (
-            <div className="topbar__menu-panel">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  props.onOpenDossierCreate();
-                  setActionMenuOpen(false);
-                }}
-              >
-                Neues Dossier
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  props.onOpenClerkSelector();
-                  setActionMenuOpen(false);
-                }}
-              >
-                Sachbearbeiter wechseln
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  props.onPageChange("loadCenter");
-                  setActionMenuOpen(false);
-                }}
-              >
-                Dossier laden
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  props.onPageChange("admin");
-                  setActionMenuOpen(false);
-                }}
-              >
-                Admin
-              </button>
             </div>
           ) : null}
         </div>

@@ -13,6 +13,7 @@ export function ConsignorPage(props: {
   onOpenDossierCreate: () => void;
   onOpenLoadCenter: () => void;
   onOpenClerkSelector: () => void;
+  onOpenAdmin: () => void;
 }) {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
@@ -75,6 +76,9 @@ export function ConsignorPage(props: {
             </button>
             <button type="button" className="primary-button" onClick={props.onOpenClerkSelector}>
               Sachbearbeiter wechseln
+            </button>
+            <button type="button" className="primary-button" onClick={props.onOpenAdmin}>
+              Admin
             </button>
           </div>
           <Field label="ELB-Nummer">

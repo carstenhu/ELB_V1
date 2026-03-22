@@ -89,7 +89,15 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <SessionOverlay open={clerkSelectorOpen} onSelect={() => setClerkSelectorOpen(false)} />
+      <SessionOverlay
+        open={clerkSelectorOpen}
+        onSelect={() => {
+          setClerkSelectorOpen(false);
+          setDossierError("");
+          setDossierModalOpen(true);
+          setPage("consignor");
+        }}
+      />
       {dossierModalOpen && state.activeClerkId ? (
         <DossierCreateModal
           errorMessage={dossierError}
@@ -115,7 +123,7 @@ export function App() {
             : {})}
         />
       ) : null}
-      <TopBar page={page} onPageChange={setPage} onOpenClerkSelector={() => setClerkSelectorOpen(true)} onOpenDossierCreate={handleOpenDossierModal} />
+      <TopBar page={page} onPageChange={setPage} />
       <WorkspacePageContent
         page={page}
         caseFile={state.currentCase}
@@ -124,6 +132,7 @@ export function App() {
         onPageChange={setPage}
         onOpenDossierCreate={handleOpenDossierModal}
         onOpenClerkSelector={() => setClerkSelectorOpen(true)}
+        onOpenAdmin={() => setPage("admin")}
       />
     </div>
   );
