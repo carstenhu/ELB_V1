@@ -25,7 +25,7 @@ export function PreviewActionButtons(props: {
       <button onClick={() => void actions.openDataFolder()}>Datenordner oeffnen</button>
       <button onClick={() => actions.saveDraft()}>Entwurf speichern</button>
       <button onClick={() => guardRequiredFields(() => void actions.openPdf())}>PDF anzeigen</button>
-      <button onClick={() => guardRequiredFields(() => void actions.exportArtifacts())}>ZIP finalisieren</button>
+      <button onClick={() => guardRequiredFields(() => void actions.exportArtifacts())}>Dossier speichern</button>
     </>
   );
 }

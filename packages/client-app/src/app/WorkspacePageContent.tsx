@@ -28,6 +28,8 @@ export function WorkspacePageContent(props: {
   exportStatus: string;
   onExportStatusChange: (value: string) => void;
   onPageChange: (page: PageId) => void;
+  onOpenDossierCreate: () => void;
+  onOpenClerkSelector: () => void;
 }) {
   if (!props.caseFile && props.page !== "admin") {
     if (props.page === "loadCenter") {
@@ -50,7 +52,14 @@ export function WorkspacePageContent(props: {
     <main className="page">
       {props.page === "admin" ? <AdminPage /> : null}
       {props.page === "loadCenter" ? <LoadCenterPage onDone={() => props.onPageChange("consignor")} /> : null}
-      {props.page === "consignor" && props.caseFile ? <ConsignorPage caseFile={props.caseFile} /> : null}
+      {props.page === "consignor" && props.caseFile ? (
+        <ConsignorPage
+          caseFile={props.caseFile}
+          onOpenDossierCreate={props.onOpenDossierCreate}
+          onOpenLoadCenter={() => props.onPageChange("loadCenter")}
+          onOpenClerkSelector={props.onOpenClerkSelector}
+        />
+      ) : null}
       {props.page === "objects" && props.caseFile ? <ObjectsPage caseFile={props.caseFile} /> : null}
       {props.page === "internal" && props.caseFile ? <InternalPage caseFile={props.caseFile} /> : null}
       {props.page === "pdfPreview" && props.caseFile ? (

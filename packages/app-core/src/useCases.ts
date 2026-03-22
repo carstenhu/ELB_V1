@@ -127,6 +127,75 @@ export function createCase(
   });
 }
 
+function validateReceiptNumberInput(receiptNumber: string): string {
+  const normalizedReceiptNumber = receiptNumber.trim();
+  if (!normalizedReceiptNumber) {
+    throw new AppError("VALIDATION_ERROR", "Fuer ein Dossier muss eine ELB-Nummer erfasst werden.");
+  }
+
+  if (!/^\d+$/.test(normalizedReceiptNumber)) {
+    throw new AppError("VALIDATION_ERROR", "ELB-Nummern muessen aus Ziffern bestehen.");
+  }
+
+  return normalizedReceiptNumber;
+}
+
+function ensureReceiptNumberAvailable(args: {
+  state: WorkspaceStateLike;
+  clerkId: string;
+  receiptNumber: string;
+}): void {
+  const conflictingCase = [args.state.currentCase, ...args.state.drafts, ...args.state.finalized]
+    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+    .find((caseFile) => caseFile.meta.clerkId === args.clerkId && caseFile.meta.receiptNumber.trim() === args.receiptNumber);
+
+  if (conflictingCase) {
+    throw new AppError("VALIDATION_ERROR", `Die ELB-Nummer ${args.receiptNumber} ist fuer diesen Sachbearbeiter bereits vergeben.`);
+  }
+}
+
+export function openDossier(
+  args: {
+    state: WorkspaceStateLike;
+    scope: ReceiptNumberScope;
+    customerName: string;
+    isCompany: boolean;
+    receiptNumber: string;
+  },
+  context: UseCaseContext = defaultUseCaseContext
+): CaseFile {
+  if (!args.state.activeClerkId) {
+    throw new AppError("NO_ACTIVE_CLERK", "Ein neues Dossier benoetigt einen aktiven Sachbearbeiter.");
+  }
+
+  const customerName = args.customerName.trim();
+  if (!customerName) {
+    throw new AppError("VALIDATION_ERROR", "Fuer ein Dossier muss ein Nachname oder Firmenname erfasst werden.");
+  }
+
+  const normalizedReceiptNumber = validateReceiptNumberInput(args.receiptNumber);
+  ensureReceiptNumberAvailable({
+    state: args.state,
+    clerkId: args.state.activeClerkId,
+    receiptNumber: normalizedReceiptNumber
+  });
+
+  const nextCase = createCase(args.state, args.scope, context);
+  return {
+    ...nextCase,
+    meta: {
+      ...nextCase.meta,
+      receiptNumber: normalizedReceiptNumber
+    },
+    consignor: {
+      ...nextCase.consignor,
+      useCompanyAddress: args.isCompany,
+      company: args.isCompany ? customerName : "",
+      lastName: args.isCompany ? "" : customerName
+    }
+  };
+}
+
 export function updateCaseMeta(caseFile: CaseFile, patch: Partial<CaseFile["meta"]>, context: UseCaseContext = defaultUseCaseContext): CaseFile {
   return {
     ...caseFile,

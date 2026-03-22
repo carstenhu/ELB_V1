@@ -11,7 +11,8 @@ const REMOTE_ASSET_REF_PREFIX = "remote://";
 const REMOTE_EXPORT_ZIP_ID_PREFIX = "supabase-export:";
 const WORKSPACE_META_PATH = "workspace.json";
 const MASTER_DATA_PATH = "Stammdaten/master-data.json";
-const SESSION_FILE_NAME = "session.json";
+const CURRENT_POINTER_FILE_NAME = "current.json";
+const DOSSIER_FILE_NAME = "dossier.json";
 const DEFAULT_BUCKET = "elb-v1-data";
 
 interface WorkspaceMetaStorage {
@@ -155,12 +156,24 @@ function getRemoteClerkRoot(clerkId: string): string {
   return `clerks/${sanitizeRemoteSegment(clerkId)}`;
 }
 
-function getCurrentSessionPath(clerkId: string): string {
-  return `${getRemoteClerkRoot(clerkId)}/current/${SESSION_FILE_NAME}`;
+function getCurrentPointerPath(clerkId: string): string {
+  return `${getRemoteClerkRoot(clerkId)}/current/${CURRENT_POINTER_FILE_NAME}`;
+}
+
+function getRemoteDossiersRoot(clerkId: string): string {
+  return `${getRemoteClerkRoot(clerkId)}/dossiers`;
+}
+
+function getRemoteDossierRoot(clerkId: string, caseId: string): string {
+  return `${getRemoteDossiersRoot(clerkId)}/${sanitizeRemoteSegment(caseId)}`;
+}
+
+function getRemoteDossierFilePath(clerkId: string, caseId: string): string {
+  return `${getRemoteDossierRoot(clerkId, caseId)}/${DOSSIER_FILE_NAME}`;
 }
 
 function getRemoteAssetPath(clerkId: string, assetId: string, extension: string): string {
-  return `${getRemoteClerkRoot(clerkId)}/current/assets/optimized/${assetId}${extension}`;
+  return `${getRemoteDossierRoot(clerkId, assetId.split(":")[0] || clerkId)}/assets/optimized/${assetId}${extension}`;
 }
 
 function getRelevantClerkIds(snapshot: WorkspaceSnapshot): string[] {
@@ -270,7 +283,7 @@ async function persistCaseAssetsRemote(config: SupabaseWorkspaceConfig, masterDa
 
       const { mimeType, bytes } = parseDataUrl(sourceDataUrl);
       const extension = getAssetExtension(mimeType, asset.fileName);
-      const remotePath = getRemoteAssetPath(caseFile.meta.clerkId, asset.id, extension);
+      const remotePath = `${getRemoteDossierRoot(caseFile.meta.clerkId, caseFile.meta.id)}/assets/optimized/${asset.id}${extension}`;
 
       await uploadBinary(config, remotePath, bytes, mimeType);
 
@@ -325,33 +338,53 @@ async function saveRemoteSnapshot(config: SupabaseWorkspaceConfig, snapshot: Wor
 
   for (const clerkId of getRelevantClerkIds(snapshot)) {
     const session = buildClerkSessionSnapshot(snapshot, clerkId);
-    const persistedCurrentCase = session.currentCase
-      ? await persistCaseAssetsRemote(config, snapshot.masterData, session.currentCase)
-      : null;
-    const persistedDrafts = await Promise.all(session.drafts.map((caseFile) => persistCaseAssetsRemote(config, snapshot.masterData, caseFile)));
-    const persistedFinalized = await Promise.all(session.finalized.map((caseFile) => persistCaseAssetsRemote(config, snapshot.masterData, caseFile)));
+    await uploadText(config, getCurrentPointerPath(clerkId), JSON.stringify({
+      caseId: session.currentCase?.meta.id ?? null,
+      savedAt: session.savedAt
+    } satisfies { caseId: string | null; savedAt: string }, null, 2));
 
-    await uploadText(config, getCurrentSessionPath(clerkId), JSON.stringify({
-      ...session,
-      currentCase: persistedCurrentCase,
-      drafts: persistedDrafts,
-      finalized: persistedFinalized
-    }, null, 2));
+    await Promise.all(
+      [session.currentCase, ...session.drafts, ...session.finalized]
+        .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+        .map(async (caseFile) => {
+          const persistedCaseFile = await persistCaseAssetsRemote(config, snapshot.masterData, caseFile);
+          await uploadText(config, getRemoteDossierFilePath(clerkId, caseFile.meta.id), JSON.stringify(persistedCaseFile, null, 2));
+        })
+    );
   }
 }
 
 async function loadRemoteClerkSession(config: SupabaseWorkspaceConfig, clerkId: string): Promise<ClerkSessionStorage | null> {
-  const raw = await downloadText(config, getCurrentSessionPath(clerkId));
-  if (!raw) {
+  const currentPointerRaw = await downloadText(config, getCurrentPointerPath(clerkId));
+  const currentPointer = currentPointerRaw ? (JSON.parse(currentPointerRaw) as { caseId: string | null; savedAt: string }) : null;
+  const dossierEntries = await listExportFolderEntries(config, getRemoteDossiersRoot(clerkId));
+
+  if (!currentPointer && !dossierEntries.length) {
     return null;
   }
 
-  const parsed = JSON.parse(raw) as ClerkSessionStorage;
+  const cases = await Promise.all(
+    dossierEntries
+      .filter((entry) => !entry.id && entry.name)
+      .map(async (entry) => {
+        const raw = await downloadText(config, `${getRemoteDossiersRoot(clerkId)}/${entry.name}/${DOSSIER_FILE_NAME}`);
+        if (!raw) {
+          return null;
+        }
+
+        return hydrateRemoteCaseAssets(config, JSON.parse(raw) as CaseFile);
+      })
+  );
+
+  const hydratedCases = cases.filter((caseFile): caseFile is CaseFile => Boolean(caseFile));
+  const currentCase = currentPointer?.caseId ? hydratedCases.find((caseFile) => caseFile.meta.id === currentPointer.caseId) ?? null : null;
+  const remainingCases = hydratedCases.filter((caseFile) => caseFile.meta.id !== currentCase?.meta.id);
+
   return {
-    ...parsed,
-    currentCase: parsed.currentCase ? await hydrateRemoteCaseAssets(config, parsed.currentCase) : null,
-    drafts: await Promise.all(parsed.drafts.map((caseFile) => hydrateRemoteCaseAssets(config, caseFile))),
-    finalized: await Promise.all(parsed.finalized.map((caseFile) => hydrateRemoteCaseAssets(config, caseFile)))
+    currentCase,
+    drafts: remainingCases.filter((caseFile) => caseFile.meta.status !== "finalized"),
+    finalized: remainingCases.filter((caseFile) => caseFile.meta.status === "finalized"),
+    savedAt: currentPointer?.savedAt ?? new Date().toISOString()
   };
 }
 

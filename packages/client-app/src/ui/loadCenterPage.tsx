@@ -79,8 +79,8 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
 
   return (
     <div className="page-grid">
-      <Section title="Entwuerfe laden">
-        {!availableDrafts.length ? <p>Keine gespeicherten Entwuerfe vorhanden.</p> : null}
+      <Section title="Dossiers laden">
+        {!availableDrafts.length ? <p>Keine gespeicherten Dossiers vorhanden.</p> : null}
         {availableDrafts.length ? (
           <div className="load-list">
             {availableDrafts.map((draft) => (
@@ -100,7 +100,7 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
           </div>
         ) : null}
       </Section>
-      <Section title="Gespeicherte ZIP-Dateien laden">
+      <Section title="Gespeicherte Dossier-ZIP-Dateien laden">
         {!storedZipOptions.length && !zipBusy ? <p>{zipStatus || "Keine gespeicherten ZIP-Dateien vorhanden."}</p> : null}
         {storedZipOptions.length ? (
           <div className="load-list">

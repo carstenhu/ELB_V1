@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { FollowUpFieldControl, getTextInputClassName } from "./formSupport";
@@ -72,3 +73,87 @@ export function OwnerResetConfirmModal(props: {
 }
 
 export type VatCaptureModalCase = Pick<CaseFile, "consignor">;
+
+export function DossierCreateModal(props: {
+  initialCustomerName?: string;
+  initialReceiptNumber?: string;
+  errorMessage?: string;
+  onConfirm: (input: { customerName: string; isCompany: boolean; receiptNumber: string }) => void;
+  onCancel?: () => void;
+  onLoadExisting?: () => void;
+}) {
+  const [customerName, setCustomerName] = useState(props.initialCustomerName ?? "");
+  const [receiptNumber, setReceiptNumber] = useState(props.initialReceiptNumber ?? "");
+  const [isCompany, setIsCompany] = useState(false);
+
+  useEffect(() => {
+    setCustomerName(props.initialCustomerName ?? "");
+  }, [props.initialCustomerName]);
+
+  useEffect(() => {
+    setReceiptNumber(props.initialReceiptNumber ?? "");
+  }, [props.initialReceiptNumber]);
+
+  const normalizedReceiptNumber = receiptNumber.replace(/\D/g, "");
+  const canConfirm = customerName.trim().length > 0 && normalizedReceiptNumber.length > 0;
+
+  return (
+    <div className="pin-modal">
+      <div className="overlay__card overlay__card--narrow">
+        <div className="admin-header">
+          <h2>Dossier eroeffnen</h2>
+        </div>
+        <div className="page-grid">
+          <Section title="Pflichtangaben">
+            <Field label="Nachname oder Firma" full>
+              <input
+                className={getTextInputClassName(customerName)}
+                value={customerName}
+                onChange={(event) => setCustomerName(event.target.value)}
+              />
+            </Field>
+            <div className="field field--full">
+              <label className="toggle-button">
+                <input
+                  type="checkbox"
+                  checked={isCompany}
+                  onChange={(event) => setIsCompany(event.target.checked)}
+                  style={{ display: "none" }}
+                />
+                {isCompany ? "Als Firma angelegt" : "Als Nachname angelegt"}
+              </label>
+            </div>
+            <Field label="ELB-Nummer" full>
+              <input
+                className={getTextInputClassName(normalizedReceiptNumber)}
+                value={receiptNumber}
+                onChange={(event) => setReceiptNumber(event.target.value.replace(/\D/g, ""))}
+              />
+            </Field>
+            {props.errorMessage ? <p className="field-warning">{props.errorMessage}</p> : null}
+            <div className="pin-modal__actions">
+              {props.onLoadExisting ? (
+                <button type="button" onClick={props.onLoadExisting}>
+                  Dossier laden
+                </button>
+              ) : null}
+              {props.onCancel ? (
+                <button type="button" onClick={props.onCancel}>
+                  Abbrechen
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!canConfirm}
+                onClick={() => props.onConfirm({ customerName, isCompany, receiptNumber: normalizedReceiptNumber })}
+              >
+                Dossier anlegen
+              </button>
+            </div>
+          </Section>
+        </div>
+      </div>
+    </div>
+  );
+}

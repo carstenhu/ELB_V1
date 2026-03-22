@@ -8,7 +8,12 @@ import { findAsset } from "./caseAssets";
 import { OwnerResetConfirmModal, VatCaptureModal } from "./caseModals";
 import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassName, getTextInputClassName } from "./formSupport";
 
-export function ConsignorPage(props: { caseFile: CaseFile }) {
+export function ConsignorPage(props: {
+  caseFile: CaseFile;
+  onOpenDossierCreate: () => void;
+  onOpenLoadCenter: () => void;
+  onOpenClerkSelector: () => void;
+}) {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
   const owner = deriveOwner(props.caseFile.consignor, props.caseFile.owner);
@@ -61,6 +66,17 @@ export function ConsignorPage(props: { caseFile: CaseFile }) {
     <>
       <div className="page-grid">
         <Section title="">
+          <div className="inline-actions">
+            <button type="button" className="primary-button" onClick={props.onOpenDossierCreate}>
+              Neues Dossier
+            </button>
+            <button type="button" className="primary-button" onClick={props.onOpenLoadCenter}>
+              Dossier laden
+            </button>
+            <button type="button" className="primary-button" onClick={props.onOpenClerkSelector}>
+              Sachbearbeiter wechseln
+            </button>
+          </div>
           <Field label="ELB-Nummer">
             <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
           </Field>

@@ -47,6 +47,11 @@ interface ClerkSessionStorage {
   savedAt: string;
 }
 
+interface CurrentDossierPointerStorage {
+  caseId: string | null;
+  savedAt: string;
+}
+
 interface ExchangeIndexStorage {
   nextVersionByBaseName: Record<string, number>;
 }
@@ -63,9 +68,12 @@ const MASTER_DATA_FILE = `${ROOT_DIR}/Stammdaten/master-data.json`;
 const AUDIT_FILE = `${ROOT_DIR}/Audit/audit-log.json`;
 const CLERKS_ROOT = `${ROOT_DIR}/Sachbearbeiter`;
 const CURRENT_DIR_NAME = "Aktuell";
+const DOSSIERS_DIR_NAME = "Dossiers";
 const EXCHANGE_DIR_NAME = "Austausch";
 const EXCHANGE_INDEX_FILE_NAME = "austausch-index.json";
 const SESSION_FILE_NAME = "session.json";
+const CURRENT_POINTER_FILE_NAME = "current.json";
+const DOSSIER_FILE_NAME = "dossier.json";
 const ASSET_REF_PREFIX = "stored://";
 const INDEXED_DB_NAME = "elb-v1-storage";
 const INDEXED_DB_STORE = "files";
@@ -99,6 +107,30 @@ function getCurrentRoot(clerkFolderSegment: string): string {
 
 function getCurrentSessionFile(clerkFolderSegment: string): string {
   return `${getCurrentRoot(clerkFolderSegment)}/${SESSION_FILE_NAME}`;
+}
+
+function getCurrentPointerFile(clerkFolderSegment: string): string {
+  return `${getCurrentRoot(clerkFolderSegment)}/${CURRENT_POINTER_FILE_NAME}`;
+}
+
+function getDossiersRoot(clerkFolderSegment: string): string {
+  return `${getClerkRoot(clerkFolderSegment)}/${DOSSIERS_DIR_NAME}`;
+}
+
+function getDossierRoot(clerkFolderSegment: string, caseId: string): string {
+  return `${getDossiersRoot(clerkFolderSegment)}/${caseId}`;
+}
+
+function getDossierFile(clerkFolderSegment: string, caseId: string): string {
+  return `${getDossierRoot(clerkFolderSegment, caseId)}/${DOSSIER_FILE_NAME}`;
+}
+
+function getDossierAssetsRoot(clerkFolderSegment: string, caseId: string): string {
+  return `${getDossierRoot(clerkFolderSegment, caseId)}/assets/optimized`;
+}
+
+function getDossierPreviewRoot(clerkFolderSegment: string, caseId: string): string {
+  return `${getDossierRoot(clerkFolderSegment, caseId)}/preview`;
 }
 
 function getCurrentAssetsRoot(clerkFolderSegment: string): string {
@@ -630,8 +662,8 @@ async function toBytes(content: Blob | ArrayBuffer | Uint8Array): Promise<Uint8A
   return new Uint8Array(await content.arrayBuffer());
 }
 
-function getCurrentAssetPath(clerkFolderSegment: string, assetId: string): string {
-  return `${getCurrentAssetsRoot(clerkFolderSegment)}/${assetId}.optimized.txt`;
+function getDossierAssetPath(clerkFolderSegment: string, caseId: string, assetId: string): string {
+  return `${getDossierAssetsRoot(clerkFolderSegment, caseId)}/${assetId}.optimized.txt`;
 }
 
 function findClerkFolderSegment(masterData: MasterData | null | undefined, clerkId: string): string {
@@ -704,11 +736,11 @@ async function resolveAssetPayload(fsModule: FileSystemModule | null, value: str
   return stored ?? "";
 }
 
-async function persistCaseAssetsForCurrent(fsModule: FileSystemModule | null, clerkFolderSegment: string, caseFile: CaseFile): Promise<CaseFile> {
+async function persistCaseAssetsForDossier(fsModule: FileSystemModule | null, clerkFolderSegment: string, caseFile: CaseFile): Promise<CaseFile> {
   const assets = await Promise.all(
     caseFile.assets.map(async (asset) => {
       const optimizedPayload = await resolveAssetPayload(fsModule, asset.optimizedPath || asset.originalPath);
-      const storedPath = getCurrentAssetPath(clerkFolderSegment, asset.id);
+      const storedPath = getDossierAssetPath(clerkFolderSegment, caseFile.meta.id, asset.id);
 
       await writeTextData(fsModule, storedPath, optimizedPayload);
 
@@ -762,38 +794,54 @@ async function persistClerkSession(
   masterData: MasterData
 ): Promise<void> {
   const clerkFolderSegment = findClerkFolderSegment(masterData, clerkId);
-  const currentRoot = getCurrentRoot(clerkFolderSegment);
+  await ensureDir(fsModule, getCurrentRoot(clerkFolderSegment));
+  await ensureDir(fsModule, getDossiersRoot(clerkFolderSegment));
 
-  await ensureDir(fsModule, currentRoot);
-  await ensureDir(fsModule, getCurrentAssetsRoot(clerkFolderSegment));
-  await ensureDir(fsModule, getCurrentPreviewRoot(clerkFolderSegment));
+  await writeJsonFile(fsModule, getCurrentPointerFile(clerkFolderSegment), {
+    caseId: session.currentCase?.meta.id ?? null,
+    savedAt: session.savedAt
+  } satisfies CurrentDossierPointerStorage);
 
-  const persistedCurrentCase = session.currentCase
-    ? await persistCaseAssetsForCurrent(fsModule, clerkFolderSegment, session.currentCase)
-    : null;
-  const persistedDrafts = await Promise.all(session.drafts.map((caseFile) => persistCaseAssetsForCurrent(fsModule, clerkFolderSegment, caseFile)));
-  const persistedFinalized = await Promise.all(session.finalized.map((caseFile) => persistCaseAssetsForCurrent(fsModule, clerkFolderSegment, caseFile)));
+  await Promise.all(
+    [session.currentCase, ...session.drafts, ...session.finalized]
+      .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+      .map(async (caseFile) => {
+        await ensureDir(fsModule, getDossierRoot(clerkFolderSegment, caseFile.meta.id));
+        await ensureDir(fsModule, getDossierAssetsRoot(clerkFolderSegment, caseFile.meta.id));
+        await ensureDir(fsModule, getDossierPreviewRoot(clerkFolderSegment, caseFile.meta.id));
 
-  await writeJsonFile(fsModule, getCurrentSessionFile(clerkFolderSegment), {
-    ...session,
-    currentCase: persistedCurrentCase,
-    drafts: persistedDrafts,
-    finalized: persistedFinalized
-  });
+        const persistedCaseFile = await persistCaseAssetsForDossier(fsModule, clerkFolderSegment, caseFile);
+        await writeJsonFile(fsModule, getDossierFile(clerkFolderSegment, caseFile.meta.id), persistedCaseFile);
+      })
+  );
 }
 
 async function loadClerkSession(fsModule: FileSystemModule | null, clerkId: string, masterData: MasterData): Promise<ClerkSessionStorage | null> {
   const clerkFolderSegment = findClerkFolderSegment(masterData, clerkId);
-  const stored = await readJsonFile<ClerkSessionStorage>(fsModule, getCurrentSessionFile(clerkFolderSegment));
-  if (!stored) {
+  const dossierEntries = await listDirectoryEntries(fsModule, getDossiersRoot(clerkFolderSegment));
+  const pointer = await readJsonFile<CurrentDossierPointerStorage>(fsModule, getCurrentPointerFile(clerkFolderSegment));
+  if (!dossierEntries.length && !pointer?.caseId) {
     return null;
   }
 
+  const cases = await Promise.all(
+    dossierEntries
+      .filter((entry) => entry.isDirectory && entry.name.trim())
+      .map(async (entry) => {
+        const storedCase = await readJsonFile<CaseFile>(fsModule, getDossierFile(clerkFolderSegment, entry.name.trim()));
+        return storedCase ? hydrateCaseAssets(fsModule, storedCase) : null;
+      })
+  );
+
+  const hydratedCases = cases.filter((caseFile): caseFile is CaseFile => Boolean(caseFile));
+  const currentCase = pointer?.caseId ? hydratedCases.find((caseFile) => caseFile.meta.id === pointer.caseId) ?? null : null;
+  const remainingCases = hydratedCases.filter((caseFile) => caseFile.meta.id !== currentCase?.meta.id);
+
   return {
-    ...stored,
-    currentCase: stored.currentCase ? await hydrateCaseAssets(fsModule, stored.currentCase) : null,
-    drafts: await Promise.all(stored.drafts.map((caseFile) => hydrateCaseAssets(fsModule, caseFile))),
-    finalized: await Promise.all(stored.finalized.map((caseFile) => hydrateCaseAssets(fsModule, caseFile)))
+    currentCase,
+    drafts: remainingCases.filter((caseFile) => caseFile.meta.status !== "finalized"),
+    finalized: remainingCases.filter((caseFile) => caseFile.meta.status === "finalized"),
+    savedAt: pointer?.savedAt ?? new Date().toISOString()
   };
 }
 
@@ -929,15 +977,14 @@ export async function persistCaseAssetImmediately(caseFile: CaseFile, asset: Ass
   const fsModule = await loadTauriFs();
   const clerkId = caseFile.meta.clerkId;
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, clerkId);
-  const currentAssetsRoot = getCurrentAssetsRoot(clerkFolderSegment);
   const optimizedPayload = await resolveAssetPayload(fsModule, asset.optimizedPath || asset.originalPath);
 
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, CLERKS_ROOT);
   await ensureDir(fsModule, getClerkRoot(clerkFolderSegment));
-  await ensureDir(fsModule, getCurrentRoot(clerkFolderSegment));
-  await ensureDir(fsModule, currentAssetsRoot);
-  await writeTextData(fsModule, getCurrentAssetPath(clerkFolderSegment, asset.id), optimizedPayload);
+  await ensureDir(fsModule, getDossierRoot(clerkFolderSegment, caseFile.meta.id));
+  await ensureDir(fsModule, getDossierAssetsRoot(clerkFolderSegment, caseFile.meta.id));
+  await writeTextData(fsModule, getDossierAssetPath(clerkFolderSegment, caseFile.meta.id, asset.id), optimizedPayload);
 
   return {
     ...asset,
@@ -979,14 +1026,14 @@ export async function persistGeneratedPdfToDisk(args: {
   const fsModule = await loadTauriFs();
   const clerkId = args.caseFile.meta.clerkId;
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, clerkId);
-  const previewRoot = getCurrentPreviewRoot(clerkFolderSegment);
+  const previewRoot = getDossierPreviewRoot(clerkFolderSegment, args.caseFile.meta.id);
   const parsedFileName = splitFileName(args.fileName);
   const targetPath = `${previewRoot}/${parsedFileName.name}-${createTimestampSegment()}${parsedFileName.extension}`;
 
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, CLERKS_ROOT);
   await ensureDir(fsModule, getClerkRoot(clerkFolderSegment));
-  await ensureDir(fsModule, getCurrentRoot(clerkFolderSegment));
+  await ensureDir(fsModule, getDossierRoot(clerkFolderSegment, args.caseFile.meta.id));
   await ensureDir(fsModule, previewRoot);
   await writeBinaryData(fsModule, targetPath, await toBytes(args.pdfContent));
 

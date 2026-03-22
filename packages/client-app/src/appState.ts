@@ -14,6 +14,7 @@ export {
   importMasterDataSnapshot,
   loadCaseById,
   lockAdmin,
+  openNewDossier,
   replaceState,
   saveDraft,
   selectClerk,

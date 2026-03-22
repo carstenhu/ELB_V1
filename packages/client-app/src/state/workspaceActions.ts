@@ -6,6 +6,7 @@ import {
   createCase,
   finalizeCase,
   isAdminSessionActive,
+  openDossier,
   saveDraftCase,
   type AuditSink,
   unlockAdminSession,
@@ -112,10 +113,6 @@ export function selectClerk(clerkId: string): void {
       currentCase: currentCaseForClerk ?? draftForClerk ?? null
     };
   });
-
-  if (!getState().currentCase || getState().currentCase?.meta.clerkId !== clerkId) {
-    createNewCase();
-  }
 }
 
 export function createNewCase(): void {
@@ -135,6 +132,33 @@ export function createNewCase(): void {
     entityType: "case",
     entityId: nextCase.meta.id,
     summary: `Vorgang ${nextCase.meta.receiptNumber} wurde erstellt.`
+  }));
+}
+
+export function openNewDossier(input: { customerName: string; isCompany: boolean; receiptNumber: string }): void {
+  const currentState = getState();
+  if (!currentState.activeClerkId) {
+    return;
+  }
+
+  const nextCase = openDossier({
+    state: currentState as WorkspaceStateLike,
+    scope: receiptNumberScope,
+    customerName: input.customerName,
+    isCompany: input.isCompany,
+    receiptNumber: input.receiptNumber
+  });
+
+  updateState((current) => ({
+    ...current,
+    currentCase: nextCase
+  }));
+  appendAudit(createAuditEntry({
+    actorId: getState().activeClerkId,
+    action: "case.created",
+    entityType: "case",
+    entityId: nextCase.meta.id,
+    summary: `Dossier ${nextCase.meta.receiptNumber} wurde eroeffnet.`
   }));
 }
 

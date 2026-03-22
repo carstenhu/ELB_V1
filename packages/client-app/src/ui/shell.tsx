@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PageId } from "@elb/domain/index";
 import { APP_NAME } from "@elb/shared/constants";
-import { createNewCase, selectClerk } from "../appState";
+import { selectClerk } from "../appState";
 import { useAppState } from "../useAppState";
 
 export const pages: Array<{ id: PageId; label: string }> = [
@@ -45,7 +45,7 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
   );
 }
 
-export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void }) {
+export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void; onOpenClerkSelector: () => void; onOpenDossierCreate: () => void }) {
   const state = useAppState();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -146,12 +146,11 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                 type="button"
                 className="primary-button"
                 onClick={() => {
-                  createNewCase();
-                  props.onPageChange("consignor");
+                  props.onOpenDossierCreate();
                   setActionMenuOpen(false);
                 }}
               >
-                Neue ELB anlegen
+                Neues Dossier
               </button>
               <button
                 type="button"
@@ -171,7 +170,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
                   setActionMenuOpen(false);
                 }}
               >
-                Entwuerfe und ZIPs laden
+                Dossier laden
               </button>
               <button
                 type="button"
