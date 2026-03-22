@@ -52,6 +52,16 @@ export interface AppShellPort {
   openDataDirectory(args: { clerkId: string; masterData: MasterData }): Promise<string>;
 }
 
+export interface WorkspaceSyncStatusSnapshot {
+  level: "info" | "success" | "warning";
+  message: string;
+}
+
+export interface WorkspaceSyncStatusPort {
+  getSnapshot(): WorkspaceSyncStatusSnapshot | null;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface AppPlatform {
   receiptNumberScope: ReceiptNumberScope;
   workspaceRepository: WorkspaceRepository;
@@ -62,4 +72,5 @@ export interface AppPlatform {
   masterDataSync: MasterDataSyncPort;
   dataDirectory: DataDirectoryPort;
   shell: AppShellPort;
+  workspaceSyncStatus?: WorkspaceSyncStatusPort;
 }

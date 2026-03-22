@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { PageId } from "@elb/domain/index";
 import { APP_NAME } from "@elb/shared/constants";
 import { selectClerk } from "../appState";
+import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
 
 export const pages: Array<{ id: PageId; label: string }> = [
@@ -46,8 +47,14 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
 }
 
 export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
+  const platform = usePlatform();
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
+  const workspaceSyncStatus = useSyncExternalStore(
+    platform.workspaceSyncStatus?.subscribe ?? (() => () => {}),
+    platform.workspaceSyncStatus?.getSnapshot ?? (() => null),
+    platform.workspaceSyncStatus?.getSnapshot ?? (() => null)
+  );
 
   useEffect(() => {
     if (!pageMenuOpen) {
@@ -76,54 +83,61 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
   }, [pageMenuOpen]);
 
   return (
-    <header className="topbar">
-      <div className="topbar__brand">
-        <strong>{APP_NAME}</strong>
-      </div>
-      <nav className="topbar__nav">
-        <div className="topbar__menu topbar__menu--pages" ref={pageMenuRef}>
-          <button
-            type="button"
-            className={pageMenuOpen ? "nav-button nav-button--active topbar__menu-trigger topbar__menu-trigger--pages" : "nav-button topbar__menu-trigger topbar__menu-trigger--pages"}
-            aria-expanded={pageMenuOpen}
-            aria-label="Navigation oeffnen"
-            onClick={() => {
-              setPageMenuOpen((current) => !current);
-            }}
-          >
-            <span className="topbar__menu-icon" aria-hidden="true">
-              &#9776;
-            </span>
-            <span className="topbar__menu-label">Seiten</span>
-          </button>
-          {pageMenuOpen ? (
-            <div className="topbar__menu-panel topbar__menu-panel--pages">
-              {pages.map((page) => (
-                <button
-                  key={page.id}
-                  type="button"
-                  className={page.id === props.page ? "primary-button" : "secondary-button"}
-                  onClick={() => {
-                    props.onPageChange(page.id);
-                    setPageMenuOpen(false);
-                  }}
-                >
-                  {page.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
+    <header className="topbar-wrap">
+      <div className="topbar">
+        <div className="topbar__brand">
+          <strong>{APP_NAME}</strong>
         </div>
-        {pages.map((page) => (
-          <button
-            key={page.id}
-            className={page.id === props.page ? "nav-button nav-button--active topbar__page-button" : "nav-button topbar__page-button"}
-            onClick={() => props.onPageChange(page.id)}
-          >
-            {page.label}
-          </button>
-        ))}
-      </nav>
+        <nav className="topbar__nav">
+          <div className="topbar__menu topbar__menu--pages" ref={pageMenuRef}>
+            <button
+              type="button"
+              className={pageMenuOpen ? "nav-button nav-button--active topbar__menu-trigger topbar__menu-trigger--pages" : "nav-button topbar__menu-trigger topbar__menu-trigger--pages"}
+              aria-expanded={pageMenuOpen}
+              aria-label="Navigation oeffnen"
+              onClick={() => {
+                setPageMenuOpen((current) => !current);
+              }}
+            >
+              <span className="topbar__menu-icon" aria-hidden="true">
+                &#9776;
+              </span>
+              <span className="topbar__menu-label">Seiten</span>
+            </button>
+            {pageMenuOpen ? (
+              <div className="topbar__menu-panel topbar__menu-panel--pages">
+                {pages.map((page) => (
+                  <button
+                    key={page.id}
+                    type="button"
+                    className={page.id === props.page ? "primary-button" : "secondary-button"}
+                    onClick={() => {
+                      props.onPageChange(page.id);
+                      setPageMenuOpen(false);
+                    }}
+                  >
+                    {page.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {pages.map((page) => (
+            <button
+              key={page.id}
+              className={page.id === props.page ? "nav-button nav-button--active topbar__page-button" : "nav-button topbar__page-button"}
+              onClick={() => props.onPageChange(page.id)}
+            >
+              {page.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+      {workspaceSyncStatus ? (
+        <div className={`sync-status sync-status--${workspaceSyncStatus.level}`}>
+          {workspaceSyncStatus.message}
+        </div>
+      ) : null}
     </header>
   );
 }

@@ -11,6 +11,7 @@ import {
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
 import { createWebWorkspaceRepository } from "./supabaseWorkspaceRepository";
+import { workspaceSyncStatusStore } from "./workspaceSyncStatus";
 
 function toBlob(content: Blob | ArrayBuffer | Uint8Array, mimeType?: string): Blob {
   if (content instanceof Blob) {
@@ -89,6 +90,7 @@ async function selectBrowserFile(accept: string): Promise<File | null> {
 export const webPlatform: AppPlatform = {
   receiptNumberScope: "web",
   workspaceRepository: createWebWorkspaceRepository(),
+  workspaceSyncStatus: workspaceSyncStatusStore,
   auditSink: createAuditRepository(),
   caseAssets: {
     persistAsset: (caseFile, asset) => persistCaseAssetImmediately(caseFile, asset)
