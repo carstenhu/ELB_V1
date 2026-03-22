@@ -89,6 +89,11 @@ export function App() {
           initialReceiptNumber={resumableCase?.meta.receiptNumber ?? ""}
           initialIsCompany={resumableCase?.consignor.useCompanyAddress ?? false}
           onConfirm={handleCreateDossier}
+          onLoadExisting={() => {
+            setDossierError("");
+            setDossierModalOpen(false);
+            setPage("loadCenter");
+          }}
           {...(currentDossierLabel ? { currentDossierLabel } : {})}
           {...(resumableCase
             ? {
@@ -100,15 +105,6 @@ export function App() {
                   setDossierError("");
                   setDossierModalOpen(false);
                   setPage("consignor");
-                }
-              }
-            : {})}
-          {...(!resumableCase
-            ? {
-                onLoadExisting: () => {
-                  setDossierError("");
-                  setDossierModalOpen(false);
-                  setPage("loadCenter");
                 }
               }
             : {})}

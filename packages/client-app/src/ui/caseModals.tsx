@@ -108,15 +108,11 @@ export function DossierCreateModal(props: {
   return (
     <div className="pin-modal">
       <div className="overlay__card overlay__card--narrow">
-        <div className="admin-header">
-          <h2>Dossier eroeffnen</h2>
-        </div>
-        <div className="page-grid">
+        <div className="page-grid dossier-modal-grid">
           {props.currentDossierLabel ? (
-            <Section title="Aktueller Stand">
+            <Section title="Dossier weiterbearbeiten">
               <div className="dossier-current-block">
                 <div className="dossier-current-block__copy">
-                  <strong>Aktuelles Dossier</strong>
                   <p>{props.currentDossierLabel}</p>
                 </div>
                 {props.onContinueCurrent ? (
@@ -127,7 +123,7 @@ export function DossierCreateModal(props: {
               </div>
             </Section>
           ) : null}
-          <Section title="Pflichtangaben">
+          <Section title="Neues Dossier">
             <Field label="ELB Name" full>
               <input
                 className={getTextInputClassName(customerName)}
@@ -195,6 +191,18 @@ export function DossierCreateModal(props: {
               </button>
             </div>
           </Section>
+          {props.onLoadExisting ? (
+            <Section title="Dossier laden">
+              <div className="dossier-current-block">
+                <div className="dossier-current-block__copy">
+                  <p>Bereits gespeicherte Dossiers, Entwuerfe oder ZIP-Dateien oeffnen.</p>
+                </div>
+                <button type="button" className="primary-button" onClick={props.onLoadExisting}>
+                  Dossier laden
+                </button>
+              </div>
+            </Section>
+          ) : null}
         </div>
       </div>
     </div>
