@@ -77,7 +77,8 @@ function applyReceiptNumberConsumption(current: ReturnType<typeof getState>, cas
     clerkId: caseFile.meta.clerkId,
     receiptNumber: caseFile.meta.receiptNumber,
     scope: receiptNumberScope,
-    dossiers: current.dossiers
+    dossiers: current.dossiers,
+    currentCase: current.currentCase
   });
 
   return nextMasterData === current.masterData ? current : { ...current, masterData: nextMasterData };

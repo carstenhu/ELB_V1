@@ -21,7 +21,8 @@ export function App() {
         masterData: state.masterData,
         clerkId: state.activeClerkId,
         scope: getReceiptNumberScope(),
-        dossiers: state.dossiers
+        dossiers: state.dossiers,
+        currentCase: state.currentCase
       })
     : "";
 
@@ -74,6 +75,10 @@ export function App() {
           openNewDossier(input);
           setNewDossierModalOpen(false);
           setPage("consignor");
+        }}
+        onOpenLoadCenter={() => {
+          setNewDossierModalOpen(false);
+          setPage("loadCenter");
         }}
         onCancel={() => {
           setNewDossierModalOpen(false);

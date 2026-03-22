@@ -30,15 +30,25 @@ export const defaultUseCaseContext: UseCaseContext = {
   createId: () => crypto.randomUUID()
 };
 
-function getDossiersForClerk(dossiers: readonly CaseFile[], clerkId: string): CaseFile[] {
-  return dossiers.filter((caseFile) => caseFile.meta.clerkId === clerkId);
+function getCasesForClerk(args: { dossiers: readonly CaseFile[]; currentCase?: CaseFile | null | undefined; clerkId: string }): CaseFile[] {
+  const byId = new Map<string, CaseFile>();
+  args.dossiers
+    .filter((caseFile) => caseFile.meta.clerkId === args.clerkId)
+    .forEach((caseFile) => byId.set(caseFile.meta.id, caseFile));
+
+  if (args.currentCase?.meta.clerkId === args.clerkId) {
+    byId.set(args.currentCase.meta.id, args.currentCase);
+  }
+
+  return [...byId.values()];
 }
 
 export function reserveNextCaseNumber(args: {
   clerkId: string;
   dossiers: CaseFile[];
+  currentCase?: CaseFile | null | undefined;
 }): string {
-  const allCases = getDossiersForClerk(args.dossiers, args.clerkId);
+  const allCases = getCasesForClerk(args);
   const maxValue = allCases.reduce((current, caseFile) => {
     const value = Number.parseInt(caseFile.meta.receiptNumber, 10);
     return Number.isFinite(value) ? Math.max(current, value) : current;
@@ -67,13 +77,15 @@ export function getSuggestedCaseNumber(args: {
   clerkId: string;
   scope: ReceiptNumberScope;
   dossiers: CaseFile[];
+  currentCase?: CaseFile | null | undefined;
 }): string {
   const clerk = args.masterData.clerks.find((item) => item.id === args.clerkId);
   const storedValue = clerk ? Number.parseInt(getClerkReceiptCounter(clerk, args.scope), 10) : 0;
   const fallbackValue = Number.parseInt(
     reserveNextCaseNumber({
       clerkId: args.clerkId,
-      dossiers: args.dossiers
+      dossiers: args.dossiers,
+      currentCase: args.currentCase
     }),
     10
   );
@@ -87,6 +99,7 @@ export function consumeReceiptNumberIfNeeded(args: {
   receiptNumber: string;
   scope: ReceiptNumberScope;
   dossiers: CaseFile[];
+  currentCase?: CaseFile | null | undefined;
 }): MasterData {
   const clerk = args.masterData.clerks.find((item) => item.id === args.clerkId);
   if (!clerk) {
@@ -122,7 +135,8 @@ export function createCase(
       masterData: state.masterData,
       clerkId: state.activeClerkId,
       scope,
-      dossiers: state.dossiers
+      dossiers: state.dossiers,
+      currentCase: state.currentCase
     }),
     createdAt
   });
