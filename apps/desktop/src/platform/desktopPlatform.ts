@@ -17,6 +17,7 @@ import type { MasterData } from "@elb/domain/index";
 const logger = createLogger("desktop-platform");
 const DEFAULT_SUPABASE_BUCKET = "elb-v1-data";
 const REMOTE_MASTER_DATA_PATH = "Stammdaten/master-data.json";
+const REMOTE_EXPORTS_ROOT = "exports";
 
 async function loadTauriCore() {
   const module = await import("@tauri-apps/api/core");
@@ -80,6 +81,60 @@ function buildSupabaseObjectUrl(url: string, bucket: string, path: string): stri
     .join("/");
 
   return `${url.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
+}
+
+function sanitizeRemoteSegment(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replaceAll(/[^\p{L}\p{N}._-]+/gu, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase() || "unassigned";
+}
+
+function buildSupabaseRemoteExportPath(clerkId: string, zipFileName: string): string {
+  return `${REMOTE_EXPORTS_ROOT}/${sanitizeRemoteSegment(clerkId)}/${sanitizeRemoteSegment(zipFileName)}`;
+}
+
+async function toBinaryBytes(input: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {
+  if (input instanceof Blob) {
+    return new Uint8Array(await input.arrayBuffer());
+  }
+
+  return input instanceof Uint8Array ? input : new Uint8Array(input);
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function uploadExportZipToSupabase(args: {
+  clerkId: string;
+  zipFileName: string;
+  zipContent: Blob | ArrayBuffer | Uint8Array;
+}): Promise<string | null> {
+  const config = getDesktopSupabaseConfig();
+  if (!config) {
+    return null;
+  }
+
+  const path = buildSupabaseRemoteExportPath(args.clerkId, args.zipFileName);
+  const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
+    method: "POST",
+    headers: {
+      apikey: config.key,
+      Authorization: `Bearer ${config.key}`,
+      "x-upsert": "true",
+      "content-type": "application/zip"
+    },
+    body: new Blob([toArrayBuffer(await toBinaryBytes(args.zipContent))], { type: "application/zip" })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Supabase-Upload fuer ZIP fehlgeschlagen (${response.status}).`);
+  }
+
+  return path;
 }
 
 async function loadMasterDataFromSupabase(): Promise<MasterData> {
@@ -248,7 +303,24 @@ export const desktopPlatform: AppPlatform = {
     persist: async (args) => {
       try {
         const { exchangeZipPath } = await persistExportArtifactsToDisk(args);
-        return { message: `ZIP wurde lokal gespeichert: ${exchangeZipPath}` };
+        const exchangeZipFileName = exchangeZipPath.split("/").pop() || args.zipFileName;
+
+        try {
+          const remoteZipPath = await uploadExportZipToSupabase({
+            clerkId: args.caseFile.meta.clerkId,
+            zipFileName: exchangeZipFileName,
+            zipContent: args.zipContent
+          });
+
+          return {
+            message: remoteZipPath
+              ? `ZIP wurde lokal gespeichert: ${exchangeZipPath}. Online gespeichert unter: ${remoteZipPath}`
+              : `ZIP wurde lokal gespeichert: ${exchangeZipPath}`
+          };
+        } catch (uploadError) {
+          logger.warn("Desktop-ZIP konnte nicht nach Supabase hochgeladen werden.", uploadError);
+          return { message: `ZIP wurde lokal gespeichert: ${exchangeZipPath}. Supabase-Upload ist fehlgeschlagen.` };
+        }
       } catch (error) {
         logger.error("Desktop-Exportartefakte konnten nicht gespeichert werden.", error);
         throw toError(error, "ZIP konnte in der Desktop-App nicht gespeichert werden.");
