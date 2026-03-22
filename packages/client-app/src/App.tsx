@@ -98,10 +98,7 @@ export function App() {
           {...(resumableCase
             ? {
                 onContinueCurrent: () => {
-                  if (!state.currentCase) {
-                    loadCaseById(resumableCase.meta.id);
-                  }
-
+                  loadCaseById(resumableCase.meta.id);
                   setDossierError("");
                   setDossierModalOpen(false);
                   setPage("consignor");

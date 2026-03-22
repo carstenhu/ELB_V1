@@ -250,7 +250,9 @@ export function finalizeCurrentCase(): void {
 
 export function loadCaseById(id: string): void {
   const currentState = getState();
-  const found = [...currentState.drafts, ...currentState.finalized].find((caseFile) => caseFile.meta.id === id) ?? null;
+  const found = [currentState.currentCase, ...currentState.drafts, ...currentState.finalized]
+    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+    .find((caseFile) => caseFile.meta.id === id) ?? null;
 
   updateState((current) => ({
     ...current,
