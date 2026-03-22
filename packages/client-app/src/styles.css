@@ -375,6 +375,16 @@ textarea {
   flex-wrap: wrap;
 }
 
+.section-status-line {
+  margin: 0.15rem 0 0;
+  color: #516258;
+  line-height: 1.4;
+}
+
+.section-status-line strong {
+  color: #17372f;
+}
+
 .admin-status-block {
   display: grid;
   gap: 0.45rem;

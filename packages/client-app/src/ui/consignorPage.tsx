@@ -16,6 +16,7 @@ export function ConsignorPage(props: {
   onOpenAdmin: () => void;
 }) {
   const state = useAppState();
+  const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
   const actions = useCaseEditorActions(props.caseFile);
   const owner = deriveOwner(props.caseFile.consignor, props.caseFile.owner);
   const beneficiary = deriveBeneficiary(props.caseFile.consignor, props.caseFile.bank);
@@ -81,6 +82,9 @@ export function ConsignorPage(props: {
               Admin
             </button>
           </div>
+          <p className="section-status-line">
+            Aktiver Sachbearbeiter: <strong>{activeClerk?.name ?? "Kein Sachbearbeiter"}</strong>
+          </p>
           <Field label="ELB-Nummer">
             <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
           </Field>

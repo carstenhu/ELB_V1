@@ -46,8 +46,6 @@ export function SessionOverlay(props: { open: boolean; onSelect: () => void }) {
 }
 
 export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => void }) {
-  const state = useAppState();
-  const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const pageMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -81,7 +79,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
     <header className="topbar">
       <div className="topbar__brand">
         <strong>{APP_NAME}</strong>
-        <span>{activeClerk?.name ?? "Kein Sachbearbeiter"}</span>
       </div>
       <nav className="topbar__nav">
         <div className="topbar__menu topbar__menu--pages" ref={pageMenuRef}>
