@@ -77,14 +77,17 @@ export type VatCaptureModalCase = Pick<CaseFile, "consignor">;
 export function DossierCreateModal(props: {
   initialCustomerName?: string;
   initialReceiptNumber?: string;
+  initialIsCompany?: boolean;
+  currentDossierLabel?: string;
   errorMessage?: string;
   onConfirm: (input: { customerName: string; isCompany: boolean; receiptNumber: string }) => void;
   onCancel?: () => void;
   onLoadExisting?: () => void;
+  onContinueCurrent?: () => void;
 }) {
   const [customerName, setCustomerName] = useState(props.initialCustomerName ?? "");
   const [receiptNumber, setReceiptNumber] = useState(props.initialReceiptNumber ?? "");
-  const [isCompany, setIsCompany] = useState(false);
+  const [nameMode, setNameMode] = useState<"lastName" | "company">(props.initialIsCompany ? "company" : "lastName");
 
   useEffect(() => {
     setCustomerName(props.initialCustomerName ?? "");
@@ -94,8 +97,13 @@ export function DossierCreateModal(props: {
     setReceiptNumber(props.initialReceiptNumber ?? "");
   }, [props.initialReceiptNumber]);
 
+  useEffect(() => {
+    setNameMode(props.initialIsCompany ? "company" : "lastName");
+  }, [props.initialIsCompany]);
+
   const normalizedReceiptNumber = receiptNumber.replace(/\D/g, "");
   const canConfirm = customerName.trim().length > 0 && normalizedReceiptNumber.length > 0;
+  const isCompany = nameMode === "company";
 
   return (
     <div className="pin-modal">
@@ -105,7 +113,20 @@ export function DossierCreateModal(props: {
         </div>
         <div className="page-grid">
           <Section title="Pflichtangaben">
-            <Field label="Nachname oder Firma" full>
+            {props.currentDossierLabel ? (
+              <div className="dossier-current-block">
+                <div className="dossier-current-block__copy">
+                  <strong>Aktuelles Dossier</strong>
+                  <p>{props.currentDossierLabel}</p>
+                </div>
+                {props.onContinueCurrent ? (
+                  <button type="button" className="primary-button" onClick={props.onContinueCurrent}>
+                    Aktuelles Dossier weiterbearbeiten
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <Field label="ELB Name" full>
               <input
                 className={getTextInputClassName(customerName)}
                 value={customerName}
@@ -113,15 +134,35 @@ export function DossierCreateModal(props: {
               />
             </Field>
             <div className="field field--full">
-              <label className="toggle-button">
-                <input
-                  type="checkbox"
-                  checked={isCompany}
-                  onChange={(event) => setIsCompany(event.target.checked)}
-                  style={{ display: "none" }}
-                />
-                {isCompany ? "Als Firma angelegt" : "Als Nachname angelegt"}
-              </label>
+              <div className="toggle-list" role="group" aria-label="ELB-Namensart">
+                <label className="checkbox-line">
+                  <input
+                    type="checkbox"
+                    checked={nameMode === "lastName"}
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        setNameMode("lastName");
+                      }
+                    }}
+                  />
+                  <span>Nachname</span>
+                </label>
+                <label className="checkbox-line">
+                  <input
+                    type="checkbox"
+                    checked={nameMode === "company"}
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        setNameMode("company");
+                      }
+                    }}
+                  />
+                  <span>Firmenname</span>
+                </label>
+              </div>
+              <p className="modal-hint">
+                Der ELB Name wird beim Einlieferer direkt als {isCompany ? "Firma" : "Nachname"} uebernommen.
+              </p>
             </div>
             <Field label="ELB-Nummer" full>
               <input

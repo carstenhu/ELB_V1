@@ -56,6 +56,10 @@ export function App() {
     }
   }
 
+  const currentDossierLabel = state.currentCase
+    ? `${state.currentCase.consignor.company.trim() || state.currentCase.consignor.lastName.trim() || "Unbenannt"} · ELB ${state.currentCase.meta.receiptNumber}`
+    : undefined;
+
   if (!hydrated) {
     return (
       <div className="app-shell">
@@ -73,7 +77,18 @@ export function App() {
       {dossierModalOpen && state.activeClerkId ? (
         <DossierCreateModal
           errorMessage={dossierError}
+          initialIsCompany={false}
           onConfirm={handleCreateDossier}
+          {...(currentDossierLabel ? { currentDossierLabel } : {})}
+          {...(state.currentCase
+            ? {
+                onContinueCurrent: () => {
+                  setDossierError("");
+                  setDossierModalOpen(false);
+                  setPage("consignor");
+                }
+              }
+            : {})}
           {...(!state.currentCase ? {
             onLoadExisting: () => {
               setDossierError("");
