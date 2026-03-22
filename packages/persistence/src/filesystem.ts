@@ -152,6 +152,10 @@ function getBrowserStorageKey(path: string): string {
   return `elb.v1.fs.${path}`;
 }
 
+function getBrowserStoragePath(key: string): string | null {
+  return key.startsWith("elb.v1.fs.") ? key.slice("elb.v1.fs.".length) : null;
+}
+
 function getLinkedDirectoryLabel(handle: BrowserDirectoryHandle | null): string | null {
   if (!handle) {
     return null;
@@ -496,12 +500,50 @@ async function listDirectoryEntries(fsModule: FileSystemModule | null, path: str
   }
 
   const directoryHandle = await getBrowserDirectoryHandle(path);
-  if (!directoryHandle || typeof directoryHandle.values !== "function") return [];
-  const entries: Array<{ name: string; isFile: boolean; isDirectory: boolean }> = [];
-  for await (const entry of directoryHandle.values()) {
-    entries.push({ name: entry.name ?? "", isFile: entry.kind === "file", isDirectory: entry.kind === "directory" });
+  if (directoryHandle && typeof directoryHandle.values === "function") {
+    const entries: Array<{ name: string; isFile: boolean; isDirectory: boolean }> = [];
+    for await (const entry of directoryHandle.values()) {
+      entries.push({ name: entry.name ?? "", isFile: entry.kind === "file", isDirectory: entry.kind === "directory" });
+    }
+    return entries;
   }
-  return entries;
+
+  const normalizedPath = path.replaceAll("\\", "/").replace(/\/+$/, "");
+  const prefix = `${normalizedPath}/`;
+  const collected = new Map<string, { name: string; isFile: boolean; isDirectory: boolean }>();
+
+  const rememberEntry = (name: string, nextPath: string, isDirectoryHint: boolean) => {
+    if (!name) return;
+    const existing = collected.get(name);
+    const isDirectory = isDirectoryHint || nextPath.includes("/");
+    collected.set(name, {
+      name,
+      isFile: existing?.isFile ?? !isDirectory,
+      isDirectory: existing?.isDirectory ?? isDirectory
+    });
+  };
+
+  const localStorageRef = globalThis.localStorage;
+  if (!localStorageRef) {
+    return [];
+  }
+
+  for (let index = 0; index < localStorageRef.length; index += 1) {
+    const storageKey = localStorageRef.key(index);
+    if (!storageKey) continue;
+    const storedPath = getBrowserStoragePath(storageKey);
+    if (!storedPath?.startsWith(prefix)) continue;
+    const remainder = storedPath.slice(prefix.length);
+    if (!remainder) continue;
+    const isDirectoryMarker = remainder.endsWith("/.dir");
+    const cleanRemainder = isDirectoryMarker ? remainder.slice(0, -"/.dir".length) : remainder;
+    if (!cleanRemainder) continue;
+    const [name, ...rest] = cleanRemainder.split("/");
+    if (!name) continue;
+    rememberEntry(name, rest.join("/"), isDirectoryMarker || rest.length > 0);
+  }
+
+  return [...collected.values()];
 }
 
 async function loadClerkDossiers(fsModule: FileSystemModule | null, clerkId: string, masterData: MasterData): Promise<{ currentCaseId: string | null; dossiers: CaseFile[] } | null> {
