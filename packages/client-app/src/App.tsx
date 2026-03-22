@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { type PageId } from "@elb/domain/index";
 import { getSuggestedCaseNumber } from "@elb/app-core/index";
-import { getReceiptNumberScope, openNewDossier } from "./appState";
+import { createSnapshot, getReceiptNumberScope, openNewDossier } from "./appState";
 import { useAppState } from "./useAppState";
 import { WorkspacePageContent } from "./app/WorkspacePageContent";
 import { useWorkspaceLifecycle } from "./app/useWorkspaceLifecycle";
+import { usePlatform } from "./platform/platformContext";
 import { NewDossierModal } from "./ui/caseModals";
 import { SessionOverlay, TopBar } from "./ui/shell";
 
 export function App() {
+  const platform = usePlatform();
   const hydrated = useWorkspaceLifecycle();
   const state = useAppState();
   const [page, setPage] = useState<PageId>("consignor");
@@ -69,6 +71,7 @@ export function App() {
         suggestedReceiptNumber={suggestedReceiptNumber}
         onCreate={(input) => {
           openNewDossier(input);
+          void platform.workspaceRepository.save(createSnapshot());
           setNewDossierModalOpen(false);
           setPage("consignor");
         }}
