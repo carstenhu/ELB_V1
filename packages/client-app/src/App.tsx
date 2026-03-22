@@ -42,10 +42,6 @@ export function App() {
     if (!state.currentCase && page !== "loadCenter") {
       setNewDossierModalOpen(true);
     }
-
-    if (page === "loadCenter") {
-      setPage("consignor");
-    }
   }, [hydrated, page, state.activeClerkId, state.currentCase]);
 
   if (!hydrated) {
