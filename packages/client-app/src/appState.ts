@@ -8,6 +8,7 @@ export {
   deleteObject,
   finalizeCurrentCase,
   getState,
+  getReceiptNumberScope,
   hasAdminAccess,
   importMasterDataSnapshot,
   loadCaseById,

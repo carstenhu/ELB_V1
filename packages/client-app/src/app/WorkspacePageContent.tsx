@@ -36,7 +36,7 @@ export function WorkspacePageContent(props: {
     if (props.page === "loadCenter") {
       return (
         <main className="page">
-          <LoadCenterPage onDone={() => props.onPageChange("consignor")} />
+          <LoadCenterPage onDone={() => props.onPageChange("consignor")} onOpenClerkSelector={props.onOpenClerkSelector} />
         </main>
       );
     }
@@ -52,7 +52,7 @@ export function WorkspacePageContent(props: {
   return (
     <main className="page">
       {props.page === "admin" ? <AdminPage /> : null}
-      {props.page === "loadCenter" ? <LoadCenterPage onDone={() => props.onPageChange("consignor")} /> : null}
+      {props.page === "loadCenter" ? <LoadCenterPage onDone={() => props.onPageChange("consignor")} onOpenClerkSelector={props.onOpenClerkSelector} /> : null}
       {props.page === "consignor" && props.caseFile ? (
         <ConsignorPage
           caseFile={props.caseFile}

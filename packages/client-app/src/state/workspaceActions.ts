@@ -87,6 +87,10 @@ export function configureStateServices(services: { auditSink?: AuditSink | null;
   receiptNumberScope = services.receiptNumberScope ?? "desktop";
 }
 
+export function getReceiptNumberScope(): ReceiptNumberScope {
+  return receiptNumberScope;
+}
+
 function appendAudit(entry: ReturnType<typeof createAuditEntry>): void {
   logger.info(entry.summary, entry);
   const auditSink = getAuditSink();

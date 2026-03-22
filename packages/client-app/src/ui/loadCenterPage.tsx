@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getSuggestedCaseNumber } from "@elb/app-core/index";
 import { type CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
-import { loadCaseById, openNewDossier } from "../appState";
+import { getReceiptNumberScope, loadCaseById, openNewDossier } from "../appState";
 import { useAppState } from "../useAppState";
 import { getTextInputClassName } from "./formSupport";
 
@@ -23,14 +24,27 @@ function getDossierStatusLabel(caseFile: CaseFile, currentDossierIdByClerk: Reco
   return caseFile.meta.status === "finalized" ? "Gespeichert" : "In Bearbeitung";
 }
 
-export function LoadCenterPage(props: { onDone?: () => void }) {
+export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector?: () => void }) {
   const state = useAppState();
   const [showAllClerks, setShowAllClerks] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [receiptNumber, setReceiptNumber] = useState("");
   const [nameMode, setNameMode] = useState<"lastName" | "company">("lastName");
   const [errorMessage, setErrorMessage] = useState("");
+  const previousClerkIdRef = useRef<string | null>(null);
   const clerkNameById = new Map(state.masterData.clerks.map((clerk) => [clerk.id, clerk.name]));
+  const suggestedReceiptNumber = useMemo(() => {
+    if (!state.activeClerkId) {
+      return "";
+    }
+
+    return getSuggestedCaseNumber({
+      masterData: state.masterData,
+      clerkId: state.activeClerkId,
+      scope: getReceiptNumberScope(),
+      dossiers: state.dossiers
+    });
+  }, [state.activeClerkId, state.dossiers, state.masterData]);
 
   const visibleDossiers = useMemo(() => {
     const base = showAllClerks || !state.activeClerkId
@@ -40,6 +54,20 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
   }, [showAllClerks, state.activeClerkId, state.dossiers]);
 
   const canCreate = Boolean(state.activeClerkId && customerName.trim() && receiptNumber.trim());
+
+  useEffect(() => {
+    const previousClerkId = previousClerkIdRef.current;
+    const clerkChanged = previousClerkId !== state.activeClerkId;
+
+    if (clerkChanged) {
+      setReceiptNumber(suggestedReceiptNumber);
+      setErrorMessage("");
+    } else if (!receiptNumber.trim() && suggestedReceiptNumber) {
+      setReceiptNumber(suggestedReceiptNumber);
+    }
+
+    previousClerkIdRef.current = state.activeClerkId;
+  }, [receiptNumber, state.activeClerkId, suggestedReceiptNumber]);
 
   function handleCreateDossier() {
     try {
@@ -61,6 +89,11 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
     <div className="page-grid">
       <Section title="Neues Dossier">
         {!state.activeClerkId ? <p>Bitte zuerst einen Sachbearbeiter waehlen.</p> : null}
+        <div className="inline-actions">
+          <button type="button" className="secondary-button" onClick={props.onOpenClerkSelector}>
+            Sachbearbeiter wechseln
+          </button>
+        </div>
         <Field label="ELB Name" full>
           <input
             className={getTextInputClassName(customerName)}
