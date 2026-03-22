@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { openNewDossier } from "./appState";
+import { loadCaseById, openNewDossier } from "./appState";
 import { type PageId } from "@elb/domain/index";
 import { useAppState } from "./useAppState";
 import { WorkspacePageContent } from "./app/WorkspacePageContent";
 import { useWorkspaceLifecycle } from "./app/useWorkspaceLifecycle";
-import { SessionOverlay, TopBar } from "./ui/shell";
 import { DossierCreateModal } from "./ui/caseModals";
+import { SessionOverlay, TopBar } from "./ui/shell";
 
 export function App() {
   const hydrated = useWorkspaceLifecycle();
@@ -56,8 +56,16 @@ export function App() {
     }
   }
 
-  const currentDossierLabel = state.currentCase
-    ? `${state.currentCase.consignor.company.trim() || state.currentCase.consignor.lastName.trim() || "Unbenannt"} · ELB ${state.currentCase.meta.receiptNumber}`
+  const resumableCase =
+    state.currentCase ??
+    (state.activeClerkId
+      ? state.drafts.find((caseFile) => caseFile.meta.clerkId === state.activeClerkId) ??
+        state.finalized.find((caseFile) => caseFile.meta.clerkId === state.activeClerkId) ??
+        null
+      : null);
+
+  const currentDossierLabel = resumableCase
+    ? `${resumableCase.consignor.company.trim() || resumableCase.consignor.lastName.trim() || "Unbenannt"} · ELB ${resumableCase.meta.receiptNumber}`
     : undefined;
 
   if (!hydrated) {
@@ -77,28 +85,34 @@ export function App() {
       {dossierModalOpen && state.activeClerkId ? (
         <DossierCreateModal
           errorMessage={dossierError}
-          initialCustomerName={state.currentCase ? (state.currentCase.consignor.company.trim() || state.currentCase.consignor.lastName.trim()) : ""}
-          initialReceiptNumber={state.currentCase?.meta.receiptNumber ?? ""}
-          initialIsCompany={state.currentCase?.consignor.useCompanyAddress ?? false}
+          initialCustomerName={resumableCase ? (resumableCase.consignor.company.trim() || resumableCase.consignor.lastName.trim()) : ""}
+          initialReceiptNumber={resumableCase?.meta.receiptNumber ?? ""}
+          initialIsCompany={resumableCase?.consignor.useCompanyAddress ?? false}
           onConfirm={handleCreateDossier}
           {...(currentDossierLabel ? { currentDossierLabel } : {})}
-          {...(state.currentCase
+          {...(resumableCase
             ? {
                 onContinueCurrent: () => {
+                  if (!state.currentCase) {
+                    loadCaseById(resumableCase.meta.id);
+                  }
+
                   setDossierError("");
                   setDossierModalOpen(false);
                   setPage("consignor");
                 }
               }
             : {})}
-          {...(!state.currentCase ? {
-            onLoadExisting: () => {
-              setDossierError("");
-              setDossierModalOpen(false);
-              setPage("loadCenter");
-            }
-          } : {})}
-          {...(state.currentCase ? { onCancel: () => setDossierModalOpen(false) } : {})}
+          {...(!resumableCase
+            ? {
+                onLoadExisting: () => {
+                  setDossierError("");
+                  setDossierModalOpen(false);
+                  setPage("loadCenter");
+                }
+              }
+            : {})}
+          {...(resumableCase ? { onCancel: () => setDossierModalOpen(false) } : {})}
         />
       ) : null}
       <TopBar page={page} onPageChange={setPage} onOpenClerkSelector={() => setClerkSelectorOpen(true)} onOpenDossierCreate={handleOpenDossierModal} />
