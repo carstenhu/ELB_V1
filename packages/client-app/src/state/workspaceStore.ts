@@ -6,8 +6,7 @@ export interface AppState {
   activeClerkId: string | null;
   currentCase: CaseFile | null;
   currentDossierIdByClerk: Record<string, string | null>;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
+  dossiers: CaseFile[];
   adminSession: AdminSession | null;
 }
 
@@ -17,8 +16,7 @@ function createInitialState(): AppState {
     activeClerkId: null,
     currentCase: null,
     currentDossierIdByClerk: {},
-    drafts: [],
-    finalized: [],
+    dossiers: [],
     adminSession: null
   };
 }
@@ -75,16 +73,34 @@ export function createWorkspaceSnapshot(): WorkspaceSnapshot {
     activeClerkId: state.activeClerkId,
     currentCase: state.currentCase,
     currentDossierIdByClerk: state.currentDossierIdByClerk,
-    drafts: state.drafts,
-    finalized: state.finalized
+    dossiers: state.dossiers
   };
+}
+
+function resolveCurrentCase(snapshot: WorkspaceSnapshot): CaseFile | null {
+  if (snapshot.currentCase) {
+    return snapshot.currentCase;
+  }
+
+  if (!snapshot.activeClerkId) {
+    return null;
+  }
+
+  const currentDossierId = snapshot.currentDossierIdByClerk[snapshot.activeClerkId];
+  if (!currentDossierId) {
+    return null;
+  }
+
+  return snapshot.dossiers.find((caseFile) => caseFile.meta.id === currentDossierId) ?? null;
 }
 
 export function replaceWorkspaceSnapshot(snapshot: WorkspaceSnapshot): void {
   setState({
     ...snapshot,
     masterData: normalizeMasterData(snapshot.masterData),
+    currentCase: resolveCurrentCase(snapshot),
     currentDossierIdByClerk: snapshot.currentDossierIdByClerk ?? {},
+    dossiers: snapshot.dossiers ?? [],
     adminSession: state.adminSession
   });
 }

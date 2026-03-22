@@ -3,7 +3,6 @@ import {
   assignAuction,
   consumeReceiptNumberIfNeeded,
   createAuditEntry,
-  createCase,
   finalizeCase,
   isAdminSessionActive,
   openDossier,
@@ -14,7 +13,6 @@ import {
 } from "@elb/app-core/index";
 import type { CaseFile, MasterData, ReceiptNumberScope } from "@elb/domain/index";
 import { createLogger } from "@elb/shared/logger";
-import type { ExchangeImportResult } from "../platform/platformTypes";
 import {
   consumePendingObjectSelectionId,
   createWorkspaceSnapshot,
@@ -34,24 +32,6 @@ export { consumePendingObjectSelectionId, createWorkspaceSnapshot as createSnaps
 
 let receiptNumberScope: ReceiptNumberScope = "desktop";
 
-function findCurrentDossierForClerk(state: ReturnType<typeof getState>, clerkId: string): CaseFile | null {
-  const currentDossierId = state.currentDossierIdByClerk[clerkId];
-  const allCases = [state.currentCase, ...state.drafts, ...state.finalized]
-    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
-    .filter((caseFile) => caseFile.meta.clerkId === clerkId);
-
-  if (currentDossierId) {
-    const matched = allCases.find((caseFile) => caseFile.meta.id === currentDossierId);
-    if (matched) {
-      return matched;
-    }
-  }
-
-  return allCases
-    .sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" }))[0]
-    ?? null;
-}
-
 function dedupeCases(caseFiles: readonly CaseFile[]): CaseFile[] {
   const byId = new Map<string, CaseFile>();
 
@@ -60,6 +40,30 @@ function dedupeCases(caseFiles: readonly CaseFile[]): CaseFile[] {
   });
 
   return [...byId.values()];
+}
+
+function sortDossiers(caseFiles: readonly CaseFile[]): CaseFile[] {
+  return [...caseFiles].sort((left, right) =>
+    right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
+  );
+}
+
+function upsertDossier(dossiers: readonly CaseFile[], dossier: CaseFile): CaseFile[] {
+  return sortDossiers(dedupeCases([dossier, ...dossiers.filter((item) => item.meta.id !== dossier.meta.id)]));
+}
+
+function findCurrentDossierForClerk(state: ReturnType<typeof getState>, clerkId: string): CaseFile | null {
+  const currentDossierId = state.currentDossierIdByClerk[clerkId];
+  const clerkDossiers = state.dossiers.filter((caseFile) => caseFile.meta.clerkId === clerkId);
+
+  if (currentDossierId) {
+    const matched = clerkDossiers.find((caseFile) => caseFile.meta.id === currentDossierId);
+    if (matched) {
+      return matched;
+    }
+  }
+
+  return clerkDossiers[0] ?? null;
 }
 
 function applyReceiptNumberConsumption(current: ReturnType<typeof getState>, caseFile: CaseFile | null) {
@@ -72,8 +76,7 @@ function applyReceiptNumberConsumption(current: ReturnType<typeof getState>, cas
     clerkId: caseFile.meta.clerkId,
     receiptNumber: caseFile.meta.receiptNumber,
     scope: receiptNumberScope,
-    drafts: current.drafts,
-    finalized: current.finalized
+    dossiers: current.dossiers
   });
 
   return nextMasterData === current.masterData ? current : { ...current, masterData: nextMasterData };
@@ -132,30 +135,6 @@ export function selectClerk(clerkId: string): void {
   });
 }
 
-export function createNewCase(): void {
-  const currentState = getState();
-  if (!currentState.activeClerkId) {
-    return;
-  }
-
-  const nextCase = createCase(currentState as WorkspaceStateLike, receiptNumberScope);
-  updateState((current) => ({
-    ...current,
-    currentCase: nextCase,
-    currentDossierIdByClerk: {
-      ...current.currentDossierIdByClerk,
-      [nextCase.meta.clerkId]: nextCase.meta.id
-    }
-  }));
-  appendAudit(createAuditEntry({
-    actorId: getState().activeClerkId,
-    action: "case.created",
-    entityType: "case",
-    entityId: nextCase.meta.id,
-    summary: `Vorgang ${nextCase.meta.receiptNumber} wurde erstellt.`
-  }));
-}
-
 export function openNewDossier(input: { customerName: string; isCompany: boolean; receiptNumber: string }): void {
   const currentState = getState();
   if (!currentState.activeClerkId) {
@@ -171,9 +150,15 @@ export function openNewDossier(input: { customerName: string; isCompany: boolean
   });
 
   updateState((current) => ({
-    ...current,
-    currentCase: nextCase
+    ...applyReceiptNumberConsumption(current, nextCase),
+    currentCase: nextCase,
+    currentDossierIdByClerk: {
+      ...current.currentDossierIdByClerk,
+      [nextCase.meta.clerkId]: nextCase.meta.id
+    },
+    dossiers: upsertDossier(current.dossiers, nextCase)
   }));
+
   appendAudit(createAuditEntry({
     actorId: getState().activeClerkId,
     action: "case.created",
@@ -223,7 +208,8 @@ export function updateCurrentCase(updater: (current: CaseFile) => CaseFile): voi
 
     return applyReceiptNumberConsumption({
       ...current,
-      currentCase: nextCase
+      currentCase: nextCase,
+      dossiers: upsertDossier(current.dossiers, nextCase)
     }, nextCase);
   });
 }
@@ -234,16 +220,19 @@ export function saveDraft(): void {
     return;
   }
 
+  const savedCase: CaseFile = { ...currentCase, meta: { ...currentCase.meta, status: "draft" } };
   updateState((current) => ({
-    ...applyReceiptNumberConsumption(current, currentCase),
-    drafts: saveDraftCase(currentCase, current.drafts)
+    ...applyReceiptNumberConsumption(current, savedCase),
+    currentCase: savedCase,
+    dossiers: saveDraftCase(savedCase, current.dossiers)
   }));
+
   appendAudit(createAuditEntry({
     actorId: getState().activeClerkId,
     action: "case.draft-saved",
     entityType: "case",
     entityId: currentCase.meta.id,
-    summary: `Vorgang ${currentCase.meta.receiptNumber} wurde als Entwurf gespeichert.`
+    summary: `Dossier ${currentCase.meta.receiptNumber} wurde gespeichert.`
   }));
 }
 
@@ -257,23 +246,21 @@ export function finalizeCurrentCase(): void {
   updateState((current) => ({
     ...applyReceiptNumberConsumption(current, finalizedCase),
     currentCase: finalizedCase,
-    drafts: current.drafts.filter((draft) => draft.meta.id !== finalizedCase.meta.id),
-    finalized: [...current.finalized.filter((item) => item.meta.id !== finalizedCase.meta.id), finalizedCase]
+    dossiers: upsertDossier(current.dossiers, finalizedCase)
   }));
+
   appendAudit(createAuditEntry({
     actorId: getState().activeClerkId,
     action: "case.finalized",
     entityType: "case",
     entityId: finalizedCase.meta.id,
-    summary: `Vorgang ${finalizedCase.meta.receiptNumber} wurde finalisiert.`
+    summary: `Dossier ${finalizedCase.meta.receiptNumber} wurde gespeichert.`
   }));
 }
 
 export function loadCaseById(id: string): void {
   const currentState = getState();
-  const found = [currentState.currentCase, ...currentState.drafts, ...currentState.finalized]
-    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
-    .find((caseFile) => caseFile.meta.id === id) ?? null;
+  const found = currentState.dossiers.find((caseFile) => caseFile.meta.id === id) ?? null;
 
   updateState((current) => ({
     ...current,
@@ -296,52 +283,8 @@ export function loadCaseById(id: string): void {
     action: "case.loaded",
     entityType: "case",
     entityId: found.meta.id,
-    summary: `Vorgang ${found.meta.receiptNumber} wurde geladen.`
+    summary: `Dossier ${found.meta.receiptNumber} wurde geladen.`
   }));
-}
-
-export function importExchangeData(result: ExchangeImportResult): void {
-  updateState((current) => {
-    const preservedCurrentDraft =
-      current.currentCase && current.currentCase.meta.clerkId !== result.caseFile.meta.clerkId && current.currentCase.meta.id !== result.caseFile.meta.id
-        ? [current.currentCase]
-        : [];
-
-    const remainingDrafts = current.drafts.filter(
-      (caseFile) => caseFile.meta.clerkId !== result.caseFile.meta.clerkId && caseFile.meta.id !== result.caseFile.meta.id
-    );
-    const remainingFinalized = current.finalized.filter(
-      (caseFile) => caseFile.meta.clerkId !== result.caseFile.meta.clerkId && caseFile.meta.id !== result.caseFile.meta.id
-    );
-
-    return {
-      ...current,
-      masterData: result.masterData,
-      activeClerkId: result.caseFile.meta.clerkId,
-      currentCase: result.caseFile,
-      currentDossierIdByClerk: {
-        ...current.currentDossierIdByClerk,
-        [result.caseFile.meta.clerkId]: result.caseFile.meta.id
-      },
-      drafts: dedupeCases([...preservedCurrentDraft, ...remainingDrafts]),
-      finalized: dedupeCases(remainingFinalized)
-    };
-  });
-
-  appendAudit(
-    createAuditEntry({
-      actorId: result.caseFile.meta.clerkId,
-      action: "exchange.imported",
-      entityType: "import",
-      entityId: result.caseFile.meta.id,
-      summary: `Austauschdaten fuer Vorgang ${result.caseFile.meta.receiptNumber} wurden importiert.`,
-      metadata: {
-        clerkId: result.caseFile.meta.clerkId,
-        receiptNumber: result.caseFile.meta.receiptNumber,
-        warningCount: String(result.warnings.length)
-      }
-    })
-  );
 }
 
 export function importMasterDataSnapshot(masterData: MasterData): void {
@@ -353,7 +296,8 @@ export function importMasterDataSnapshot(masterData: MasterData): void {
     return {
       ...current,
       masterData,
-      activeClerkId: hasActiveClerk ? current.activeClerkId : null
+      activeClerkId: hasActiveClerk ? current.activeClerkId : null,
+      currentCase: hasActiveClerk ? current.currentCase : null
     };
   });
 
@@ -384,7 +328,8 @@ export function addObject(): string | null {
   updateState((current) =>
     applyReceiptNumberConsumption({
       ...current,
-      currentCase: result.caseFile
+      currentCase: result.caseFile,
+      dossiers: upsertDossier(current.dossiers, result.caseFile)
     }, result.caseFile)
   );
 
@@ -424,7 +369,8 @@ export function applyAuctionPricingRules(objectId: string): void {
     const nextCase = assignAuction(currentCase, current.masterData, objectId, objectItem.auctionId);
     return applyReceiptNumberConsumption({
       ...current,
-      currentCase: nextCase
+      currentCase: nextCase,
+      dossiers: upsertDossier(current.dossiers, nextCase)
     }, nextCase);
   });
 }

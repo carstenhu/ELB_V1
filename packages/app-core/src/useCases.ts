@@ -17,8 +17,7 @@ export interface WorkspaceStateLike {
   masterData: MasterData;
   activeClerkId: string | null;
   currentCase: CaseFile | null;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
+  dossiers: CaseFile[];
 }
 
 export interface UseCaseContext {
@@ -31,12 +30,15 @@ export const defaultUseCaseContext: UseCaseContext = {
   createId: () => crypto.randomUUID()
 };
 
+function getDossiersForClerk(dossiers: readonly CaseFile[], clerkId: string): CaseFile[] {
+  return dossiers.filter((caseFile) => caseFile.meta.clerkId === clerkId);
+}
+
 export function reserveNextCaseNumber(args: {
   clerkId: string;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
+  dossiers: CaseFile[];
 }): string {
-  const allCases = [...args.drafts, ...args.finalized].filter((caseFile) => caseFile.meta.clerkId === args.clerkId);
+  const allCases = getDossiersForClerk(args.dossiers, args.clerkId);
   const maxValue = allCases.reduce((current, caseFile) => {
     const value = Number.parseInt(caseFile.meta.receiptNumber, 10);
     return Number.isFinite(value) ? Math.max(current, value) : current;
@@ -64,16 +66,17 @@ export function getSuggestedCaseNumber(args: {
   masterData: MasterData;
   clerkId: string;
   scope: ReceiptNumberScope;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
+  dossiers: CaseFile[];
 }): string {
   const clerk = args.masterData.clerks.find((item) => item.id === args.clerkId);
   const storedValue = clerk ? Number.parseInt(getClerkReceiptCounter(clerk, args.scope), 10) : 0;
-  const fallbackValue = Number.parseInt(reserveNextCaseNumber({
-    clerkId: args.clerkId,
-    drafts: args.drafts,
-    finalized: args.finalized
-  }), 10);
+  const fallbackValue = Number.parseInt(
+    reserveNextCaseNumber({
+      clerkId: args.clerkId,
+      dossiers: args.dossiers
+    }),
+    10
+  );
 
   return toPositiveNumericString(String(Math.max(storedValue || 0, fallbackValue || 1)));
 }
@@ -83,8 +86,7 @@ export function consumeReceiptNumberIfNeeded(args: {
   clerkId: string;
   receiptNumber: string;
   scope: ReceiptNumberScope;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
+  dossiers: CaseFile[];
 }): MasterData {
   const clerk = args.masterData.clerks.find((item) => item.id === args.clerkId);
   if (!clerk) {
@@ -109,7 +111,7 @@ export function createCase(
   context: UseCaseContext = defaultUseCaseContext
 ): CaseFile {
   if (!state.activeClerkId) {
-    throw new AppError("NO_ACTIVE_CLERK", "Ein neuer Vorgang benötigt einen aktiven Sachbearbeiter.");
+    throw new AppError("NO_ACTIVE_CLERK", "Ein neuer Vorgang benoetigt einen aktiven Sachbearbeiter.");
   }
 
   const createdAt = context.now();
@@ -120,8 +122,7 @@ export function createCase(
       masterData: state.masterData,
       clerkId: state.activeClerkId,
       scope,
-      drafts: state.drafts,
-      finalized: state.finalized
+      dossiers: state.dossiers
     }),
     createdAt
   });
@@ -145,9 +146,9 @@ function ensureReceiptNumberAvailable(args: {
   clerkId: string;
   receiptNumber: string;
 }): void {
-  const conflictingCase = [args.state.currentCase, ...args.state.drafts, ...args.state.finalized]
-    .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
-    .find((caseFile) => caseFile.meta.clerkId === args.clerkId && caseFile.meta.receiptNumber.trim() === args.receiptNumber);
+  const conflictingCase = args.state.dossiers.find(
+    (caseFile) => caseFile.meta.clerkId === args.clerkId && caseFile.meta.receiptNumber.trim() === args.receiptNumber
+  );
 
   if (conflictingCase) {
     throw new AppError("VALIDATION_ERROR", `Die ELB-Nummer ${args.receiptNumber} ist fuer diesen Sachbearbeiter bereits vergeben.`);
@@ -274,8 +275,8 @@ export function assignAuction(caseFile: CaseFile, masterData: MasterData, object
   );
 }
 
-export function saveDraftCase(caseFile: CaseFile, drafts: CaseFile[]): CaseFile[] {
-  return [...drafts.filter((draft) => draft.meta.id !== caseFile.meta.id), { ...caseFile, meta: { ...caseFile.meta, status: "draft" } }];
+export function saveDraftCase(caseFile: CaseFile, dossiers: CaseFile[]): CaseFile[] {
+  return [...dossiers.filter((dossier) => dossier.meta.id !== caseFile.meta.id), { ...caseFile, meta: { ...caseFile.meta, status: "draft" } }];
 }
 
 export function finalizeCase(caseFile: CaseFile, context: UseCaseContext = defaultUseCaseContext): CaseFile {
@@ -302,7 +303,7 @@ export function requireCaseReadyForExport(caseFile: CaseFile, masterData: Master
 export function selectActiveClerk(state: WorkspaceStateLike, clerkId: string): Clerk {
   const clerk = state.masterData.clerks.find((item) => item.id === clerkId);
   if (!clerk) {
-    throw new AppError("VALIDATION_ERROR", "Der gewählte Sachbearbeiter existiert nicht.");
+    throw new AppError("VALIDATION_ERROR", "Der gewaehlte Sachbearbeiter existiert nicht.");
   }
   return clerk;
 }

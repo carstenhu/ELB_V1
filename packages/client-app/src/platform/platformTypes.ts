@@ -24,26 +24,6 @@ export interface PdfPreviewPort {
   }): Promise<{ message: string }>;
 }
 
-export interface ExchangeImportResult {
-  caseFile: CaseFile;
-  masterData: MasterData;
-  warnings: string[];
-  message: string;
-}
-
-export interface StoredExchangeZipOption {
-  id: string;
-  fileName: string;
-  label: string;
-}
-
-export interface ExchangeImportPort {
-  importFromSelection(): Promise<ExchangeImportResult | null>;
-  importFromZipSelection(): Promise<ExchangeImportResult | null>;
-  listStoredZipOptions(args: { masterData: MasterData }): Promise<StoredExchangeZipOption[]>;
-  importStoredZip(args: { masterData: MasterData; zipId: string }): Promise<ExchangeImportResult | null>;
-}
-
 export interface MasterDataSyncResult {
   masterData: MasterData;
   message: string;
@@ -79,7 +59,6 @@ export interface AppPlatform {
   caseAssets: CaseAssetPort;
   exportArtifacts: ExportArtifactPort;
   pdfPreview: PdfPreviewPort;
-  exchangeImport: ExchangeImportPort;
   masterDataSync: MasterDataSyncPort;
   dataDirectory: DataDirectoryPort;
   shell: AppShellPort;

@@ -1,7 +1,7 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
 import { createEmptyClerk, normalizeRequiredFieldKeys } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
-import { createSnapshot, hasAdminAccess, importExchangeData, importMasterDataSnapshot, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
+import { createSnapshot, hasAdminAccess, importMasterDataSnapshot, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
 import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
 import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
@@ -11,10 +11,7 @@ export function AdminPage() {
   const state = useAppState();
   const platform = usePlatform();
   const [pinInput, setPinInput] = useState("");
-  const [section, setSection] = useState<"security" | "required" | "clerks" | "auctions" | "departments" | "exchange">("security");
-  const [exchangeStatus, setExchangeStatus] = useState("");
-  const [exchangeWarnings, setExchangeWarnings] = useState<string[]>([]);
-  const [exchangeBusy, setExchangeBusy] = useState(false);
+  const [section, setSection] = useState<"security" | "required" | "clerks" | "auctions" | "departments" | "storage">("security");
   const [masterDataStatus, setMasterDataStatus] = useState("");
   const [masterDataBusy, setMasterDataBusy] = useState(false);
   const [dataDirectoryStatus, setDataDirectoryStatus] = useState("");
@@ -22,7 +19,7 @@ export function AdminPage() {
   const [dataDirectoryBusy, setDataDirectoryBusy] = useState(false);
   const [dataDirectoryLinked, setDataDirectoryLinked] = useState(false);
   const [dataDirectorySupportsLinking, setDataDirectorySupportsLinking] = useState(false);
-  const cases = [state.currentCase, ...state.drafts, ...state.finalized].filter((caseFile): caseFile is NonNullable<typeof caseFile> => Boolean(caseFile));
+  const cases = state.dossiers;
   const unlocked = hasAdminAccess();
 
   useEffect(() => {
@@ -43,50 +40,6 @@ export function AdminPage() {
       active = false;
     };
   }, [platform]);
-
-  async function handleExchangeImport() {
-    setExchangeBusy(true);
-    setExchangeStatus("");
-    setExchangeWarnings([]);
-
-    try {
-      const imported = await platform.exchangeImport.importFromSelection();
-      if (!imported) {
-        setExchangeStatus("Kein Austauschordner ausgewaehlt.");
-        return;
-      }
-
-      importExchangeData(imported);
-      setExchangeWarnings(imported.warnings);
-      setExchangeStatus(imported.message);
-    } catch (error) {
-      setExchangeStatus(error instanceof Error ? error.message : "Austauschordner konnte nicht importiert werden.");
-    } finally {
-      setExchangeBusy(false);
-    }
-  }
-
-  async function handleExchangeZipImport() {
-    setExchangeBusy(true);
-    setExchangeStatus("");
-    setExchangeWarnings([]);
-
-    try {
-      const imported = await platform.exchangeImport.importFromZipSelection();
-      if (!imported) {
-        setExchangeStatus("Keine Austausch-ZIP ausgewaehlt.");
-        return;
-      }
-
-      importExchangeData(imported);
-      setExchangeWarnings(imported.warnings);
-      setExchangeStatus(imported.message);
-    } catch (error) {
-      setExchangeStatus(error instanceof Error ? error.message : "Austausch-ZIP konnte nicht importiert werden.");
-    } finally {
-      setExchangeBusy(false);
-    }
-  }
 
   async function handleMasterDataExport() {
     setMasterDataBusy(true);
@@ -201,7 +154,7 @@ export function AdminPage() {
           <button type="button" className={section === "clerks" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("clerks")}>Sachbearbeiter</button>
           <button type="button" className={section === "auctions" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("auctions")}>Auktionen</button>
           <button type="button" className={section === "departments" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("departments")}>Abteilungen</button>
-          <button type="button" className={section === "exchange" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("exchange")}>Austausch</button>
+          <button type="button" className={section === "storage" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("storage")}>Speicher</button>
         </div>
         <div className="inline-actions">
           <button type="button" onClick={() => lockAdmin()}>
@@ -356,8 +309,8 @@ export function AdminPage() {
         </Section>
       ) : null}
 
-      {section === "exchange" ? (
-        <Section title="Datenaustausch">
+      {section === "storage" ? (
+        <Section title="Speicher">
           <div className="admin-status-block">
             <strong>Datenordner</strong>
             <p>{dataDirectoryStatus}</p>
@@ -387,26 +340,7 @@ export function AdminPage() {
             ) : null}
           </div>
           {masterDataStatus ? <p>{masterDataStatus}</p> : null}
-          <p>Importiert einen versionierten Austauschordner oder direkt eine Austausch-ZIP und stellt ihn als aktuelle Session des zugehoerigen Sachbearbeiters wieder her.</p>
-          <div className="inline-actions">
-            <button type="button" className="primary" disabled={exchangeBusy} onClick={() => void handleExchangeImport()}>
-              {exchangeBusy ? "Import laeuft..." : "Austauschordner importieren"}
-            </button>
-            <button type="button" disabled={exchangeBusy} onClick={() => void handleExchangeZipImport()}>
-              Austausch-ZIP importieren
-            </button>
-          </div>
-          {exchangeStatus ? <p>{exchangeStatus}</p> : null}
-          {exchangeWarnings.length ? (
-            <>
-              <h4>Import-Hinweise</h4>
-              <ul className="simple-list">
-                {exchangeWarnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            </>
-          ) : null}
+          <p>Die App speichert nur noch dossierbasiert pro Sachbearbeiter. Stammdaten und aktueller Datenordner koennen hier verwaltet werden.</p>
         </Section>
       ) : null}
     </div>

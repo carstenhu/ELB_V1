@@ -1,21 +1,16 @@
 import { useEffect, useState } from "react";
-import { loadCaseById, openNewDossier } from "./appState";
 import { type PageId } from "@elb/domain/index";
 import { useAppState } from "./useAppState";
 import { WorkspacePageContent } from "./app/WorkspacePageContent";
 import { useWorkspaceLifecycle } from "./app/useWorkspaceLifecycle";
-import { DossierCreateModal } from "./ui/caseModals";
 import { SessionOverlay, TopBar } from "./ui/shell";
 
 export function App() {
   const hydrated = useWorkspaceLifecycle();
-
   const state = useAppState();
   const [page, setPage] = useState<PageId>("consignor");
   const [exportStatus, setExportStatus] = useState("");
   const [clerkSelectorOpen, setClerkSelectorOpen] = useState(false);
-  const [dossierModalOpen, setDossierModalOpen] = useState(false);
-  const [dossierError, setDossierError] = useState("");
 
   useEffect(() => {
     if (!hydrated) {
@@ -27,54 +22,18 @@ export function App() {
 
   useEffect(() => {
     if (!hydrated || !state.activeClerkId) {
-      setDossierModalOpen(false);
       return;
     }
 
     if (!state.currentCase) {
-      setDossierModalOpen(true);
+      setPage("loadCenter");
       return;
     }
 
-    setDossierModalOpen(false);
-    setDossierError("");
-  }, [hydrated, state.activeClerkId, state.currentCase]);
-
-  function handleOpenDossierModal() {
-    setDossierError("");
-    setDossierModalOpen(true);
-  }
-
-  function handleCreateDossier(input: { customerName: string; isCompany: boolean; receiptNumber: string }) {
-    try {
-      openNewDossier(input);
+    if (page === "loadCenter") {
       setPage("consignor");
-      setDossierError("");
-      setDossierModalOpen(false);
-    } catch (error) {
-      setDossierError(error instanceof Error ? error.message : "Dossier konnte nicht eroeffnet werden.");
     }
-  }
-
-  const resumableCase =
-    state.currentCase ??
-    (state.activeClerkId
-      ? (() => {
-          const currentDossierId = state.currentDossierIdByClerk[state.activeClerkId];
-          const allCases = [...state.drafts, ...state.finalized].filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId);
-          const matched = currentDossierId
-            ? allCases.find((caseFile) => caseFile.meta.id === currentDossierId) ?? null
-            : null;
-
-          return matched
-            ?? allCases.sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" }))[0]
-            ?? null;
-        })()
-      : null);
-
-  const currentDossierLabel = resumableCase
-    ? `${resumableCase.consignor.company.trim() || resumableCase.consignor.lastName.trim() || "Unbenannt"} · ELB ${resumableCase.meta.receiptNumber}`
-    : undefined;
+  }, [hydrated, page, state.activeClerkId, state.currentCase]);
 
   if (!hydrated) {
     return (
@@ -93,36 +52,9 @@ export function App() {
         open={clerkSelectorOpen}
         onSelect={() => {
           setClerkSelectorOpen(false);
-          setDossierError("");
-          setDossierModalOpen(true);
           setPage("consignor");
         }}
       />
-      {dossierModalOpen && state.activeClerkId ? (
-        <DossierCreateModal
-          errorMessage={dossierError}
-          initialCustomerName={resumableCase ? (resumableCase.consignor.company.trim() || resumableCase.consignor.lastName.trim()) : ""}
-          initialReceiptNumber={resumableCase?.meta.receiptNumber ?? ""}
-          initialIsCompany={resumableCase?.consignor.useCompanyAddress ?? false}
-          onConfirm={handleCreateDossier}
-          onLoadExisting={() => {
-            setDossierError("");
-            setDossierModalOpen(false);
-            setPage("loadCenter");
-          }}
-          {...(currentDossierLabel ? { currentDossierLabel } : {})}
-          {...(resumableCase
-            ? {
-                onContinueCurrent: () => {
-                  loadCaseById(resumableCase.meta.id);
-                  setDossierError("");
-                  setDossierModalOpen(false);
-                  setPage("consignor");
-                }
-              }
-            : {})}
-        />
-      ) : null}
       <TopBar page={page} onPageChange={setPage} />
       <WorkspacePageContent
         page={page}
@@ -130,7 +62,7 @@ export function App() {
         exportStatus={exportStatus}
         onExportStatusChange={setExportStatus}
         onPageChange={setPage}
-        onOpenDossierCreate={handleOpenDossierModal}
+        onOpenDossierCreate={() => setPage("loadCenter")}
         onOpenClerkSelector={() => setClerkSelectorOpen(true)}
         onOpenAdmin={() => setPage("admin")}
       />

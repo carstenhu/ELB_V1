@@ -5,8 +5,7 @@ export interface WorkspaceSnapshot {
   activeClerkId: string | null;
   currentCase: CaseFile | null;
   currentDossierIdByClerk: Record<string, string | null>;
-  drafts: CaseFile[];
-  finalized: CaseFile[];
+  dossiers: CaseFile[];
 }
 
 export interface WorkspaceRepository {

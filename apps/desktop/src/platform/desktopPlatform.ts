@@ -1,13 +1,10 @@
 import { createAuditRepository } from "@elb/persistence/auditRepository";
-import { importExchangeFromEntries, importExchangeFromZip, type ExchangeImportEntry } from "@elb/persistence/exchangeImport";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import {
   getClerkDataDirectoryRelativePath,
-  listStoredExchangeZipFiles,
   persistCaseAssetImmediately,
   persistExportArtifactsToDisk,
-  persistGeneratedPdfToDisk,
-  readStoredExchangeZipFile
+  persistGeneratedPdfToDisk
 } from "@elb/persistence/filesystem";
 import { createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
@@ -17,14 +14,13 @@ import type { MasterData } from "@elb/domain/index";
 const logger = createLogger("desktop-platform");
 const DEFAULT_SUPABASE_BUCKET = "elb-v1-data";
 const REMOTE_MASTER_DATA_PATH = "Stammdaten/master-data.json";
-const REMOTE_EXPORTS_ROOT = "exports";
+const REMOTE_DOSSIER_EXPORTS_ROOT = "desktop-dossiers";
 
 async function loadTauriCore() {
   const module = await import("@tauri-apps/api/core");
   if (typeof module.invoke !== "function") {
     throw new Error("Tauri Core API ist nicht verfuegbar.");
   }
-
   return module;
 }
 
@@ -37,23 +33,14 @@ async function loadTauriFs() {
 }
 
 function toError(error: unknown, fallback: string): Error {
-  if (error instanceof Error) {
-    return error;
-  }
-
-  if (typeof error === "string" && error.trim()) {
-    return new Error(error);
-  }
-
+  if (error instanceof Error) return error;
+  if (typeof error === "string" && error.trim()) return new Error(error);
   try {
     const serialized = JSON.stringify(error);
-    if (serialized && serialized !== "{}") {
-      return new Error(serialized);
-    }
+    if (serialized && serialized !== "{}") return new Error(serialized);
   } catch {
-    // Ignore serialization failures and use the fallback below.
+    // Ignore serialization failures.
   }
-
   return new Error(fallback);
 }
 
@@ -75,11 +62,7 @@ function getDesktopSupabaseConfig(): { url: string; key: string; bucket: string 
 }
 
 function buildSupabaseObjectUrl(url: string, bucket: string, path: string): string {
-  const encodedPath = path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-
+  const encodedPath = path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
   return `${url.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
 }
 
@@ -92,15 +75,12 @@ function sanitizeRemoteSegment(value: string): string {
     .toLowerCase() || "unassigned";
 }
 
-function buildSupabaseRemoteExportPath(clerkId: string, zipFileName: string): string {
-  return `${REMOTE_EXPORTS_ROOT}/${sanitizeRemoteSegment(clerkId)}/${sanitizeRemoteSegment(zipFileName)}`;
+function buildRemoteExportPath(clerkId: string, caseId: string, zipFileName: string): string {
+  return `${REMOTE_DOSSIER_EXPORTS_ROOT}/${sanitizeRemoteSegment(clerkId)}/${sanitizeRemoteSegment(caseId)}/${sanitizeRemoteSegment(zipFileName)}`;
 }
 
 async function toBinaryBytes(input: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {
-  if (input instanceof Blob) {
-    return new Uint8Array(await input.arrayBuffer());
-  }
-
+  if (input instanceof Blob) return new Uint8Array(await input.arrayBuffer());
   return input instanceof Uint8Array ? input : new Uint8Array(input);
 }
 
@@ -108,17 +88,11 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
-async function uploadExportZipToSupabase(args: {
-  clerkId: string;
-  zipFileName: string;
-  zipContent: Blob | ArrayBuffer | Uint8Array;
-}): Promise<string | null> {
+async function uploadExportZipToSupabase(args: { clerkId: string; caseId: string; zipFileName: string; zipContent: Blob | ArrayBuffer | Uint8Array }): Promise<string | null> {
   const config = getDesktopSupabaseConfig();
-  if (!config) {
-    return null;
-  }
+  if (!config) return null;
 
-  const path = buildSupabaseRemoteExportPath(args.clerkId, args.zipFileName);
+  const path = buildRemoteExportPath(args.clerkId, args.caseId, args.zipFileName);
   const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
     method: "POST",
     headers: {
@@ -131,7 +105,7 @@ async function uploadExportZipToSupabase(args: {
   });
 
   if (!response.ok) {
-    throw new Error(`Supabase-Upload fuer ZIP fehlgeschlagen (${response.status}).`);
+    throw new Error(`Supabase-Upload fuer Dossier-ZIP fehlgeschlagen (${response.status}).`);
   }
 
   return path;
@@ -139,15 +113,10 @@ async function uploadExportZipToSupabase(args: {
 
 async function loadMasterDataFromSupabase(): Promise<MasterData> {
   const config = getDesktopSupabaseConfig();
-  if (!config) {
-    throw new Error("Supabase ist in der Desktop-App nicht konfiguriert.");
-  }
+  if (!config) throw new Error("Supabase ist in der Desktop-App nicht konfiguriert.");
 
   const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, REMOTE_MASTER_DATA_PATH), {
-    headers: {
-      apikey: config.key,
-      Authorization: `Bearer ${config.key}`
-    }
+    headers: { apikey: config.key, Authorization: `Bearer ${config.key}` }
   });
 
   if (!response.ok) {
@@ -181,62 +150,6 @@ export const desktopPlatform: AppPlatform = {
       }
     }
   },
-  exchangeImport: {
-    importFromSelection: async () => {
-      const { open } = await loadTauriDialog();
-      const { readDir, readFile, readTextFile } = await loadTauriFs();
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: "Austauschordner auswaehlen"
-      });
-
-      const selectedPath = Array.isArray(selected) ? selected[0] : selected;
-      if (!selectedPath) {
-        return null;
-      }
-
-      const entries = await collectExchangeEntries(readDir, readFile, readTextFile, selectedPath, selectedPath);
-      const imported = await importExchangeFromEntries(entries);
-
-      return {
-        ...imported,
-        message: `Austauschordner wurde importiert: ${selectedPath}`
-      };
-    },
-    importFromZipSelection: async () => {
-      const { open } = await loadTauriDialog();
-      const { readFile } = await loadTauriFs();
-      const selected = await open({
-        directory: false,
-        multiple: false,
-        filters: [{ name: "ZIP", extensions: ["zip"] }],
-        title: "Austausch-ZIP auswaehlen"
-      });
-
-      const selectedPath = Array.isArray(selected) ? selected[0] : selected;
-      if (!selectedPath) {
-        return null;
-      }
-
-      return {
-        ...(await importExchangeFromZip(await readFile(selectedPath))),
-        message: `Austausch-ZIP wurde importiert: ${selectedPath}`
-      };
-    },
-    listStoredZipOptions: ({ masterData }) => listStoredExchangeZipFiles({ masterData }),
-    importStoredZip: async ({ masterData, zipId }) => {
-      const zipFile = await readStoredExchangeZipFile({ masterData, zipId });
-      if (!zipFile) {
-        return null;
-      }
-
-      return {
-        ...(await importExchangeFromZip(zipFile.content)),
-        message: `Austausch-ZIP wurde geladen: ${zipFile.fileName}`
-      };
-    }
-  },
   masterDataSync: {
     exportCurrent: async (masterData) => {
       const { save } = await loadTauriDialog();
@@ -247,10 +160,7 @@ export const desktopPlatform: AppPlatform = {
         title: "Stammdaten speichern"
       });
 
-      if (!targetPath) {
-        return { message: "Export der Stammdaten wurde abgebrochen." };
-      }
-
+      if (!targetPath) return { message: "Export der Stammdaten wurde abgebrochen." };
       await writeTextFile(targetPath, serializeMasterData(masterData));
       return { message: `Stammdaten wurden gespeichert: ${targetPath}` };
     },
@@ -263,12 +173,8 @@ export const desktopPlatform: AppPlatform = {
         filters: [{ name: "JSON", extensions: ["json"] }],
         title: "Stammdaten-Datei auswaehlen"
       });
-
       const selectedPath = Array.isArray(selected) ? selected[0] : selected;
-      if (!selectedPath) {
-        return null;
-      }
-
+      if (!selectedPath) return null;
       return {
         masterData: importMasterDataFromJson(await readTextFile(selectedPath)),
         message: `Stammdaten wurden importiert: ${selectedPath}`
@@ -302,28 +208,28 @@ export const desktopPlatform: AppPlatform = {
   exportArtifacts: {
     persist: async (args) => {
       try {
-        const { exchangeZipPath } = await persistExportArtifactsToDisk(args);
-        const exchangeZipFileName = exchangeZipPath.split("/").pop() || args.zipFileName;
+        const { savedPath } = await persistExportArtifactsToDisk(args);
+        const zipFileName = savedPath.split("/").pop() || args.zipFileName;
 
         try {
           const remoteZipPath = await uploadExportZipToSupabase({
             clerkId: args.caseFile.meta.clerkId,
-            zipFileName: exchangeZipFileName,
+            caseId: args.caseFile.meta.id,
+            zipFileName,
             zipContent: args.zipContent
           });
-
           return {
             message: remoteZipPath
-              ? `ZIP wurde lokal gespeichert: ${exchangeZipPath}. Online gespeichert unter: ${remoteZipPath}`
-              : `ZIP wurde lokal gespeichert: ${exchangeZipPath}`
+              ? `Dossierdateien wurden lokal gespeichert: ${savedPath}. Online gespeichert unter: ${remoteZipPath}`
+              : `Dossierdateien wurden lokal gespeichert: ${savedPath}`
           };
         } catch (uploadError) {
-          logger.warn("Desktop-ZIP konnte nicht nach Supabase hochgeladen werden.", uploadError);
-          return { message: `ZIP wurde lokal gespeichert: ${exchangeZipPath}. Supabase-Upload ist fehlgeschlagen.` };
+          logger.warn("Desktop-Dossier-ZIP konnte nicht nach Supabase hochgeladen werden.", uploadError);
+          return { message: `Dossierdateien wurden lokal gespeichert: ${savedPath}. Supabase-Upload ist fehlgeschlagen.` };
         }
       } catch (error) {
-        logger.error("Desktop-Exportartefakte konnten nicht gespeichert werden.", error);
-        throw toError(error, "ZIP konnte in der Desktop-App nicht gespeichert werden.");
+        logger.error("Desktop-Dossierdateien konnten nicht gespeichert werden.", error);
+        throw toError(error, "Dossierdateien konnten in der Desktop-App nicht gespeichert werden.");
       }
     }
   },
@@ -336,58 +242,3 @@ export const desktopPlatform: AppPlatform = {
     }
   }
 };
-
-function normalizePathSegment(value: string): string {
-  return value.replaceAll("\\", "/");
-}
-
-function getRelativeEntryPath(rootPath: string, entryPath: string): string {
-  const normalizedRoot = normalizePathSegment(rootPath).replace(/\/+$/, "");
-  const normalizedEntry = normalizePathSegment(entryPath);
-  return normalizedEntry.startsWith(`${normalizedRoot}/`) ? normalizedEntry.slice(normalizedRoot.length + 1) : normalizedEntry;
-}
-
-function isTextExchangeFile(path: string): boolean {
-  return path.toLowerCase().endsWith(".json");
-}
-
-async function collectExchangeEntries(
-  readDir: typeof import("@tauri-apps/plugin-fs").readDir,
-  readFile: typeof import("@tauri-apps/plugin-fs").readFile,
-  readTextFile: typeof import("@tauri-apps/plugin-fs").readTextFile,
-  currentDirectory: string,
-  rootDirectory: string
-): Promise<ExchangeImportEntry[]> {
-  const directoryEntries = await readDir(currentDirectory);
-  const collected: ExchangeImportEntry[] = [];
-
-  for (const entry of directoryEntries) {
-    const entryPath = `${currentDirectory}/${entry.name}`;
-
-    if (entry.isDirectory) {
-      collected.push(...await collectExchangeEntries(readDir, readFile, readTextFile, entryPath, rootDirectory));
-      continue;
-    }
-
-    if (!entry.isFile) {
-      continue;
-    }
-
-    const relativePath = getRelativeEntryPath(rootDirectory, entryPath);
-
-    if (isTextExchangeFile(relativePath)) {
-      collected.push({
-        path: relativePath,
-        content: await readTextFile(entryPath)
-      });
-      continue;
-    }
-
-    collected.push({
-      path: relativePath,
-      content: await readFile(entryPath)
-    });
-  }
-
-  return collected;
-}

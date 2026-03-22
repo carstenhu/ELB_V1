@@ -16,7 +16,7 @@ describe("application use cases", () => {
   it("reserves the next case number per clerk", () => {
     const caseA = createEmptyCase({ id: "a", clerkId: "clerk-1", receiptNumber: "3", createdAt: "2026-03-18T10:00:00.000Z" });
     const caseB = createEmptyCase({ id: "b", clerkId: "clerk-1", receiptNumber: "8", createdAt: "2026-03-18T10:00:00.000Z" });
-    expect(reserveNextCaseNumber({ clerkId: "clerk-1", drafts: [caseA], finalized: [caseB] })).toBe("9");
+    expect(reserveNextCaseNumber({ clerkId: "clerk-1", dossiers: [caseA, caseB] })).toBe("9");
   });
 
   it("creates a new case from workspace state", () => {
@@ -25,8 +25,7 @@ describe("application use cases", () => {
       masterData,
       activeClerkId: "clerk-1",
       currentCase: null,
-      drafts: [],
-      finalized: []
+      dossiers: []
     }, "desktop", {
       now: () => "2026-03-18T10:00:00.000Z",
       createId: () => "case-1"
@@ -46,16 +45,14 @@ describe("application use cases", () => {
       masterData,
       clerkId: "clerk-1",
       scope: "desktop",
-      drafts: [],
-      finalized: []
+      dossiers: []
     })).toBe("10");
 
     expect(getSuggestedCaseNumber({
       masterData,
       clerkId: "clerk-1",
       scope: "web",
-      drafts: [],
-      finalized: []
+      dossiers: []
     })).toBe("200");
 
     const unchanged = consumeReceiptNumberIfNeeded({
@@ -63,8 +60,7 @@ describe("application use cases", () => {
       clerkId: "clerk-1",
       receiptNumber: "999",
       scope: "desktop",
-      drafts: [],
-      finalized: []
+      dossiers: []
     });
     expect(unchanged.clerks[0]?.nextReceiptNumberDesktop).toBe("10");
 
@@ -73,8 +69,7 @@ describe("application use cases", () => {
       clerkId: "clerk-1",
       receiptNumber: "10",
       scope: "desktop",
-      drafts: [],
-      finalized: []
+      dossiers: []
     });
     expect(consumed.clerks[0]?.nextReceiptNumberDesktop).toBe("11");
     expect(consumed.clerks[0]?.nextReceiptNumberWeb).toBe("200");

@@ -1,20 +1,18 @@
-import { useEffect, useState } from "react";
-import type { CaseFile } from "@elb/domain/index";
-import { Section } from "@elb/ui/forms";
-import { importExchangeData, loadCaseById } from "../appState";
-import { usePlatform } from "../platform/platformContext";
+import { useMemo, useState } from "react";
+import { type CaseFile } from "@elb/domain/index";
+import { Field, Section } from "@elb/ui/forms";
+import { loadCaseById, openNewDossier } from "../appState";
 import { useAppState } from "../useAppState";
+import { getTextInputClassName } from "./formSupport";
 
-function dedupeCases(caseFiles: Array<CaseFile | null>): CaseFile[] {
-  const byId = new Map<string, CaseFile>();
+function sortDossiers(caseFiles: readonly CaseFile[]): CaseFile[] {
+  return [...caseFiles].sort((left, right) =>
+    right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
+  );
+}
 
-  caseFiles.forEach((caseFile) => {
-    if (caseFile) {
-      byId.set(caseFile.meta.id, caseFile);
-    }
-  });
-
-  return [...byId.values()];
+function getDossierDisplayName(caseFile: CaseFile): string {
+  return caseFile.consignor.company.trim() || caseFile.consignor.lastName.trim() || "Unbenannt";
 }
 
 function getDossierStatusLabel(caseFile: CaseFile, currentDossierIdByClerk: Record<string, string | null>): string {
@@ -22,89 +20,101 @@ function getDossierStatusLabel(caseFile: CaseFile, currentDossierIdByClerk: Reco
     return "Aktuell";
   }
 
-  return caseFile.meta.status === "finalized" ? "Abgeschlossen" : "Entwurf";
+  return caseFile.meta.status === "finalized" ? "Gespeichert" : "In Bearbeitung";
 }
 
 export function LoadCenterPage(props: { onDone?: () => void }) {
   const state = useAppState();
-  const platform = usePlatform();
-  const [storedZipOptions, setStoredZipOptions] = useState<Array<{ id: string; label: string }>>([]);
-  const [zipStatus, setZipStatus] = useState("");
-  const [zipBusy, setZipBusy] = useState(false);
+  const [showAllClerks, setShowAllClerks] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [receiptNumber, setReceiptNumber] = useState("");
+  const [nameMode, setNameMode] = useState<"lastName" | "company">("lastName");
+  const [errorMessage, setErrorMessage] = useState("");
   const clerkNameById = new Map(state.masterData.clerks.map((clerk) => [clerk.id, clerk.name]));
 
-  useEffect(() => {
-    let active = true;
-    setZipBusy(true);
-    setZipStatus("");
+  const visibleDossiers = useMemo(() => {
+    const base = showAllClerks || !state.activeClerkId
+      ? state.dossiers
+      : state.dossiers.filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId);
+    return sortDossiers(base);
+  }, [showAllClerks, state.activeClerkId, state.dossiers]);
 
-    void platform.exchangeImport
-      .listStoredZipOptions({
-        masterData: state.masterData
-      })
-      .then((options) => {
-        if (!active) {
-          return;
-        }
+  const canCreate = Boolean(state.activeClerkId && customerName.trim() && receiptNumber.trim());
 
-        setStoredZipOptions(options.map((option) => ({ id: option.id, label: option.label })));
-        setZipStatus(options.length ? "" : "Keine gespeicherten ZIP-Dateien vorhanden.");
-      })
-      .catch((error) => {
-        if (!active) {
-          return;
-        }
-
-        setStoredZipOptions([]);
-        setZipStatus(error instanceof Error ? error.message : "ZIP-Dateien konnten nicht geladen werden.");
-      })
-      .finally(() => {
-        if (active) {
-          setZipBusy(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [platform, state.masterData]);
-
-  const availableDossiers = dedupeCases([state.currentCase, ...state.drafts, ...state.finalized]).sort((left, right) =>
-    right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
-  );
-
-  async function handleStoredZipImport(zipId: string) {
-    setZipBusy(true);
-    setZipStatus("");
-
+  function handleCreateDossier() {
     try {
-      const imported = await platform.exchangeImport.importStoredZip({
-        masterData: state.masterData,
-        zipId
+      openNewDossier({
+        customerName,
+        isCompany: nameMode === "company",
+        receiptNumber: receiptNumber.trim(),
       });
-
-      if (!imported) {
-        setZipStatus("Die ausgewaehlte ZIP konnte nicht geladen werden.");
-        return;
-      }
-
-      importExchangeData(imported);
-      setZipStatus(imported.message);
+      setCustomerName("");
+      setReceiptNumber("");
+      setErrorMessage("");
       props.onDone?.();
     } catch (error) {
-      setZipStatus(error instanceof Error ? error.message : "ZIP konnte nicht geladen werden.");
-    } finally {
-      setZipBusy(false);
+      setErrorMessage(error instanceof Error ? error.message : "Dossier konnte nicht angelegt werden.");
     }
   }
 
   return (
     <div className="page-grid">
+      <Section title="Neues Dossier">
+        {!state.activeClerkId ? <p>Bitte zuerst einen Sachbearbeiter waehlen.</p> : null}
+        <Field label="ELB Name" full>
+          <input
+            className={getTextInputClassName(customerName)}
+            value={customerName}
+            onChange={(event) => setCustomerName(event.target.value)}
+          />
+        </Field>
+        <div className="toggle-list" role="group" aria-label="ELB-Namensart">
+          <label className="checkbox-line">
+            <input
+              type="checkbox"
+              checked={nameMode === "lastName"}
+              onChange={() => setNameMode("lastName")}
+            />
+            <span>Nachname</span>
+          </label>
+          <label className="checkbox-line">
+            <input
+              type="checkbox"
+              checked={nameMode === "company"}
+              onChange={() => setNameMode("company")}
+            />
+            <span>Firmenname</span>
+          </label>
+        </div>
+        <Field label="ELB-Nummer" full>
+          <input
+            className={getTextInputClassName(receiptNumber)}
+            value={receiptNumber}
+            onChange={(event) => setReceiptNumber(event.target.value.replace(/[^\d]/g, ""))}
+          />
+        </Field>
+        {errorMessage ? <p className="field-warning">{errorMessage}</p> : null}
+        <div className="inline-actions">
+          <button type="button" className="primary-button" disabled={!canCreate} onClick={handleCreateDossier}>
+            Dossier anlegen
+          </button>
+        </div>
+      </Section>
+
       <Section title="Dossiers laden">
-        {!availableDossiers.length ? <p>Keine gespeicherten Dossiers vorhanden.</p> : null}
-        {availableDossiers.length ? (
+        <div className="inline-actions">
+          <button
+            type="button"
+            className={showAllClerks ? "primary-button" : "secondary-button"}
+            onClick={() => setShowAllClerks((current) => !current)}
+          >
+            {showAllClerks ? "Nur aktueller Sachbearbeiter" : "Alle Sachbearbeiter anzeigen"}
+          </button>
+        </div>
+        {!visibleDossiers.length ? <p>Keine Dossiers vorhanden.</p> : null}
+        {visibleDossiers.length ? (
           <div className="load-list">
-            {availableDossiers.map((dossier) => (
+            {visibleDossiers.map((dossier) => (
               <button
                 key={dossier.meta.id}
                 type="button"
@@ -114,32 +124,12 @@ export function LoadCenterPage(props: { onDone?: () => void }) {
                   props.onDone?.();
                 }}
               >
-                <strong>{`${clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} · ${dossier.consignor.lastName || dossier.consignor.company || "Unbenannt"}`}</strong>
+                <strong>{`${clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} · ${getDossierDisplayName(dossier)}`}</strong>
                 <span>{`${getDossierStatusLabel(dossier, state.currentDossierIdByClerk)} · ELB ${dossier.meta.receiptNumber}`}</span>
               </button>
             ))}
           </div>
         ) : null}
-      </Section>
-      <Section title="Gespeicherte Dossier-ZIP-Dateien laden">
-        {!storedZipOptions.length && !zipBusy ? <p>{zipStatus || "Keine gespeicherten ZIP-Dateien vorhanden."}</p> : null}
-        {storedZipOptions.length ? (
-          <div className="load-list">
-            {storedZipOptions.map((zipOption) => (
-              <button
-                key={zipOption.id}
-                type="button"
-                className="primary-button load-list__item"
-                disabled={zipBusy}
-                onClick={() => void handleStoredZipImport(zipOption.id)}
-              >
-                <strong>{zipOption.label}</strong>
-                <span>{zipBusy ? "Wird geladen..." : "Austausch-ZIP importieren"}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {zipStatus && storedZipOptions.length ? <p>{zipStatus}</p> : null}
       </Section>
     </div>
   );

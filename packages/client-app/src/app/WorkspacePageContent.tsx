@@ -43,8 +43,8 @@ export function WorkspacePageContent(props: {
 
     return (
       <main className="empty-state">
-        <h1>Kein aktiver Vorgang</h1>
-        <p>Bitte zuerst einen Sachbearbeiter waehlen oder einen neuen Vorgang anlegen.</p>
+        <h1>Kein aktives Dossier</h1>
+        <p>Bitte zuerst einen Sachbearbeiter waehlen oder ein Dossier laden.</p>
       </main>
     );
   }
