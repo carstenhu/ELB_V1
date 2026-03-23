@@ -1,0 +1,34 @@
+.pwa-install-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 0.75rem 1rem 0.9rem;
+  border-bottom: 1px solid rgba(189, 198, 186, 0.65);
+  background: rgba(236, 243, 238, 0.97);
+}
+
+.pwa-install-hint__copy {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.pwa-install-hint__copy strong {
+  color: #17372f;
+}
+
+.pwa-install-hint__copy p {
+  margin: 0;
+  color: #42554b;
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .pwa-install-hint {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 0.7rem 0.9rem 0.85rem;
+  }
+}
