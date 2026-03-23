@@ -1,7 +1,7 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
-import { createEmptyClerk, normalizeRequiredFieldKeys } from "@elb/domain/index";
+import { createEmptyClerk, normalizeRequiredFieldKeys, type MasterData } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
-import { createSnapshot, hasAdminAccess, importMasterDataSnapshot, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
+import { createSnapshot, hasAdminAccess, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
 import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
 import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 export function AdminPage() {
   const state = useAppState();
   const platform = usePlatform();
+  const [draftMasterData, setDraftMasterData] = useState<MasterData>(state.masterData);
+  const [masterDataDirty, setMasterDataDirty] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [section, setSection] = useState<"security" | "required" | "clerks" | "auctions" | "departments" | "storage">("security");
   const [masterDataStatus, setMasterDataStatus] = useState("");
@@ -21,6 +23,11 @@ export function AdminPage() {
   const [dataDirectorySupportsLinking, setDataDirectorySupportsLinking] = useState(false);
   const cases = state.dossiers;
   const unlocked = hasAdminAccess();
+
+  useEffect(() => {
+    setDraftMasterData(state.masterData);
+    setMasterDataDirty(false);
+  }, [state.masterData]);
 
   useEffect(() => {
     let active = true;
@@ -41,12 +48,28 @@ export function AdminPage() {
     };
   }, [platform]);
 
+  function updateDraftMasterData(updater: (current: MasterData) => MasterData) {
+    setDraftMasterData((current) => {
+      const next = updater(current);
+      if (next !== current) {
+        setMasterDataDirty(true);
+      }
+      return next;
+    });
+  }
+
+  function handleMasterDataSave() {
+    updateMasterData(() => draftMasterData);
+    setMasterDataStatus("Stammdaten wurden gespeichert.");
+    setMasterDataDirty(false);
+  }
+
   async function handleMasterDataExport() {
     setMasterDataBusy(true);
     setMasterDataStatus("");
 
     try {
-      const result = await platform.masterDataSync.exportCurrent(state.masterData);
+      const result = await platform.masterDataSync.exportCurrent(draftMasterData);
       setMasterDataStatus(result.message);
     } catch (error) {
       setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht exportiert werden.");
@@ -66,8 +89,9 @@ export function AdminPage() {
         return;
       }
 
-      importMasterDataSnapshot(imported.masterData);
-      setMasterDataStatus(imported.message);
+      setDraftMasterData(imported.masterData);
+      setMasterDataDirty(true);
+      setMasterDataStatus(`${imported.message} Bitte speichern, um die Aenderungen zu uebernehmen.`);
     } catch (error) {
       setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht importiert werden.");
     } finally {
@@ -86,8 +110,9 @@ export function AdminPage() {
         return;
       }
 
-      importMasterDataSnapshot(imported.masterData);
-      setMasterDataStatus(imported.message);
+      setDraftMasterData(imported.masterData);
+      setMasterDataDirty(true);
+      setMasterDataStatus(`${imported.message} Bitte speichern, um die Aenderungen zu uebernehmen.`);
     } catch (error) {
       setMasterDataStatus(error instanceof Error ? error.message : "Stammdaten konnten nicht aus Supabase geladen werden.");
     } finally {
@@ -137,7 +162,7 @@ export function AdminPage() {
           </Field>
           <div className="inline-actions">
             <button className="primary" onClick={() => { if (unlockAdmin(pinInput)) setPinInput(""); }}>
-              Öffnen
+              Oeffnen
             </button>
           </div>
         </Section>
@@ -157,16 +182,20 @@ export function AdminPage() {
           <button type="button" className={section === "storage" ? "toggle-button toggle-button--active" : "toggle-button"} onClick={() => setSection("storage")}>Speicher</button>
         </div>
         <div className="inline-actions">
+          <button type="button" className="primary" disabled={!masterDataDirty || masterDataBusy} onClick={() => handleMasterDataSave()}>
+            Speichern
+          </button>
           <button type="button" onClick={() => lockAdmin()}>
             Sperren
           </button>
         </div>
+        {masterDataStatus ? <p>{masterDataStatus}</p> : null}
       </Section>
 
       {section === "security" ? (
         <Section title="Lokale PIN">
           <Field label="Admin-PIN">
-            <input value={state.masterData.adminPin} onChange={(event) => updateMasterData((current) => ({ ...current, adminPin: event.target.value }))} />
+            <input value={draftMasterData.adminPin} onChange={(event) => updateDraftMasterData((current) => ({ ...current, adminPin: event.target.value }))} />
           </Field>
         </Section>
       ) : null}
@@ -175,9 +204,9 @@ export function AdminPage() {
         <Section title="PDF-Pflichtfelder">
           <Field label="Feldliste" full>
             <textarea
-              value={state.masterData.globalPdfRequiredFields.join("\n")}
+              value={draftMasterData.globalPdfRequiredFields.join("\n")}
               onChange={(event) =>
-                updateMasterData((current) => ({
+                updateDraftMasterData((current) => ({
                   ...current,
                   globalPdfRequiredFields: normalizeRequiredFieldKeys(event.target.value.split("\n"))
                 }))
@@ -189,58 +218,58 @@ export function AdminPage() {
 
       {section === "clerks" ? (
         <Section title="Sachbearbeiter">
-          {state.masterData.clerks.map((clerk, index) => {
+          {draftMasterData.clerks.map((clerk, index) => {
             const references = collectMasterDataReferences(cases, "clerk", clerk.id);
             return (
               <div key={clerk.id} className="admin-clerk">
                 <div className="form-row form-row--triple">
                   <Field label={`Sachbearbeiter ${index + 1}`}>
-                    <input value={clerk.name} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item)) }))} />
+                    <input value={clerk.name} onChange={(event) => updateDraftMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, name: event.target.value } : item)) }))} />
                   </Field>
                   <Field label="E-Mail">
-                    <input value={clerk.email} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, email: event.target.value } : item)) }))} />
+                    <input value={clerk.email} onChange={(event) => updateDraftMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, email: event.target.value } : item)) }))} />
                   </Field>
                   <Field label="Telefon">
-                    <input value={clerk.phone} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, phone: event.target.value } : item)) }))} />
+                    <input value={clerk.phone} onChange={(event) => updateDraftMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, phone: event.target.value } : item)) }))} />
                   </Field>
                 </div>
                 <div className="form-row form-row--double">
                   <Field label="Naechste ELB Desktop">
-                    <input value={clerk.nextReceiptNumberDesktop} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, nextReceiptNumberDesktop: event.target.value } : item)) }))} />
+                    <input value={clerk.nextReceiptNumberDesktop} onChange={(event) => updateDraftMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, nextReceiptNumberDesktop: event.target.value } : item)) }))} />
                   </Field>
                   <Field label="Naechste ELB Web">
-                    <input value={clerk.nextReceiptNumberWeb} onChange={(event) => updateMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, nextReceiptNumberWeb: event.target.value } : item)) }))} />
+                    <input value={clerk.nextReceiptNumberWeb} onChange={(event) => updateDraftMasterData((current) => ({ ...current, clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, nextReceiptNumberWeb: event.target.value } : item)) }))} />
                   </Field>
                 </div>
                 <PdfSignatureEditor
                   title="Signatur"
                   value={clerk.signaturePng}
-                  description="Die Signatur wird beim Uebernehmen im Sachbearbeiter gespeichert und danach automatisch in PDFs verwendet."
+                  description="Die Signatur wird mit Speichern im Sachbearbeiter abgelegt und danach automatisch in PDFs verwendet."
                   onClose={() => {}}
                   onClear={() =>
-                    updateMasterData((current) => ({
+                    updateDraftMasterData((current) => ({
                       ...current,
                       clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: "" } : item))
                     }))
                   }
                   onSave={(dataUrl) =>
-                    updateMasterData((current) => ({
+                    updateDraftMasterData((current) => ({
                       ...current,
                       clerks: current.clerks.map((item) => (item.id === clerk.id ? { ...item, signaturePng: dataUrl } : item))
                     }))
                   }
                 />
                 <div className="inline-actions">
-                  <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, clerks: current.clerks.filter((item) => item.id !== clerk.id) }))}>
-                    Löschen
+                  <button type="button" disabled={references.length > 0} onClick={() => updateDraftMasterData((current) => ({ ...current, clerks: current.clerks.filter((item) => item.id !== clerk.id) }))}>
+                    Loeschen
                   </button>
                 </div>
               </div>
             );
           })}
           <div className="inline-actions">
-            <button type="button" className="primary" onClick={() => updateMasterData((current) => ({ ...current, clerks: [...current.clerks, createEmptyClerk({ id: crypto.randomUUID() })] }))}>
-              Sachbearbeiter hinzufügen
+            <button type="button" className="primary" onClick={() => updateDraftMasterData((current) => ({ ...current, clerks: [...current.clerks, createEmptyClerk({ id: crypto.randomUUID() })] }))}>
+              Sachbearbeiter hinzufuegen
             </button>
           </div>
         </Section>
@@ -248,32 +277,32 @@ export function AdminPage() {
 
       {section === "auctions" ? (
         <Section title="Auktionen">
-          {state.masterData.auctions.map((auction, index) => {
+          {draftMasterData.auctions.map((auction, index) => {
             const references = collectMasterDataReferences(cases, "auction", auction.id);
             return (
               <div key={auction.id} className="admin-clerk">
                 <div className="form-row form-row--triple">
                   <Field label={`Auktion ${index + 1}`}>
-                    <input value={auction.number} onChange={(event) => updateMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item)) }))} />
+                    <input value={auction.number} onChange={(event) => updateDraftMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, number: event.target.value } : item)) }))} />
                   </Field>
                   <Field label="Monat">
-                    <input value={auction.month} onChange={(event) => updateMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, month: event.target.value } : item)) }))} />
+                    <input value={auction.month} onChange={(event) => updateDraftMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, month: event.target.value } : item)) }))} />
                   </Field>
                   <Field label="Jahr">
-                    <input value={auction.year} onChange={(event) => updateMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, year: event.target.value } : item)) }))} />
+                    <input value={auction.year} onChange={(event) => updateDraftMasterData((current) => ({ ...current, auctions: current.auctions.map((item) => (item.id === auction.id ? { ...item, year: event.target.value } : item)) }))} />
                   </Field>
                 </div>
                 <div className="inline-actions">
-                  <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, auctions: current.auctions.filter((item) => item.id !== auction.id) }))}>
-                    Löschen
+                  <button type="button" disabled={references.length > 0} onClick={() => updateDraftMasterData((current) => ({ ...current, auctions: current.auctions.filter((item) => item.id !== auction.id) }))}>
+                    Loeschen
                   </button>
                 </div>
               </div>
             );
           })}
           <div className="inline-actions">
-            <button type="button" className="primary" onClick={() => updateMasterData((current) => ({ ...current, auctions: [...current.auctions, { id: crypto.randomUUID(), number: "", month: "", year: "" }] }))}>
-              Auktion hinzufügen
+            <button type="button" className="primary" onClick={() => updateDraftMasterData((current) => ({ ...current, auctions: [...current.auctions, { id: crypto.randomUUID(), number: "", month: "", year: "" }] }))}>
+              Auktion hinzufuegen
             </button>
           </div>
         </Section>
@@ -281,29 +310,29 @@ export function AdminPage() {
 
       {section === "departments" ? (
         <Section title="Abteilungen / Interessengebiete">
-          {state.masterData.departments.map((department, index) => {
+          {draftMasterData.departments.map((department, index) => {
             const references = collectMasterDataReferences(cases, "department", department.id);
             return (
               <div key={department.id} className="admin-clerk">
                 <div className="form-row form-row--double">
                   <Field label={`Abteilung ${index + 1}`}>
-                    <input value={department.code} onChange={(event) => updateMasterData((current) => ({ ...current, departments: current.departments.map((item) => (item.id === department.id ? { ...item, code: event.target.value } : item)) }))} />
+                    <input value={department.code} onChange={(event) => updateDraftMasterData((current) => ({ ...current, departments: current.departments.map((item) => (item.id === department.id ? { ...item, code: event.target.value } : item)) }))} />
                   </Field>
                   <Field label="Bezeichnung">
-                    <input value={department.name} onChange={(event) => updateMasterData((current) => ({ ...current, departments: current.departments.map((item) => (item.id === department.id ? { ...item, name: event.target.value } : item)) }))} />
+                    <input value={department.name} onChange={(event) => updateDraftMasterData((current) => ({ ...current, departments: current.departments.map((item) => (item.id === department.id ? { ...item, name: event.target.value } : item)) }))} />
                   </Field>
                 </div>
                 <div className="inline-actions">
-                  <button type="button" disabled={references.length > 0} onClick={() => updateMasterData((current) => ({ ...current, departments: current.departments.filter((item) => item.id !== department.id) }))}>
-                    Löschen
+                  <button type="button" disabled={references.length > 0} onClick={() => updateDraftMasterData((current) => ({ ...current, departments: current.departments.filter((item) => item.id !== department.id) }))}>
+                    Loeschen
                   </button>
                 </div>
               </div>
             );
           })}
           <div className="inline-actions">
-            <button type="button" className="primary" onClick={() => updateMasterData((current) => ({ ...current, departments: [...current.departments, { id: crypto.randomUUID(), code: "", name: "" }] }))}>
-              Abteilung hinzufügen
+            <button type="button" className="primary" onClick={() => updateDraftMasterData((current) => ({ ...current, departments: [...current.departments, { id: crypto.randomUUID(), code: "", name: "" }] }))}>
+              Abteilung hinzufuegen
             </button>
           </div>
         </Section>
@@ -339,7 +368,6 @@ export function AdminPage() {
               </button>
             ) : null}
           </div>
-          {masterDataStatus ? <p>{masterDataStatus}</p> : null}
           <p>Die App speichert nur noch dossierbasiert pro Sachbearbeiter. Stammdaten und aktueller Datenordner koennen hier verwaltet werden.</p>
         </Section>
       ) : null}
