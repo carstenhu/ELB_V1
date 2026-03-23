@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { type CaseFile } from "@elb/domain/index";
 import { Section } from "@elb/ui/forms";
 import { loadCaseById } from "../appState";
+import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
 
 function sortDossiers(caseFiles: readonly CaseFile[]): CaseFile[] {
@@ -22,9 +23,23 @@ function getDossierStatusLabel(caseFile: CaseFile, currentDossierIdByClerk: Reco
   return caseFile.meta.status === "finalized" ? "Gespeichert" : "In Bearbeitung";
 }
 
+function getSyncStateLabel(state: "synced" | "local-only" | "pending" | "error" | undefined): string | null {
+  if (!state) return null;
+  if (state === "synced") return "Synchronisiert";
+  if (state === "local-only") return "Nur lokal";
+  if (state === "pending") return "Wartet auf Sync";
+  return "Sync-Fehler";
+}
+
 export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector?: () => void }) {
+  const platform = usePlatform();
   const state = useAppState();
   const [showAllClerks, setShowAllClerks] = useState(false);
+  const dossierSyncStatus = useSyncExternalStore(
+    platform.dossierSyncStatus?.subscribe ?? (() => () => {}),
+    platform.dossierSyncStatus?.getSnapshot ?? (() => null),
+    platform.dossierSyncStatus?.getSnapshot ?? (() => null)
+  );
   const clerkNameById = new Map(state.masterData.clerks.map((clerk) => [clerk.id, clerk.name]));
 
   const visibleDossiers = useMemo(() => {
@@ -49,6 +64,18 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
             {showAllClerks ? "Nur aktueller Sachbearbeiter" : "Alle Sachbearbeiter anzeigen"}
           </button>
         </div>
+        {dossierSyncStatus ? (
+          <p className="section-status-line">
+            <strong>Offline-Stand:</strong>{" "}
+            {dossierSyncStatus.offline
+              ? "Der Browser ist offline. Es werden lokal verfuegbare Dossiers gezeigt."
+              : dossierSyncStatus.source === "supabase"
+                ? "Dossiers wurden zuletzt aus Supabase geladen."
+                : dossierSyncStatus.source === "local"
+                  ? "Dossiers stammen aktuell aus dem lokalen Browser-Cache."
+                  : "Dossierquelle wird vorbereitet."}
+          </p>
+        ) : null}
         {!visibleDossiers.length ? <p>Keine Dossiers vorhanden.</p> : null}
         {visibleDossiers.length ? (
           <div className="load-list">
@@ -63,7 +90,13 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
                 }}
               >
                 <strong>{`${clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} · ${getDossierDisplayName(dossier)}`}</strong>
-                <span>{`${getDossierStatusLabel(dossier, state.currentDossierIdByClerk)} · ELB ${dossier.meta.receiptNumber}`}</span>
+                <span>
+                  {[
+                    getDossierStatusLabel(dossier, state.currentDossierIdByClerk),
+                    `ELB ${dossier.meta.receiptNumber}`,
+                    getSyncStateLabel(dossierSyncStatus?.dossiers[dossier.meta.id]?.state)
+                  ].filter(Boolean).join(" · ")}
+                </span>
               </button>
             ))}
           </div>

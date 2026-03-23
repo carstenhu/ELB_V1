@@ -10,6 +10,7 @@ import {
 } from "@elb/persistence/filesystem";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
+import { dossierSyncStatusStore } from "./dossierSyncStatus";
 import { createWebMasterDataRepository, createWebWorkspaceRepository } from "./supabaseWorkspaceRepository";
 import { workspaceSyncStatusStore } from "./workspaceSyncStatus";
 
@@ -92,6 +93,7 @@ export const webPlatform: AppPlatform = {
   workspaceRepository: createWebWorkspaceRepository(),
   masterDataRepository: createWebMasterDataRepository(),
   workspaceSyncStatus: workspaceSyncStatusStore,
+  dossierSyncStatus: dossierSyncStatusStore,
   auditSink: createAuditRepository(),
   caseAssets: {
     persistAsset: (caseFile, asset) => persistCaseAssetImmediately(caseFile, asset)

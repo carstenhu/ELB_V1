@@ -66,6 +66,22 @@ export interface WorkspaceSyncStatusPort {
   subscribe(listener: () => void): () => void;
 }
 
+export interface DossierSyncEntrySnapshot {
+  state: "synced" | "local-only" | "pending" | "error";
+  updatedAt: string | null;
+}
+
+export interface DossierSyncStatusSnapshot {
+  source: "supabase" | "local" | "unknown";
+  offline: boolean;
+  dossiers: Record<string, DossierSyncEntrySnapshot>;
+}
+
+export interface DossierSyncStatusPort {
+  getSnapshot(): DossierSyncStatusSnapshot | null;
+  subscribe(listener: () => void): () => void;
+}
+
 export interface AppPlatform {
   receiptNumberScope: ReceiptNumberScope;
   workspaceRepository: WorkspaceRepository;
@@ -78,4 +94,5 @@ export interface AppPlatform {
   dataDirectory: DataDirectoryPort;
   shell: AppShellPort;
   workspaceSyncStatus?: WorkspaceSyncStatusPort;
+  dossierSyncStatus?: DossierSyncStatusPort;
 }

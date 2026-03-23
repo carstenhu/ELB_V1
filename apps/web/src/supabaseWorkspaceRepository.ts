@@ -3,6 +3,7 @@ import type { WorkspaceRepository, WorkspaceSnapshot } from "@elb/app-core/index
 import type { CaseFile, MasterData } from "@elb/domain/index";
 import { createMasterDataRepository, createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
+import { dossierSyncStatusStore } from "./dossierSyncStatus";
 import { getSupabaseClient } from "./utils/supabase";
 import { workspaceSyncStatusStore } from "./workspaceSyncStatus";
 
@@ -253,7 +254,17 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
   if (!supabaseConfig) {
     logger.info("Supabase ist nicht konfiguriert. Web speichert weiterhin nur lokal.");
     workspaceSyncStatusStore.set({ level: "warning", message: "Supabase ist nicht konfiguriert. Es wird nur lokal gespeichert." });
-    return localRepository;
+    return {
+      async load() {
+        const localSnapshot = await localRepository.load();
+        dossierSyncStatusStore.markLocalLoaded(localSnapshot);
+        return localSnapshot;
+      },
+      async save(snapshot) {
+        await localRepository.save(snapshot);
+        dossierSyncStatusStore.markLocalLoaded(snapshot);
+      }
+    };
   }
 
   logger.info("Supabase-Workspace-Sync ist aktiv.", { bucket: supabaseConfig.bucket });
@@ -267,14 +278,17 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
         const remoteSnapshot = await loadRemoteSnapshot(supabaseConfig);
         if (!remoteSnapshot) {
           workspaceSyncStatusStore.set({ level: "warning", message: "Kein Supabase-Workspace gefunden. Lokaler Stand bleibt aktiv." });
-          return null;
+          dossierSyncStatusStore.markLocalLoaded(localSnapshot);
+          return localSnapshot;
         }
         await localRepository.save(remoteSnapshot);
         workspaceSyncStatusStore.set({ level: "success", message: "Workspace wurde aus Supabase geladen." });
+        dossierSyncStatusStore.markRemoteLoaded(remoteSnapshot);
         return remoteSnapshot;
       } catch (error) {
         logger.warn("Supabase-Workspace konnte nicht geladen werden. Lokaler Stand wird verwendet.", error);
         workspaceSyncStatusStore.set({ level: "warning", message: "Supabase-Laden fehlgeschlagen. Lokaler Stand wird verwendet." });
+        dossierSyncStatusStore.markLocalLoaded(localSnapshot);
         return localSnapshot;
       }
     },
@@ -283,9 +297,11 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
       try {
         await saveRemoteSnapshot(supabaseConfig, snapshot);
         workspaceSyncStatusStore.set({ level: "success", message: "Aenderungen wurden lokal und in Supabase gespeichert." });
+        dossierSyncStatusStore.markRemoteSaved(snapshot);
       } catch (error) {
         logger.warn("Supabase-Workspace konnte nicht gespeichert werden. Lokale Speicherung bleibt erhalten.", error);
         workspaceSyncStatusStore.set({ level: "warning", message: "Supabase-Speichern fehlgeschlagen. Lokaler Stand bleibt erhalten." });
+        dossierSyncStatusStore.markRemoteSaveFailed(snapshot);
       }
     }
   };
