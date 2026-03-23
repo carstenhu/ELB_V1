@@ -6,7 +6,7 @@ import {
   persistExportArtifactsToDisk,
   persistGeneratedPdfToDisk
 } from "@elb/persistence/filesystem";
-import { createWorkspaceRepository } from "@elb/persistence/repository";
+import { createMasterDataRepository, createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
 import type { MasterData } from "@elb/domain/index";
@@ -129,6 +129,7 @@ async function loadMasterDataFromSupabase(): Promise<MasterData> {
 export const desktopPlatform: AppPlatform = {
   receiptNumberScope: "desktop",
   workspaceRepository: createWorkspaceRepository(),
+  masterDataRepository: createMasterDataRepository(),
   auditSink: createAuditRepository(),
   caseAssets: {
     persistAsset: (caseFile, asset) => persistCaseAssetImmediately(caseFile, asset)

@@ -588,6 +588,13 @@ export async function hydrateSnapshotFromDisk(): Promise<AppStorageSnapshot | nu
   return { masterData, activeClerkId, currentCase, currentDossierIdByClerk, dossiers: sortedDossiers };
 }
 
+export async function persistMasterDataToDisk(masterData: MasterData): Promise<void> {
+  const fsModule = await loadTauriFs();
+  await ensureDir(fsModule, ROOT_DIR);
+  await ensureDir(fsModule, `${ROOT_DIR}/Stammdaten`);
+  await writeJsonFile(fsModule, MASTER_DATA_FILE, masterData);
+}
+
 export async function persistSnapshotToDisk(snapshot: AppStorageSnapshot): Promise<void> {
   const fsModule = await loadTauriFs();
   await ensureDir(fsModule, ROOT_DIR);

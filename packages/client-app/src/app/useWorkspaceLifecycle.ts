@@ -8,6 +8,7 @@ export function useWorkspaceLifecycle(): boolean {
   const state = useAppState();
   const [hydrated, setHydrated] = useState(false);
   const firstSaveRef = useRef(true);
+  const lastSavedSnapshotRef = useRef<ReturnType<typeof createSnapshot> | null>(null);
 
   useEffect(() => {
     configureStateServices({ auditSink: platform.auditSink, receiptNumberScope: platform.receiptNumberScope });
@@ -40,12 +41,32 @@ export function useWorkspaceLifecycle(): boolean {
       return;
     }
 
+    const snapshot = createSnapshot();
+
     if (firstSaveRef.current) {
       firstSaveRef.current = false;
+      lastSavedSnapshotRef.current = snapshot;
       return;
     }
 
-    void platform.workspaceRepository.save(createSnapshot());
+    const lastSavedSnapshot = lastSavedSnapshotRef.current;
+    const isMasterDataOnlySave = Boolean(
+      lastSavedSnapshot &&
+      lastSavedSnapshot.masterData !== snapshot.masterData &&
+      lastSavedSnapshot.activeClerkId === snapshot.activeClerkId &&
+      lastSavedSnapshot.currentCase === snapshot.currentCase &&
+      lastSavedSnapshot.currentDossierIdByClerk === snapshot.currentDossierIdByClerk &&
+      lastSavedSnapshot.dossiers === snapshot.dossiers
+    );
+
+    lastSavedSnapshotRef.current = snapshot;
+
+    if (isMasterDataOnlySave) {
+      void platform.masterDataRepository.save(snapshot.masterData);
+      return;
+    }
+
+    void platform.workspaceRepository.save(snapshot);
   }, [hydrated, platform, state]);
 
   return hydrated;

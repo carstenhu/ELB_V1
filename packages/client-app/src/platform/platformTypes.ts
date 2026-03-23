@@ -35,6 +35,10 @@ export interface MasterDataSyncPort {
   importFromSupabase?(): Promise<MasterDataSyncResult | null>;
 }
 
+export interface MasterDataRepositoryPort {
+  save(masterData: MasterData): Promise<void>;
+}
+
 export interface DataDirectoryStatus {
   supportsLinking: boolean;
   isLinked: boolean;
@@ -65,6 +69,7 @@ export interface WorkspaceSyncStatusPort {
 export interface AppPlatform {
   receiptNumberScope: ReceiptNumberScope;
   workspaceRepository: WorkspaceRepository;
+  masterDataRepository: MasterDataRepositoryPort;
   auditSink: AuditSink;
   caseAssets: CaseAssetPort;
   exportArtifacts: ExportArtifactPort;

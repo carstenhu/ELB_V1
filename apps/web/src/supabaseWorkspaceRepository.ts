@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { WorkspaceRepository, WorkspaceSnapshot } from "@elb/app-core/index";
 import type { CaseFile, MasterData } from "@elb/domain/index";
-import { createWorkspaceRepository } from "@elb/persistence/repository";
+import { createMasterDataRepository, createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
 import { getSupabaseClient } from "./utils/supabase";
 import { workspaceSyncStatusStore } from "./workspaceSyncStatus";
@@ -201,6 +201,10 @@ async function saveRemoteSnapshot(config: SupabaseWorkspaceConfig, snapshot: Wor
   }
 }
 
+async function saveRemoteMasterData(config: SupabaseWorkspaceConfig, masterData: MasterData): Promise<void> {
+  await uploadText(config, MASTER_DATA_PATH, JSON.stringify(masterData, null, 2));
+}
+
 async function loadRemoteClerkDossiers(config: SupabaseWorkspaceConfig, clerkId: string): Promise<{ currentCaseId: string | null; dossiers: CaseFile[] } | null> {
   const currentPointerRaw = await downloadText(config, getCurrentPointerPath(clerkId));
   const currentPointer = currentPointerRaw ? (JSON.parse(currentPointerRaw) as CurrentDossierPointerStorage) : null;
@@ -282,6 +286,28 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
       } catch (error) {
         logger.warn("Supabase-Workspace konnte nicht gespeichert werden. Lokale Speicherung bleibt erhalten.", error);
         workspaceSyncStatusStore.set({ level: "warning", message: "Supabase-Speichern fehlgeschlagen. Lokaler Stand bleibt erhalten." });
+      }
+    }
+  };
+}
+
+export function createWebMasterDataRepository(): { save(masterData: MasterData): Promise<void> } {
+  const localRepository = createMasterDataRepository();
+  const supabaseConfig = getSupabaseWorkspaceConfig();
+
+  if (!supabaseConfig) {
+    return localRepository;
+  }
+
+  return {
+    async save(masterData) {
+      await localRepository.save(masterData);
+      try {
+        await saveRemoteMasterData(supabaseConfig, masterData);
+        workspaceSyncStatusStore.set({ level: "success", message: "Stammdaten wurden lokal und in Supabase gespeichert." });
+      } catch (error) {
+        logger.warn("Supabase-Stammdaten konnten nicht gespeichert werden. Lokale Speicherung bleibt erhalten.", error);
+        workspaceSyncStatusStore.set({ level: "warning", message: "Supabase-Speichern der Stammdaten fehlgeschlagen. Lokaler Stand bleibt erhalten." });
       }
     }
   };
