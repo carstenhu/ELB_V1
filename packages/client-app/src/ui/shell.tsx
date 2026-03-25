@@ -136,6 +136,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
       {workspaceSyncStatus ? (
         <div className={`sync-status sync-status--${workspaceSyncStatus.level}`}>
           {workspaceSyncStatus.message}
+          {workspaceSyncStatus.timestamp ? ` · ${workspaceSyncStatus.timestamp}` : ""}
         </div>
       ) : null}
     </header>

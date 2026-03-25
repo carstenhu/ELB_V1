@@ -59,6 +59,7 @@ export interface AppShellPort {
 export interface WorkspaceSyncStatusSnapshot {
   level: "info" | "success" | "warning";
   message: string;
+  timestamp?: string | null;
 }
 
 export interface WorkspaceSyncStatusPort {

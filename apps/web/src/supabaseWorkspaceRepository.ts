@@ -14,6 +14,11 @@ const MASTER_DATA_PATH = "Stammdaten/master-data.json";
 const CURRENT_POINTER_FILE_NAME = "current.json";
 const DOSSIER_FILE_NAME = "dossier.json";
 const DEFAULT_BUCKET = "elb-v1-data";
+const syncTimeFormatter = new Intl.DateTimeFormat("de-CH", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit"
+});
 
 interface WorkspaceMetaStorage {
   activeClerkId: string | null;
@@ -40,6 +45,10 @@ export function getSupabaseWorkspaceConfig(): SupabaseWorkspaceConfig | null {
     client,
     bucket: import.meta.env.VITE_SUPABASE_BUCKET?.trim() || DEFAULT_BUCKET
   };
+}
+
+function createSyncTimestampLabel(): string {
+  return `Gespeichert um ${syncTimeFormatter.format(new Date())}`;
 }
 
 function sanitizeRemoteSegment(value: string): string {
@@ -263,6 +272,11 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
       async save(snapshot) {
         await localRepository.save(snapshot);
         dossierSyncStatusStore.markLocalLoaded(snapshot);
+        workspaceSyncStatusStore.set({
+          level: "success",
+          message: "Aenderungen wurden lokal gespeichert.",
+          timestamp: createSyncTimestampLabel()
+        });
       }
     };
   }
@@ -296,7 +310,11 @@ export function createWebWorkspaceRepository(): WorkspaceRepository {
       await localRepository.save(snapshot);
       try {
         await saveRemoteSnapshot(supabaseConfig, snapshot);
-        workspaceSyncStatusStore.set({ level: "success", message: "Aenderungen wurden lokal und in Supabase gespeichert." });
+        workspaceSyncStatusStore.set({
+          level: "success",
+          message: "Aenderungen wurden lokal und in Supabase gespeichert.",
+          timestamp: createSyncTimestampLabel()
+        });
         dossierSyncStatusStore.markRemoteSaved(snapshot);
       } catch (error) {
         logger.warn("Supabase-Workspace konnte nicht gespeichert werden. Lokale Speicherung bleibt erhalten.", error);
@@ -312,7 +330,16 @@ export function createWebMasterDataRepository(): { save(masterData: MasterData):
   const supabaseConfig = getSupabaseWorkspaceConfig();
 
   if (!supabaseConfig) {
-    return localRepository;
+    return {
+      async save(masterData) {
+        await localRepository.save(masterData);
+        workspaceSyncStatusStore.set({
+          level: "success",
+          message: "Stammdaten wurden lokal gespeichert.",
+          timestamp: createSyncTimestampLabel()
+        });
+      }
+    };
   }
 
   return {
@@ -320,7 +347,11 @@ export function createWebMasterDataRepository(): { save(masterData: MasterData):
       await localRepository.save(masterData);
       try {
         await saveRemoteMasterData(supabaseConfig, masterData);
-        workspaceSyncStatusStore.set({ level: "success", message: "Stammdaten wurden lokal und in Supabase gespeichert." });
+        workspaceSyncStatusStore.set({
+          level: "success",
+          message: "Stammdaten wurden lokal und in Supabase gespeichert.",
+          timestamp: createSyncTimestampLabel()
+        });
       } catch (error) {
         logger.warn("Supabase-Stammdaten konnten nicht gespeichert werden. Lokale Speicherung bleibt erhalten.", error);
         workspaceSyncStatusStore.set({ level: "warning", message: "Supabase-Speichern der Stammdaten fehlgeschlagen. Lokaler Stand bleibt erhalten." });
