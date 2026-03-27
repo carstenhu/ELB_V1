@@ -1,11 +1,9 @@
-import { useState } from "react";
 import { formatAmountForDisplay, type Asset, type CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
 import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
-import { ObjectDeleteConfirmModal } from "../../ui/caseModals";
 import { ReceiptNumberField } from "../../ui/ReceiptNumberField";
 import {
   CountryInput,
@@ -292,11 +290,11 @@ export function PdfObjectEditorSection(props: {
   caseFile: CaseFile;
   objectIndex: number;
   onClose: () => void;
+  onRequestDelete: (objectId: string) => void;
   onTargetChange: (target: { kind: "object"; objectIndex: number } | null) => void;
 }) {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const objectItem = props.caseFile.objects[props.objectIndex] ?? null;
 
   if (!objectItem) {
@@ -331,7 +329,7 @@ export function PdfObjectEditorSection(props: {
         <button
           type="button"
           className="primary-button"
-          onClick={() => setDeleteConfirmOpen(true)}
+          onClick={() => props.onRequestDelete(objectItem.id)}
         >
           Objekt löschen
         </button>
@@ -432,16 +430,6 @@ export function PdfObjectEditorSection(props: {
           ) : null}
         </div>
       </Field>
-      {deleteConfirmOpen ? (
-        <ObjectDeleteConfirmModal
-          onCancel={() => setDeleteConfirmOpen(false)}
-          onConfirm={() => {
-            actions.deleteObject(objectItem.id);
-            setDeleteConfirmOpen(false);
-            props.onClose();
-          }}
-        />
-      ) : null}
     </Section>
   );
 }

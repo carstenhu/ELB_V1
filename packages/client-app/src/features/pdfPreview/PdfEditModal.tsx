@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CaseFile } from "@elb/domain/index";
-import { VatCaptureModal } from "../../ui/caseModals";
+import { ObjectDeleteConfirmModal, VatCaptureModal } from "../../ui/caseModals";
 import { useAppState } from "../../useAppState";
 import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
 import { PdfSignatureEditor } from "./PdfSignatureEditor";
@@ -23,6 +23,7 @@ export function PdfEditModal(props: {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
   const [vatModalOpen, setVatModalOpen] = useState(false);
+  const [deleteObjectId, setDeleteObjectId] = useState<string | null>(null);
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === props.caseFile.meta.clerkId) ?? null;
 
   function applyConsignorVatCategory(value: CaseFile["consignor"]["vatCategory"]) {
@@ -55,7 +56,13 @@ export function PdfEditModal(props: {
           {props.openTarget.kind === "bank" ? <PdfBankEditorSection caseFile={props.caseFile} /> : null}
           {props.openTarget.kind === "costs" ? <PdfCostsEditorSection caseFile={props.caseFile} /> : null}
           {props.openTarget.kind === "object" ? (
-            <PdfObjectEditorSection caseFile={props.caseFile} objectIndex={props.openTarget.objectIndex} onClose={props.onClose} onTargetChange={props.onTargetChange} />
+            <PdfObjectEditorSection
+              caseFile={props.caseFile}
+              objectIndex={props.openTarget.objectIndex}
+              onClose={props.onClose}
+              onRequestDelete={setDeleteObjectId}
+              onTargetChange={props.onTargetChange}
+            />
           ) : null}
           {props.openTarget.kind === "consignorSignature" ? (
             <PdfSignatureEditor
@@ -120,6 +127,16 @@ export function PdfEditModal(props: {
           value={props.caseFile.consignor.vatNumber}
           onValueChange={(value) => actions.updateCurrentCase((current) => ({ ...current, consignor: { ...current.consignor, vatNumber: value } }))}
           onConfirm={() => setVatModalOpen(false)}
+        />
+      ) : null}
+      {deleteObjectId ? (
+        <ObjectDeleteConfirmModal
+          onCancel={() => setDeleteObjectId(null)}
+          onConfirm={() => {
+            actions.deleteObject(deleteObjectId);
+            setDeleteObjectId(null);
+            props.onClose();
+          }}
         />
       ) : null}
     </div>
