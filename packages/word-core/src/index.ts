@@ -46,11 +46,16 @@ const PAGE_HEIGHT_UNITS = 980;
 const FIRST_PAGE_HEADER_UNITS = 250;
 const FOLLOW_PAGE_HEADER_UNITS = 96;
 const FOOTER_RESERVE_UNITS = 116;
-const TEXT_LINE_UNITS = 18;
-const ROW_VERTICAL_PADDING_UNITS = 20;
-const ROW_BORDER_UNITS = 8;
+const TEXT_LINE_UNITS = 19.2;
+const ROW_VERTICAL_PADDING_UNITS = 11.34;
+const ROW_BORDER_UNITS = 2;
 const MIN_ROW_UNITS = 72;
-const PHOTO_ROW_UNITS = 132;
+const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
+const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
+const PHOTO_ROW_UNITS = 245.14;
+const WORD_TEXT_MAX_WIDTH_PX = 326.47;
+const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
+const WORD_LETTER_SPACING_PX = 0.8;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -77,7 +82,38 @@ function normalizeDisplayIntNumber(value: string): string {
   return Number.isFinite(parsed) ? String(parsed) : digits;
 }
 
-function wrapPreviewText(text: string, maxCharsPerLine: number): string[] {
+let wrapMeasureContext: CanvasRenderingContext2D | null = null;
+
+function getWrapMeasureContext(): CanvasRenderingContext2D | null {
+  if (wrapMeasureContext) {
+    return wrapMeasureContext;
+  }
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  wrapMeasureContext = canvas.getContext("2d");
+  if (wrapMeasureContext) {
+    wrapMeasureContext.font = WORD_FONT;
+  }
+
+  return wrapMeasureContext;
+}
+
+function measureWordTextWidth(text: string): number {
+  const context = getWrapMeasureContext();
+  const letterSpacingWidth = Math.max(text.length - 1, 0) * WORD_LETTER_SPACING_PX;
+  if (!context) {
+    return text.length * 7.4 + letterSpacingWidth;
+  }
+
+  context.font = WORD_FONT;
+  return context.measureText(text).width + letterSpacingWidth;
+}
+
+function wrapPreviewText(text: string, maxWidth: number): string[] {
   const normalized = text.trim();
   if (!normalized) {
     return [];
@@ -93,7 +129,7 @@ function wrapPreviewText(text: string, maxCharsPerLine: number): string[] {
 
   for (const word of words.slice(1)) {
     const nextLine = `${currentLine} ${word}`;
-    if (nextLine.length <= maxCharsPerLine) {
+    if (measureWordTextWidth(nextLine) <= maxWidth) {
       currentLine = nextLine;
       continue;
     }
@@ -150,8 +186,8 @@ function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPrev
     .filter(Boolean)
     .join(" - ");
 
-  const renderedTitleLines = wrapPreviewText(item.shortDescription || item.description || "Ohne Kurzbeschrieb", 52);
-  const renderedDetailLines = details.flatMap((detail) => wrapPreviewText(detail, 52));
+  const renderedTitleLines = wrapPreviewText(item.shortDescription || item.description || "Ohne Kurzbeschrieb", WORD_TEXT_MAX_WIDTH_PX);
+  const renderedDetailLines = details.flatMap((detail) => wrapPreviewText(detail, WORD_TEXT_MAX_WIDTH_PX));
   const priceLines = item.priceValue.trim() ? 1 : 0;
   const totalRenderedLines = Math.max(renderedTitleLines.length + renderedDetailLines.length + 1 + priceLines, 1);
   const textHeightUnits = ROW_VERTICAL_PADDING_UNITS * 2 + totalRenderedLines * TEXT_LINE_UNITS + ROW_BORDER_UNITS;
@@ -321,13 +357,13 @@ function setFooterClerkName(node: Element, value: string) {
   lastText.textContent = value;
 }
 
-async function createContainedPhotoDataUrl(dataUrl: string, targetSize: number): Promise<string> {
+async function createContainedPhotoDataUrl(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = targetSize;
-      canvas.height = targetSize;
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       const context = canvas.getContext("2d");
 
       if (!context) {
@@ -336,13 +372,13 @@ async function createContainedPhotoDataUrl(dataUrl: string, targetSize: number):
       }
 
       context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, targetSize, targetSize);
+      context.fillRect(0, 0, targetWidth, targetHeight);
 
-      const scale = Math.min(targetSize / image.width, targetSize / image.height);
+      const scale = Math.min(targetWidth / image.width, targetHeight / image.height);
       const drawWidth = image.width * scale;
       const drawHeight = image.height * scale;
-      const drawX = (targetSize - drawWidth) / 2;
-      const drawY = (targetSize - drawHeight) / 2;
+      const drawX = (targetWidth - drawWidth) / 2;
+      const drawY = (targetHeight - drawHeight) / 2;
       context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
 
       resolve(canvas.toDataURL("image/jpeg", 0.92));
@@ -353,7 +389,9 @@ async function createContainedPhotoDataUrl(dataUrl: string, targetSize: number):
 }
 
 async function ensureImageRelationship(zip: JSZip, relsDoc: XMLDocument, photo: WordPreviewPhoto, counter: number): Promise<string | null> {
-  const parsed = dataUrlToBytes(await createContainedPhotoDataUrl(photo.src, 640));
+  const targetWidth = 640;
+  const targetHeight = Math.round((targetWidth * WORD_PHOTO_FRAME_HEIGHT_EMU) / WORD_PHOTO_FRAME_WIDTH_EMU);
+  const parsed = dataUrlToBytes(await createContainedPhotoDataUrl(photo.src, targetWidth, targetHeight));
   if (!parsed) {
     return null;
   }

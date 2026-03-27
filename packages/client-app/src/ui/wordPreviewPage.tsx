@@ -65,7 +65,7 @@ function WordTemplatePageView(props: {
 
           <div className="word-preview-list word-preview-list--template">
             {page.rows.map((item) => (
-              <article key={item.id} className="word-template-row">
+              <article key={item.id} className="word-template-row" style={{ minHeight: `${item.heightUnits}px` }}>
                 <div className="word-template-row__int">{item.intNumber}</div>
                 <div className="word-template-row__photo">
                   {item.primaryPhoto ? <img src={item.primaryPhoto.src} alt={item.primaryPhoto.alt} /> : null}

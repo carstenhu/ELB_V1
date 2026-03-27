@@ -1,7 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { FollowUpFieldControl, getTextInputClassName } from "./formSupport";
+
+function ModalPortal(props: { children: ReactNode }) {
+  if (typeof document === "undefined") {
+    return <>{props.children}</>;
+  }
+
+  return createPortal(props.children, document.body);
+}
 
 export function NewDossierModal(props: {
   open: boolean;
@@ -166,28 +175,30 @@ export function ReceiptNumberEditConfirmModal(props: {
   onCancel: () => void;
 }) {
   return (
-    <div className="pin-modal">
-      <div className="overlay__card overlay__card--narrow">
-        <div className="admin-header">
-          <h2>ELB-Nummer aendern?</h2>
-        </div>
-        <div className="page-grid">
-          <Section title="Warnhinweis">
-            <p className="modal-hint">
-              Die ELB-Nummer sollte nur in Ausnahmefaellen geaendert werden. Bitte erst nach Pruefung fortfahren.
-            </p>
-            <div className="pin-modal__actions">
-              <button type="button" onClick={props.onCancel}>
-                Abbrechen
-              </button>
-              <button type="button" className="primary-button" onClick={props.onConfirm}>
-                Aenderung freigeben
-              </button>
-            </div>
-          </Section>
+    <ModalPortal>
+      <div className="pin-modal">
+        <div className="overlay__card overlay__card--narrow">
+          <div className="admin-header">
+            <h2>ELB-Nummer aendern?</h2>
+          </div>
+          <div className="page-grid">
+            <Section title="Warnhinweis">
+              <p className="modal-hint">
+                Die ELB-Nummer sollte nur in Ausnahmefaellen geaendert werden. Bitte erst nach Pruefung fortfahren.
+              </p>
+              <div className="pin-modal__actions">
+                <button type="button" onClick={props.onCancel}>
+                  Abbrechen
+                </button>
+                <button type="button" className="primary-button" onClick={props.onConfirm}>
+                  Aenderung freigeben
+                </button>
+              </div>
+            </Section>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
@@ -196,28 +207,30 @@ export function ObjectDeleteConfirmModal(props: {
   onCancel: () => void;
 }) {
   return (
-    <div className="pin-modal">
-      <div className="overlay__card overlay__card--narrow">
-        <div className="admin-header">
-          <h2>Objekt loeschen?</h2>
-        </div>
-        <div className="page-grid">
-          <Section title="Warnhinweis">
-            <p className="modal-hint">
-              Dieses Objekt wird aus dem Dossier entfernt. Bitte pruefen, ob der Eintrag wirklich geloescht werden soll.
-            </p>
-            <div className="pin-modal__actions">
-              <button type="button" onClick={props.onCancel}>
-                Abbrechen
-              </button>
-              <button type="button" className="primary-button" onClick={props.onConfirm}>
-                Objekt loeschen
-              </button>
-            </div>
-          </Section>
+    <ModalPortal>
+      <div className="pin-modal">
+        <div className="overlay__card overlay__card--narrow">
+          <div className="admin-header">
+            <h2>Objekt loeschen?</h2>
+          </div>
+          <div className="page-grid">
+            <Section title="Warnhinweis">
+              <p className="modal-hint">
+                Dieses Objekt wird aus dem Dossier entfernt. Bitte pruefen, ob der Eintrag wirklich geloescht werden soll.
+              </p>
+              <div className="pin-modal__actions">
+                <button type="button" onClick={props.onCancel}>
+                  Abbrechen
+                </button>
+                <button type="button" className="primary-button" onClick={props.onConfirm}>
+                  Objekt loeschen
+                </button>
+              </div>
+            </Section>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 }
 
