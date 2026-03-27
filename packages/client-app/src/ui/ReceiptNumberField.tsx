@@ -24,20 +24,27 @@ export function ReceiptNumberField(props: {
     <>
       <Field label="ELB-Nummer">
         <>
-          <div className="inline-actions">
-            <button type="button" className="secondary-button" onClick={() => setEditRequested(true)}>
-              ELB-Nummer aendern
-            </button>
-          </div>
           <input
             ref={inputRef}
             className={getFieldInputClassName(props.value)}
             value={props.value}
-            disabled={!editingEnabled}
+            readOnly={!editingEnabled}
+            aria-readonly={!editingEnabled}
             onBlur={() => setEditingEnabled(false)}
+            onClick={() => {
+              if (!editingEnabled) {
+                setEditRequested(true);
+              }
+            }}
+            onFocus={() => {
+              if (!editingEnabled) {
+                setEditRequested(true);
+                inputRef.current?.blur();
+              }
+            }}
             onChange={(event) => props.onValueChange(event.target.value)}
           />
-          {!editingEnabled ? <p className="modal-hint">Aenderung erst nach Freigabe und Warnhinweis.</p> : null}
+          {!editingEnabled ? <p className="modal-hint">Klick ins Feld oeffnet die Freigabe mit Warnhinweis.</p> : null}
         </>
       </Field>
       {editRequested ? (
