@@ -889,6 +889,8 @@ textarea {
 }
 
 .word-address-block--template {
+  position: absolute;
+  inset: 0 auto auto 0;
   width: 295px;
   padding-top: 0;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
@@ -903,14 +905,23 @@ textarea {
 }
 
 .word-date-block {
-  width: 612.27px;
-  padding-top: 72px;
+  position: absolute;
+  right: 0;
+  width: 220px;
   text-align: right;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
   font-size: 13.33px;
   line-height: 19.2px;
   letter-spacing: 0.8px;
   color: #101514;
+}
+
+.word-date-block--first {
+  top: 71px;
+}
+
+.word-date-block--follow {
+  top: 58px;
 }
 
 .word-preview-list--template {

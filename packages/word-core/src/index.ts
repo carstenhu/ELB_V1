@@ -257,6 +257,10 @@ function getDirectChildElements(node: Element): Element[] {
   return Array.from(node.childNodes).filter((child): child is Element => child.nodeType === Node.ELEMENT_NODE);
 }
 
+function hasVisibleWordText(node: Element): boolean {
+  return Array.from(node.getElementsByTagNameNS(WORD_NS, "t")).some((textNode) => (textNode.textContent || "").trim().length > 0);
+}
+
 function cloneWithText(doc: XMLDocument, paragraph: Element, text: string, color?: string): Element {
   const clone = paragraph.cloneNode(true) as Element;
   const pPr = clone.getElementsByTagNameNS(WORD_NS, "pPr")[0]?.cloneNode(true) ?? null;
@@ -630,7 +634,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
   const spacerParagraph = bodyElements[1];
   const dateTable = bodyElements[2];
   const objectTable = bodyElements[3];
-  const footerNodes = bodyElements.slice(4, -1);
+  const footerNodes = bodyElements.slice(4, -1).filter((node) => hasVisibleWordText(node));
   const sectionProperties = bodyElements[bodyElements.length - 1];
 
   if (!addressTable || !dateTable || !objectTable || !sectionProperties) {
@@ -644,10 +648,6 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
   let imageCounter = 1;
 
   for (const [pageIndex, page] of model.pages.entries()) {
-    if (pageIndex > 0) {
-      body.appendChild(createPageBreakParagraph(documentDoc));
-    }
-
     if (page.showAddress) {
       const addressClone = addressTable.cloneNode(true) as Element;
       appendAddress(addressClone, page.addressLines);
@@ -672,11 +672,15 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
 
     footerNodes.forEach((footerNode, footerIndex) => {
       const footerClone = footerNode.cloneNode(true) as Element;
-      if (footerIndex === 1) {
+      if (footerIndex === footerNodes.length - 1) {
         setFooterClerkName(footerClone, page.footerLabel);
       }
       body.appendChild(footerClone);
     });
+
+    if (pageIndex < model.pages.length - 1) {
+      body.appendChild(createPageBreakParagraph(documentDoc));
+    }
   }
 
   body.appendChild(sectionProperties.cloneNode(true));

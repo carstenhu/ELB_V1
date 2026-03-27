@@ -58,7 +58,7 @@ function WordTemplatePageView(props: {
             ) : (
               <div className="word-address-block word-address-block--template word-address-block--empty" />
             )}
-            <div className="word-date-block">
+            <div className={`word-date-block ${page.showAddress ? "word-date-block--first" : "word-date-block--follow"}`}>
               <div className="word-date-block__value">{page.headerRightText}</div>
             </div>
           </div>
