@@ -114,6 +114,47 @@ function splitFileName(fileName: string): { name: string; extension: string } {
     : { name: fileName.slice(0, lastDotIndex), extension: fileName.slice(lastDotIndex) };
 }
 
+function buildVersionedFileName(fileName: string, version: number): string {
+  const parsed = splitFileName(fileName);
+  return `${parsed.name}_v${version}${parsed.extension}`;
+}
+
+async function findNextExportVersion(fsModule: FileSystemModule | null, exportsRoot: string, baseZipFileName: string): Promise<number> {
+  const exportDirectories = await listDirectoryEntries(fsModule, exportsRoot);
+  if (!exportDirectories.length) {
+    return 1;
+  }
+
+  const parsedBaseName = splitFileName(baseZipFileName).name;
+  const versionPattern = new RegExp(`^${parsedBaseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_v(\\d+)\\.zip$`, "i");
+  let highestVersion = 0;
+
+  for (const directory of exportDirectories) {
+    if (!directory.isDirectory || !directory.name.trim()) {
+      continue;
+    }
+
+    const files = await listDirectoryEntries(fsModule, `${exportsRoot}/${directory.name.trim()}`);
+    for (const file of files) {
+      if (!file.isFile || !file.name.trim()) {
+        continue;
+      }
+
+      const match = file.name.trim().match(versionPattern);
+      if (!match) {
+        continue;
+      }
+
+      const parsedVersion = Number.parseInt(match[1] ?? "", 10);
+      if (Number.isFinite(parsedVersion)) {
+        highestVersion = Math.max(highestVersion, parsedVersion);
+      }
+    }
+  }
+
+  return highestVersion + 1;
+}
+
 async function loadTauriFs(): Promise<FileSystemModule | null> {
   if (!Reflect.get(globalThis as object, "__TAURI_INTERNALS__")) {
     return null;
@@ -644,12 +685,15 @@ export async function persistExportArtifactsToDisk(args: {
 }): Promise<{ savedPath: string }> {
   const fsModule = await loadTauriFs();
   const clerkFolderSegment = await resolveClerkFolderSegment(fsModule, args.caseFile.meta.clerkId);
-  const exportsRoot = `${getDossierExportsRoot(clerkFolderSegment, args.caseFile.meta.id)}/${createTimestampSegment()}`;
-  const zipPath = `${exportsRoot}/${args.zipFileName}`;
+  const dossierExportsRoot = getDossierExportsRoot(clerkFolderSegment, args.caseFile.meta.id);
+  const exportVersion = await findNextExportVersion(fsModule, dossierExportsRoot, args.zipFileName);
+  const versionedZipFileName = buildVersionedFileName(args.zipFileName, exportVersion);
+  const exportsRoot = `${dossierExportsRoot}/${createTimestampSegment()}`;
+  const zipPath = `${exportsRoot}/${versionedZipFileName}`;
   await ensureDir(fsModule, ROOT_DIR);
   await ensureDir(fsModule, CLERKS_ROOT);
   await ensureDir(fsModule, getDossierRoot(clerkFolderSegment, args.caseFile.meta.id));
-  await ensureDir(fsModule, getDossierExportsRoot(clerkFolderSegment, args.caseFile.meta.id));
+  await ensureDir(fsModule, dossierExportsRoot);
   await ensureDir(fsModule, exportsRoot);
 
   await Promise.all(args.artifacts.map(async (artifact) => {

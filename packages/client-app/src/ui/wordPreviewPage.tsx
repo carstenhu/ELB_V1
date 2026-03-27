@@ -164,6 +164,7 @@ export function WordTemplatePreviewPage(props: {
               <PreviewActionButtons
                 caseFile={props.caseFile}
                 hasMissingRequiredFields={hasMissingRequiredFields}
+                includeWordDocxButton
                 onExportStatusChange={props.onExportStatusChange}
                 onCaptureMissing={() => setRequiredFieldsOpen(true)}
                 onPreviewProblem={setPreviewProblem}

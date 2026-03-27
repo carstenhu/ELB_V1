@@ -169,6 +169,11 @@ async function createPdfBytes(caseFile: CaseFile, masterData: ReturnType<typeof 
   return generateElbPdf(caseFile, masterData);
 }
 
+async function createWordDocxBlob(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]): Promise<Blob> {
+  const { generateWordDocx } = await import("@elb/word-core/index");
+  return generateWordDocx(caseFile, masterData);
+}
+
 async function createZipBundle(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]) {
   const [{ generateExportBundle, createExportZipFromBundle }] = await Promise.all([import("@elb/export-core/index")]);
   const bundle = await generateExportBundle(caseFile, masterData);
@@ -224,6 +229,34 @@ export function usePreviewActions(
     }
   }
 
+  async function downloadWordDocx(): Promise<void> {
+    try {
+      await ensureCaseReady(caseFile, state.masterData);
+      onExportStatusChange("Word-Datei wird erzeugt...");
+      const [{ createExportPlan }, wordDocxBlob] = await Promise.all([
+        import("@elb/export-core/index"),
+        createWordDocxBlob(caseFile, state.masterData)
+      ]);
+      const plan = createExportPlan(caseFile);
+      const url = URL.createObjectURL(wordDocxBlob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${plan.baseName}-schaetzliste.docx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      onExportStatusChange(`Word-Datei wurde neu erzeugt: ${anchor.download}`);
+    } catch (error) {
+      logger.error("Word-Datei konnte nicht erzeugt werden.", error);
+      const problem = extractProblemDetails(error, "Word-Datei kann nicht erzeugt werden");
+      if (problem) {
+        onPreviewProblem?.(problem);
+      }
+      onExportStatusChange(problem ? buildProblemStatus(problem, "Word-Datei konnte nicht erzeugt werden.") : formatErrorMessage(error, "Word-Datei konnte nicht erzeugt werden."));
+    }
+  }
+
   async function exportArtifacts(): Promise<void> {
     let downloadWindow: Window | null = null;
 
@@ -257,6 +290,7 @@ export function usePreviewActions(
   }
 
   return {
+    downloadWordDocx,
     exportArtifacts,
     openDataFolder,
     openPdf,
