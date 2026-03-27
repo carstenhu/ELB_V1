@@ -4,6 +4,7 @@ import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
 import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
+import { ReceiptNumberField } from "../../ui/ReceiptNumberField";
 import {
   CountryInput,
   InlineToggle,
@@ -21,9 +22,10 @@ export function PdfMetaEditorSection(props: { caseFile: CaseFile }) {
 
   return (
     <Section title="">
-      <Field label="ELB-Nummer">
-        <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
-      </Field>
+      <ReceiptNumberField
+        value={props.caseFile.meta.receiptNumber}
+        onValueChange={(value) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: value } }))}
+      />
     </Section>
   );
 }

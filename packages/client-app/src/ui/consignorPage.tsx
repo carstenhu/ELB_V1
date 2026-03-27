@@ -6,6 +6,7 @@ import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorAction
 import { clearOwnerData, hasSeparateOwnerData } from "../features/owner/ownerState";
 import { findAsset } from "./caseAssets";
 import { OwnerResetConfirmModal, VatCaptureModal } from "./caseModals";
+import { ReceiptNumberField } from "./ReceiptNumberField";
 import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassName, getTextInputClassName } from "./formSupport";
 
 export function ConsignorPage(props: {
@@ -85,9 +86,10 @@ export function ConsignorPage(props: {
           <p className="section-status-line">
             Aktiver Sachbearbeiter: <strong>{activeClerk?.name ?? "Kein Sachbearbeiter"}</strong>
           </p>
-          <Field label="ELB-Nummer">
-            <input className={getFieldInputClassName(props.caseFile.meta.receiptNumber)} value={props.caseFile.meta.receiptNumber} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: event.target.value } }))} />
-          </Field>
+          <ReceiptNumberField
+            value={props.caseFile.meta.receiptNumber}
+            onValueChange={(value) => actions.updateCurrentCase((current) => ({ ...current, meta: { ...current.meta, receiptNumber: value } }))}
+          />
         </Section>
 
         <Section title="Adresse">
