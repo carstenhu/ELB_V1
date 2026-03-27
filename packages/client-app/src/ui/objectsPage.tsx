@@ -4,6 +4,7 @@ import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../features/caseEditor/useCaseEditorActions";
 import { consumePendingObjectSelectionId } from "../appState";
 import { useAppState } from "../useAppState";
+import { ObjectDeleteConfirmModal } from "./caseModals";
 import {
   InlineToggle,
   getEstimateRangeIssue,
@@ -17,6 +18,7 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
   const [selectedObjectId, setSelectedObjectId] = useState<string>(props.caseFile.objects[0]?.id ?? "");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     const pendingObjectId = consumePendingObjectSelectionId();
@@ -243,7 +245,7 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                 >
                   Objekt hinzufuegen
                 </button>
-                <button type="button" className="primary-button" onClick={() => actions.deleteObject(selectedObject.id)}>
+                <button type="button" className="primary-button" onClick={() => setDeleteConfirmOpen(true)}>
                   Objekt loeschen
                 </button>
               </div>
@@ -277,6 +279,15 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
           <textarea className={getFieldInputClassName(props.caseFile.costs.provenance)} value={props.caseFile.costs.provenance} onChange={(event) => actions.updateCurrentCase((current) => ({ ...current, costs: { ...current.costs, provenance: event.target.value } }))} />
         </Field>
       </Section>
+      {deleteConfirmOpen && selectedObject ? (
+        <ObjectDeleteConfirmModal
+          onCancel={() => setDeleteConfirmOpen(false)}
+          onConfirm={() => {
+            actions.deleteObject(selectedObject.id);
+            setDeleteConfirmOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
