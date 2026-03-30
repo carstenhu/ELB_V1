@@ -46,15 +46,20 @@ const WORD_TEMPLATE_PAGE_HEIGHT_UNITS = 1122.53;
 const WORD_TEMPLATE_PADDING_TOP_UNITS = 179.6;
 const WORD_TEMPLATE_PADDING_BOTTOM_UNITS = 113.47;
 const WORD_TEMPLATE_HEADER_UNITS = 86.4;
-const WORD_TEMPLATE_FOOTER_UNITS = 20;
-const TEXT_LINE_UNITS = 14.4;
+const WORD_TEMPLATE_FOOTER_UNITS = 48.8;
+const WORD_TEMPLATE_LIST_HEIGHT_UNITS = WORD_TEMPLATE_PAGE_HEIGHT_UNITS
+  - WORD_TEMPLATE_PADDING_TOP_UNITS
+  - WORD_TEMPLATE_PADDING_BOTTOM_UNITS
+  - WORD_TEMPLATE_HEADER_UNITS
+  - WORD_TEMPLATE_FOOTER_UNITS;
+const WORD_TEMPLATE_LINE_HEIGHT_UNITS = 19.2;
+const WORD_TEMPLATE_ROW_GAP_UNITS = 2.4;
 const ROW_VERTICAL_PADDING_UNITS = 11.34;
 const ROW_BORDER_UNITS = 2;
 const MIN_ROW_UNITS = 48;
-const PAGE_BREAK_TOLERANCE_UNITS = TEXT_LINE_UNITS * 12.5;
 const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
 const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
-const PHOTO_ROW_UNITS = 245.14;
+const WORD_TEMPLATE_PHOTO_ROW_UNITS = 245.84;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
 const WORD_LETTER_SPACING_PX = 0.8;
@@ -144,24 +149,32 @@ function wrapPreviewText(text: string, maxWidth: number): string[] {
   return lines;
 }
 
-function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, followPageBudget: number): WordPreviewRow[][] {
+function measureWordRowHeight(lineCount: number, hasPhoto: boolean): number {
+  const safeLineCount = Math.max(lineCount, 1);
+  const textHeight = ROW_VERTICAL_PADDING_UNITS * 2
+    + ROW_BORDER_UNITS
+    + safeLineCount * WORD_TEMPLATE_LINE_HEIGHT_UNITS
+    + Math.max(safeLineCount - 1, 0) * WORD_TEMPLATE_ROW_GAP_UNITS;
+
+  return Math.max(textHeight, hasPhoto ? WORD_TEMPLATE_PHOTO_ROW_UNITS : 0, MIN_ROW_UNITS);
+}
+
+function planWordPages(rows: WordPreviewRow[]): WordPreviewRow[][] {
   const pages: WordPreviewRow[][] = [];
   let currentPage: WordPreviewRow[] = [];
-  let remainingBudget = firstPageBudget;
+  let currentHeight = 0;
 
   rows.forEach((row) => {
-    const rowHeight = row.heightUnits;
-
-    // Allow a small overflow tolerance so a nearly full page does not create
-    // a visually empty follow page for a single remaining row.
-    if (currentPage.length > 0 && rowHeight > remainingBudget + PAGE_BREAK_TOLERANCE_UNITS) {
+    const nextHeight = currentHeight + row.heightUnits;
+    if (currentPage.length > 0 && nextHeight > WORD_TEMPLATE_LIST_HEIGHT_UNITS) {
       pages.push(currentPage);
-      currentPage = [];
-      remainingBudget = followPageBudget;
+      currentPage = [row];
+      currentHeight = row.heightUnits;
+      return;
     }
 
     currentPage.push(row);
-    remainingBudget -= rowHeight;
+    currentHeight = nextHeight;
   });
 
   if (currentPage.length > 0 || pages.length === 0) {
@@ -169,14 +182,6 @@ function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, foll
   }
 
   return pages;
-}
-
-function getWordPageRowBudgetUnits(): number {
-  return WORD_TEMPLATE_PAGE_HEIGHT_UNITS
-    - WORD_TEMPLATE_PADDING_TOP_UNITS
-    - WORD_TEMPLATE_PADDING_BOTTOM_UNITS
-    - WORD_TEMPLATE_HEADER_UNITS
-    - WORD_TEMPLATE_FOOTER_UNITS;
 }
 
 function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPreviewRow {
@@ -200,11 +205,10 @@ function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPrev
 
   const renderedTitleLines = wrapPreviewText(item.shortDescription || item.description || "Ohne Kurzbeschrieb", WORD_TEXT_MAX_WIDTH_PX);
   const renderedDetailLines = details.flatMap((detail) => wrapPreviewText(detail, WORD_TEXT_MAX_WIDTH_PX));
-  const priceLines = item.priceValue.trim() ? 1 : 0;
-  const totalRenderedLines = Math.max(renderedTitleLines.length + renderedDetailLines.length + 1 + priceLines, 1);
-  const textHeightUnits = ROW_VERTICAL_PADDING_UNITS * 2 + totalRenderedLines * TEXT_LINE_UNITS + ROW_BORDER_UNITS;
-  const photoHeightUnits = photos[0] ? PHOTO_ROW_UNITS : 0;
-  const heightUnits = Math.max(textHeightUnits, photoHeightUnits, MIN_ROW_UNITS);
+  const estimateLineCount = 1;
+  const priceLineCount = item.priceValue.trim() ? 1 : 0;
+  const totalRenderedLines = renderedTitleLines.length + renderedDetailLines.length + estimateLineCount + priceLineCount;
+  const heightUnits = measureWordRowHeight(totalRenderedLines, Boolean(photos[0]));
 
   return {
     id: item.id,
@@ -594,9 +598,7 @@ async function drawPdfRow(page: PDFPage, pdfDocument: PDFDocument, font: PDFFont
 
 export function createWordPreviewModel(caseFile: CaseFile, _masterData: MasterData): WordPreviewModel {
   const rows = caseFile.objects.map((item) => createRow(item, caseFile.assets));
-  const firstPageBudget = getWordPageRowBudgetUnits();
-  const followPageBudget = getWordPageRowBudgetUnits();
-  const chunks = chunkRowsByHeight(rows, firstPageBudget, followPageBudget);
+  const chunks = planWordPages(rows);
   const totalPages = Math.max(chunks.length, 1);
 
   return {

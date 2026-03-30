@@ -18,8 +18,8 @@ function buildCaseWithObjects(count: number) {
       departmentId: ""
     });
 
-    objectItem.shortDescription = `Sehr lange Objektbezeichnung ${index + 1} mit mehreren Woertern fuer einen echten Zeilenumbruch`;
-    objectItem.description = `Zusatzbeschreibung ${index + 1} mit weiterem Inhalt fuer die Schaetzliste`;
+    objectItem.shortDescription = `Objekt ${index + 1} mit echter Worttrennung fuer den Layouttest`;
+    objectItem.description = `Zusatzbeschreibung ${index + 1} mit etwas mehr Text fuer den Layouttest`;
     objectItem.estimate.low = "1000";
     objectItem.estimate.high = "1500";
     return objectItem;
@@ -28,22 +28,32 @@ function buildCaseWithObjects(count: number) {
   return caseFile;
 }
 
-describe("createWordPreviewModel", () => {
-  it("keeps a medium object list on one page without creating a blank follow page", () => {
-    const masterData = createEmptyMasterData();
-    masterData.clerks.push({
-      id: "clerk-1",
-      name: "Carsten Huebler",
-      email: "",
-      phone: "",
-      signaturePng: "",
-      nextReceiptNumberDesktop: "1",
-      nextReceiptNumberWeb: "1"
-    });
+function buildMasterData() {
+  const masterData = createEmptyMasterData();
+  masterData.clerks.push({
+    id: "clerk-1",
+    name: "Carsten Huebler",
+    email: "",
+    phone: "",
+    signaturePng: "",
+    nextReceiptNumberDesktop: "1",
+    nextReceiptNumberWeb: "1"
+  });
+  return masterData;
+}
 
-    const model = createWordPreviewModel(buildCaseWithObjects(8), masterData);
+describe("createWordPreviewModel", () => {
+  it("keeps compact rows on one page", () => {
+    const model = createWordPreviewModel(buildCaseWithObjects(5), buildMasterData());
 
     expect(model.pages).toHaveLength(1);
-    expect(model.pages[0]?.rows).toHaveLength(8);
+    expect(model.pages[0]?.rows).toHaveLength(5);
+  });
+
+  it("never creates a blank follow page when a list spans multiple pages", () => {
+    const model = createWordPreviewModel(buildCaseWithObjects(6), buildMasterData());
+
+    expect(model.pages.length).toBeGreaterThan(1);
+    expect(model.pages.every((page) => page.rows.length > 0)).toBe(true);
   });
 });
