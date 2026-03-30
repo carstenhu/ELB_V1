@@ -20,6 +20,20 @@ window.addEventListener("vite:preloadError", (event) => {
   window.location.reload();
 });
 
+window.addEventListener("error", (event) => {
+  const message = event?.message ?? "";
+  if (!message.includes("Failed to fetch dynamically imported module")) {
+    return;
+  }
+
+  if (sessionStorage.getItem(CHUNK_RECOVERY_KEY) === "1") {
+    return;
+  }
+
+  sessionStorage.setItem(CHUNK_RECOVERY_KEY, "1");
+  window.location.reload();
+});
+
 window.addEventListener("pageshow", () => {
   sessionStorage.removeItem(CHUNK_RECOVERY_KEY);
 });
