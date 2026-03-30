@@ -35,6 +35,7 @@ export interface WordPreviewPageModel {
   pageNumber: number;
   totalPages: number;
   showAddress: boolean;
+  showFooter: boolean;
   addressLines: string[];
   headerRightText: string;
   footerLabel: string;
@@ -355,6 +356,7 @@ export function createWordPreviewModel(caseFile: CaseFile, masterData: MasterDat
       pageNumber: index + 1,
       totalPages,
       showAddress: index === 0,
+      showFooter: index === totalPages - 1,
       addressLines: index === 0 ? deriveAddressLines(caseFile.consignor) : [],
       headerRightText: index === 0
         ? formatSwissDate(caseFile.meta.updatedAt || caseFile.meta.createdAt)
@@ -690,17 +692,15 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       body.appendChild(rowTable);
     }
 
-  }
-
-  if (footerTemplateNodes.length > 0) {
-    const finalFooterLabel = model.pages[model.pages.length - 1]?.footerLabel ?? model.pages[0]?.footerLabel ?? "";
-    footerTemplateNodes.forEach((node, index) => {
-      const clone = node.cloneNode(true) as Element;
-      if (index === 1) {
-        replaceFooterClerkName(clone, finalFooterLabel);
-      }
-      body.appendChild(clone);
-    });
+    if (page.showFooter && footerTemplateNodes.length > 0) {
+      footerTemplateNodes.forEach((node, index) => {
+        const clone = node.cloneNode(true) as Element;
+        if (index === 1) {
+          replaceFooterClerkName(clone, page.footerLabel);
+        }
+        body.appendChild(clone);
+      });
+    }
   }
 
   body.appendChild(sectPr.cloneNode(true));

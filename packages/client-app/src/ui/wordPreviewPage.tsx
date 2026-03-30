@@ -92,10 +92,12 @@ function WordTemplatePageView(props: {
             ))}
           </div>
 
-          <div className="word-template-footer">
-            <div>KOLLER AUKTIONEN</div>
-            <div>{page.footerLabel}</div>
-          </div>
+          {page.showFooter ? (
+            <div className="word-template-footer">
+              <div>KOLLER AUKTIONEN</div>
+              <div>{page.footerLabel}</div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
