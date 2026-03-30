@@ -16,10 +16,7 @@ import {
   TableLayoutType,
   TableRow,
   TextRun,
-  TextWrappingType,
   VerticalAlign,
-  VerticalPositionRelativeFrom,
-  HorizontalPositionRelativeFrom,
   WidthType
 } from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
@@ -93,17 +90,16 @@ const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-
 const WORD_LETTER_SPACING_PX = 0.8;
 const DOCX_PAGE_WIDTH_TWIPS = 11906;
 const DOCX_PAGE_HEIGHT_TWIPS = 16838;
-const DOCX_MARGIN_TOP_TWIPS = 2694;
-const DOCX_MARGIN_RIGHT_TWIPS = 1134;
-const DOCX_MARGIN_BOTTOM_TWIPS = 1702;
-const DOCX_MARGIN_LEFT_TWIPS = 1588;
-const DOCX_HEADER_MARGIN_TWIPS = 0;
-const DOCX_FOOTER_MARGIN_TWIPS = 709;
+const DOCX_MARGIN_TOP_TWIPS = 1080;
+const DOCX_MARGIN_RIGHT_TWIPS = 1080;
+const DOCX_MARGIN_BOTTOM_TWIPS = 1080;
+const DOCX_MARGIN_LEFT_TWIPS = 1080;
+const DOCX_HEADER_MARGIN_TWIPS = 360;
+const DOCX_FOOTER_MARGIN_TWIPS = 360;
 const DOCX_CONTENT_WIDTH_TWIPS = 9184;
 const DOCX_ROW_LINE_TWIPS = Math.round(WORD_TEMPLATE_LINE_HEIGHT_UNITS * 15);
 const DOCX_PHOTO_WIDTH_PX = 189;
 const DOCX_PHOTO_HEIGHT_PX = 234;
-const DOCX_HEADER_IMAGE_WIDTH_PX = 794;
 const DOCX_FONT_FAMILY = "NeueHaasGroteskDisp Pro Lt";
 const DOCX_FONT_SIZE = 20;
 
@@ -732,15 +728,6 @@ function createDocxParagraph(text: string, options?: {
   return new Paragraph(paragraphOptions);
 }
 
-async function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve({ width: image.width, height: image.height });
-    image.onerror = () => reject(new Error("Bildgroesse konnte nicht gelesen werden."));
-    image.src = dataUrl;
-  });
-}
-
 async function createDocxImageRun(photo: WordPreviewPhoto): Promise<ImageRun> {
   const containedDataUrl = await createContainedPhotoDataUrl(photo.src, DOCX_PHOTO_WIDTH_PX, DOCX_PHOTO_HEIGHT_PX);
   const parsed = parseDataUrl(containedDataUrl);
@@ -756,42 +743,6 @@ async function createDocxImageRun(photo: WordPreviewPhoto): Promise<ImageRun> {
     transformation: {
       width: DOCX_PHOTO_WIDTH_PX,
       height: DOCX_PHOTO_HEIGHT_PX
-    }
-  });
-}
-
-async function createDocxHeaderImageRun(dataUrl: string): Promise<ImageRun | null> {
-  if (!dataUrl) {
-    return null;
-  }
-
-  const parsed = parseDataUrl(dataUrl);
-  if (!parsed) {
-    return null;
-  }
-
-  const dimensions = await getImageDimensions(dataUrl);
-  const width = DOCX_HEADER_IMAGE_WIDTH_PX;
-  const height = Math.max(1, Math.round((dimensions.height / dimensions.width) * width));
-  const type = parsed.mimeType.includes("png") ? "png" : "jpg";
-
-  return new ImageRun({
-    type,
-    data: parsed.bytes,
-    transformation: { width, height },
-    floating: {
-      behindDocument: true,
-      horizontalPosition: {
-        relative: HorizontalPositionRelativeFrom.PAGE,
-        offset: 0
-      },
-      verticalPosition: {
-        relative: VerticalPositionRelativeFrom.PAGE,
-        offset: 0
-      },
-      wrap: {
-        type: TextWrappingType.NONE
-      }
     }
   });
 }
@@ -875,8 +826,6 @@ async function createDocxTable(rows: WordPreviewRow[]): Promise<Table> {
 export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
   const model = createWordPreviewModel(caseFile, masterData);
   const clerkLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
-  const { headerImageSrc } = await loadWordTemplateAssets();
-  const headerImageRun = await createDocxHeaderImageRun(headerImageSrc);
   const pageChildren = await Promise.all(model.pages.map(async (page, index) => {
     const children: Array<Paragraph | Table> = [];
 
@@ -924,14 +873,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
         },
         headers: {
           default: new Header({
-            children: headerImageRun
-              ? [
-                new Paragraph({
-                  spacing: { before: 0, after: 0 },
-                  children: [headerImageRun]
-                })
-              ]
-              : []
+            children: [createDocxParagraph("KOLLER AUKTIONEN", { after: 0 })]
           })
         },
         footers: {
