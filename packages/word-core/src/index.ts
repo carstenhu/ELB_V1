@@ -425,6 +425,16 @@ function setCellParagraphs(doc: XMLDocument, cell: Element, lines: Array<WordPre
   });
 }
 
+function createPageBreakParagraph(doc: XMLDocument): Element {
+  const paragraph = doc.createElementNS(WORD_NS, "w:p");
+  const run = doc.createElementNS(WORD_NS, "w:r");
+  const breakNode = doc.createElementNS(WORD_NS, "w:br");
+  breakNode.setAttributeNS(WORD_NS, "w:type", "page");
+  run.appendChild(breakNode);
+  paragraph.appendChild(run);
+  return paragraph;
+}
+
 function replaceAddressBlock(table: Element, addressLines: string[]) {
   const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
   if (!cell) {
@@ -433,6 +443,30 @@ function replaceAddressBlock(table: Element, addressLines: string[]) {
 
   const doc = table.ownerDocument;
   setCellParagraphs(doc, cell, addressLines.length > 0 ? addressLines : [""]);
+}
+
+function compactDateBlockForFollowPage(table: Element) {
+  const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
+  if (!cell) {
+    return;
+  }
+
+  const paragraphs = Array.from(cell.getElementsByTagNameNS(WORD_NS, "p"));
+  if (!paragraphs.length) {
+    return;
+  }
+
+  const nonEmptyParagraph = paragraphs.find((paragraph) => paragraph.textContent?.trim());
+  const paragraphToKeep = nonEmptyParagraph ?? paragraphs[0];
+  if (!paragraphToKeep) {
+    return;
+  }
+
+  paragraphs.forEach((paragraph) => {
+    if (paragraph !== paragraphToKeep) {
+      paragraph.parentNode?.removeChild(paragraph);
+    }
+  });
 }
 
 function replaceDateValue(table: Element, value: string) {
@@ -586,11 +620,6 @@ function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPr
 
 export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
   const model = createWordPreviewModel(caseFile, masterData);
-  const firstPage = model.pages[0];
-  const rows = model.pages.flatMap((page) => page.rows);
-  if (!firstPage) {
-    throw new Error("Word-Vorschau enthaelt keine Seiten.");
-  }
 
   const templateResponse = await fetch(templateDocxUrl);
   const templateBuffer = await templateResponse.arrayBuffer();
@@ -628,34 +657,48 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     body.removeChild(body.firstChild);
   }
 
-  const addressTable = addressTemplate.cloneNode(true) as Element;
-  replaceAddressBlock(addressTable, firstPage.addressLines);
-  body.appendChild(addressTable);
-
-  const dateTable = dateTemplate.cloneNode(true) as Element;
-  replaceDateValue(dateTable, firstPage.headerRightText);
-  body.appendChild(dateTable);
-
-  for (const row of rows) {
-    let imageRelationshipId: string | null = null;
-    if (row.primaryPhoto) {
-      // eslint-disable-next-line no-await-in-loop
-      imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
-      relationshipCounter += 1;
+  for (let pageIndex = 0; pageIndex < model.pages.length; pageIndex += 1) {
+    const page = model.pages[pageIndex];
+    if (!page) {
+      continue;
     }
 
-    const rowTable = buildWordRowTable(documentDoc, rowTemplate, row, imageRelationshipId);
-    body.appendChild(rowTable);
-  }
+    if (pageIndex > 0) {
+      body.appendChild(createPageBreakParagraph(documentDoc));
+    }
 
-  if (footerTemplateNodes.length > 0) {
-    footerTemplateNodes.forEach((node, index) => {
-      const clone = node.cloneNode(true) as Element;
-      if (index === 1) {
-        replaceFooterClerkName(clone, firstPage.footerLabel);
+    const dateTable = dateTemplate.cloneNode(true) as Element;
+    replaceDateValue(dateTable, page.headerRightText);
+    if (page.showAddress) {
+      const addressTable = addressTemplate.cloneNode(true) as Element;
+      replaceAddressBlock(addressTable, page.addressLines);
+      body.appendChild(addressTable);
+    } else {
+      compactDateBlockForFollowPage(dateTable);
+    }
+    body.appendChild(dateTable);
+
+    for (const row of page.rows) {
+      let imageRelationshipId: string | null = null;
+      if (row.primaryPhoto) {
+        // eslint-disable-next-line no-await-in-loop
+        imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
+        relationshipCounter += 1;
       }
-      body.appendChild(clone);
-    });
+
+      const rowTable = buildWordRowTable(documentDoc, rowTemplate, row, imageRelationshipId);
+      body.appendChild(rowTable);
+    }
+
+    if (footerTemplateNodes.length > 0) {
+      footerTemplateNodes.forEach((node, index) => {
+        const clone = node.cloneNode(true) as Element;
+        if (index === 1) {
+          replaceFooterClerkName(clone, page.footerLabel);
+        }
+        body.appendChild(clone);
+      });
+    }
   }
 
   body.appendChild(sectPr.cloneNode(true));
