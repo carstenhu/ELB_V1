@@ -445,6 +445,30 @@ function replaceAddressBlock(table: Element, addressLines: string[]) {
   setCellParagraphs(doc, cell, addressLines.length > 0 ? addressLines : [""]);
 }
 
+function compactDateBlockForFollowPage(table: Element) {
+  const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
+  if (!cell) {
+    return;
+  }
+
+  const paragraphs = Array.from(cell.getElementsByTagNameNS(WORD_NS, "p"));
+  if (!paragraphs.length) {
+    return;
+  }
+
+  const nonEmptyParagraph = paragraphs.find((paragraph) => paragraph.textContent?.trim());
+  const paragraphToKeep = nonEmptyParagraph ?? paragraphs[0];
+  if (!paragraphToKeep) {
+    return;
+  }
+
+  paragraphs.forEach((paragraph) => {
+    if (paragraph !== paragraphToKeep) {
+      paragraph.parentNode?.removeChild(paragraph);
+    }
+  });
+}
+
 function replaceDateValue(table: Element, value: string) {
   Array.from(table.getElementsByTagNameNS(WORD_NS, "t")).forEach((node) => {
     if (node.textContent?.includes("{{DATE}}")) {
@@ -643,12 +667,15 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       body.appendChild(createPageBreakParagraph(documentDoc));
     }
 
-    const addressTable = addressTemplate.cloneNode(true) as Element;
-    replaceAddressBlock(addressTable, page.showAddress ? page.addressLines : []);
-    body.appendChild(addressTable);
-
     const dateTable = dateTemplate.cloneNode(true) as Element;
     replaceDateValue(dateTable, page.headerRightText);
+    if (page.showAddress) {
+      const addressTable = addressTemplate.cloneNode(true) as Element;
+      replaceAddressBlock(addressTable, page.addressLines);
+      body.appendChild(addressTable);
+    } else {
+      compactDateBlockForFollowPage(dateTable);
+    }
     body.appendChild(dateTable);
 
     for (const row of page.rows) {
