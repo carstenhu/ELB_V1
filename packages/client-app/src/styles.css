@@ -927,8 +927,8 @@ textarea {
   grid-template-columns: 33px 198.33px 335.67px;
   gap: 0;
   min-height: 0;
-  border-top: 1px solid #111111;
   border-bottom: 1px solid #111111;
+  box-sizing: border-box;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
   color: #111111;
 }

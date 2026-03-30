@@ -75,6 +75,7 @@ const WORD_TEMPLATE_MIN_ROW_UNITS = 48;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
 const WORD_LETTER_SPACING_PX = 0.8;
+const WORD_UNIT_TO_TWIP = 15;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -435,14 +436,13 @@ function createPageBreakParagraph(doc: XMLDocument): Element {
 }
 
 function replaceAddressBlock(table: Element, addressLines: string[]) {
-  const paragraph = table.getElementsByTagNameNS(WORD_NS, "p")[0];
-  if (!paragraph) {
+  const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
+  if (!cell) {
     return;
   }
 
   const doc = table.ownerDocument;
-  const replacement = cloneParagraphWithText(doc, paragraph, addressLines.join("\n"));
-  paragraph.parentNode?.replaceChild(replacement, paragraph);
+  setCellParagraphs(doc, cell, addressLines.length > 0 ? addressLines : [""]);
 }
 
 function replaceDateValue(table: Element, value: string) {
@@ -526,10 +526,53 @@ async function attachGeneratedPhoto(
 
 function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPreviewRow, imageRelationshipId: string | null): Element {
   const clone = templateTable.cloneNode(true) as Element;
+  const tableProps = clone.getElementsByTagNameNS(WORD_NS, "tblPr")[0];
+  const tableBorders = tableProps?.getElementsByTagNameNS(WORD_NS, "tblBorders")[0];
+  const rowNode = clone.getElementsByTagNameNS(WORD_NS, "tr")[0];
   const cells = Array.from(clone.getElementsByTagNameNS(WORD_NS, "tc"));
   const intCell = cells[0];
   const photoCell = cells[1];
   const textCell = cells[2];
+
+  if (tableBorders) {
+    const topBorder = tableBorders.getElementsByTagNameNS(WORD_NS, "top")[0];
+    const bottomBorder = tableBorders.getElementsByTagNameNS(WORD_NS, "bottom")[0];
+    topBorder?.setAttributeNS(WORD_NS, "w:val", "nil");
+    bottomBorder?.setAttributeNS(WORD_NS, "w:val", "nil");
+  }
+
+  if (rowNode) {
+    let rowProps = rowNode.getElementsByTagNameNS(WORD_NS, "trPr")[0];
+    if (!rowProps) {
+      rowProps = doc.createElementNS(WORD_NS, "w:trPr");
+      rowNode.insertBefore(rowProps, rowNode.firstChild);
+    }
+
+    let rowHeight = rowProps.getElementsByTagNameNS(WORD_NS, "trHeight")[0];
+    if (!rowHeight) {
+      rowHeight = doc.createElementNS(WORD_NS, "w:trHeight");
+      rowProps.appendChild(rowHeight);
+    }
+
+    rowHeight.setAttributeNS(WORD_NS, "w:val", String(Math.round(row.heightUnits * WORD_UNIT_TO_TWIP)));
+    rowHeight.setAttributeNS(WORD_NS, "w:hRule", "atLeast");
+  }
+
+  cells.forEach((cell) => {
+    let cellProps = cell.getElementsByTagNameNS(WORD_NS, "tcPr")[0];
+    if (!cellProps) {
+      cellProps = doc.createElementNS(WORD_NS, "w:tcPr");
+      cell.insertBefore(cellProps, cell.firstChild);
+    }
+
+    let verticalAlign = cellProps.getElementsByTagNameNS(WORD_NS, "vAlign")[0];
+    if (!verticalAlign) {
+      verticalAlign = doc.createElementNS(WORD_NS, "w:vAlign");
+      cellProps.appendChild(verticalAlign);
+    }
+
+    verticalAlign.setAttributeNS(WORD_NS, "w:val", "top");
+  });
 
   if (intCell) {
     setCellParagraphs(doc, intCell, [row.intNumber]);
