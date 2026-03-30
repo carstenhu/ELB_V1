@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createEmptyCase, createEmptyClerk, createEmptyMasterData } from "@elb/domain/index";
-import { hydrateSnapshotFromDisk, persistSnapshotToDisk } from "./filesystem";
+import { hydrateSnapshotFromDisk, persistExportArtifactsToDisk, persistSnapshotToDisk } from "./filesystem";
 
 class MemoryStorage {
   private readonly items = new Map<string, string>();
@@ -101,5 +101,41 @@ describe("filesystem dossier storage", () => {
     expect(hydrated?.currentDossierIdByClerk["clerk-1"]).toBe("case-current");
     expect(hydrated?.currentDossierIdByClerk["clerk-2"]).toBe("case-other");
     expect(hydrated?.dossiers.map((caseFile) => caseFile.meta.id)).toEqual(["case-other", "case-current"]);
+  });
+
+  it("increments zip export versions across timestamped export folders", async () => {
+    const masterData = buildMasterData();
+    const caseFile = createEmptyCase({
+      id: "case-export",
+      clerkId: "clerk-1",
+      receiptNumber: "4001",
+      createdAt: "2026-03-22T12:00:00.000Z"
+    });
+
+    await persistSnapshotToDisk({
+      masterData,
+      activeClerkId: "clerk-1",
+      currentCase: caseFile,
+      currentDossierIdByClerk: {
+        "clerk-1": "case-export"
+      },
+      dossiers: [caseFile]
+    });
+
+    const firstExport = await persistExportArtifactsToDisk({
+      caseFile,
+      artifacts: [],
+      zipFileName: "ELB_4001.zip",
+      zipContent: new Uint8Array([1, 2, 3])
+    });
+    const secondExport = await persistExportArtifactsToDisk({
+      caseFile,
+      artifacts: [],
+      zipFileName: "ELB_4001.zip",
+      zipContent: new Uint8Array([4, 5, 6])
+    });
+
+    expect(firstExport.savedPath.endsWith("ELB_4001_v1.zip")).toBe(true);
+    expect(secondExport.savedPath.endsWith("ELB_4001_v2.zip")).toBe(true);
   });
 });

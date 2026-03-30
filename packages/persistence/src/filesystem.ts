@@ -120,8 +120,8 @@ function buildVersionedFileName(fileName: string, version: number): string {
 }
 
 async function findNextExportVersion(fsModule: FileSystemModule | null, exportsRoot: string, baseZipFileName: string): Promise<number> {
-  const exportDirectories = await listDirectoryEntries(fsModule, exportsRoot);
-  if (!exportDirectories.length) {
+  const exportEntries = await listDirectoryEntries(fsModule, exportsRoot);
+  if (!exportEntries.length) {
     return 1;
   }
 
@@ -129,12 +129,29 @@ async function findNextExportVersion(fsModule: FileSystemModule | null, exportsR
   const versionPattern = new RegExp(`^${parsedBaseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_v(\\d+)\\.zip$`, "i");
   let highestVersion = 0;
 
-  for (const directory of exportDirectories) {
-    if (!directory.isDirectory || !directory.name.trim()) {
+  for (const entry of exportEntries) {
+    if (!entry.name.trim()) {
       continue;
     }
 
-    const files = await listDirectoryEntries(fsModule, `${exportsRoot}/${directory.name.trim()}`);
+    if (entry.isFile) {
+      const match = entry.name.trim().match(versionPattern);
+      if (!match) {
+        continue;
+      }
+
+      const parsedVersion = Number.parseInt(match[1] ?? "", 10);
+      if (Number.isFinite(parsedVersion)) {
+        highestVersion = Math.max(highestVersion, parsedVersion);
+      }
+      continue;
+    }
+
+    if (!entry.isDirectory) {
+      continue;
+    }
+
+    const files = await listDirectoryEntries(fsModule, `${exportsRoot}/${entry.name.trim()}`);
     for (const file of files) {
       if (!file.isFile || !file.name.trim()) {
         continue;

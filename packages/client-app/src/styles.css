@@ -917,11 +917,11 @@ textarea {
 }
 
 .word-date-block--first {
-  top: 71px;
+  top: 116px;
 }
 
 .word-date-block--follow {
-  top: 58px;
+  top: 116px;
 }
 
 .word-preview-list--template {
@@ -990,12 +990,13 @@ textarea {
 }
 
 .word-template-footer {
+  position: absolute;
+  left: 105.87px;
+  right: 75.6px;
+  bottom: 58px;
   display: grid;
   gap: 0.15rem;
   align-content: end;
-  width: 612.27px;
-  padding-top: 8px;
-  justify-self: start;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
   font-size: 13.33px;
   line-height: 19.2px;

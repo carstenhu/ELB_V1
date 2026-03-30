@@ -261,6 +261,20 @@ function hasVisibleWordText(node: Element): boolean {
   return Array.from(node.getElementsByTagNameNS(WORD_NS, "t")).some((textNode) => (textNode.textContent || "").trim().length > 0);
 }
 
+function getClosestWordAncestor(node: Node | null, localName: string): Element | null {
+  let current = node;
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const element = current as Element;
+      if (element.localName === localName) {
+        return element;
+      }
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
 function cloneWithText(doc: XMLDocument, paragraph: Element, text: string, color?: string): Element {
   const clone = paragraph.cloneNode(true) as Element;
   const pPr = clone.getElementsByTagNameNS(WORD_NS, "pPr")[0]?.cloneNode(true) ?? null;
@@ -323,14 +337,86 @@ function setParagraphsInCell(doc: XMLDocument, cell: Element, texts: Array<{ tex
   });
 }
 
-function createPageBreakParagraph(doc: XMLDocument): Element {
-  const paragraph = doc.createElementNS(WORD_NS, "w:p");
+function createWordRun(doc: XMLDocument, runPrSource: Element | undefined, text: string): Element {
   const run = doc.createElementNS(WORD_NS, "w:r");
-  const breakNode = doc.createElementNS(WORD_NS, "w:br");
-  breakNode.setAttributeNS(WORD_NS, "w:type", "page");
-  run.appendChild(breakNode);
-  paragraph.appendChild(run);
-  return paragraph;
+  if (runPrSource) {
+    run.appendChild(runPrSource.cloneNode(true));
+  }
+
+  const textNode = doc.createElementNS(WORD_NS, "w:t");
+  if (text.startsWith(" ") || text.endsWith(" ")) {
+    textNode.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+  }
+  textNode.textContent = text;
+  run.appendChild(textNode);
+  return run;
+}
+
+function createWordFieldRun(doc: XMLDocument, runPrSource: Element | undefined, instruction: string, placeholderText: string): Element[] {
+  const beginRun = doc.createElementNS(WORD_NS, "w:r");
+  if (runPrSource) {
+    beginRun.appendChild(runPrSource.cloneNode(true));
+  }
+  const beginField = doc.createElementNS(WORD_NS, "w:fldChar");
+  beginField.setAttributeNS(WORD_NS, "w:fldCharType", "begin");
+  beginRun.appendChild(beginField);
+
+  const instructionRun = doc.createElementNS(WORD_NS, "w:r");
+  if (runPrSource) {
+    instructionRun.appendChild(runPrSource.cloneNode(true));
+  }
+  const instructionNode = doc.createElementNS(WORD_NS, "w:instrText");
+  instructionNode.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+  instructionNode.textContent = instruction;
+  instructionRun.appendChild(instructionNode);
+
+  const separateRun = doc.createElementNS(WORD_NS, "w:r");
+  if (runPrSource) {
+    separateRun.appendChild(runPrSource.cloneNode(true));
+  }
+  const separateField = doc.createElementNS(WORD_NS, "w:fldChar");
+  separateField.setAttributeNS(WORD_NS, "w:fldCharType", "separate");
+  separateRun.appendChild(separateField);
+
+  const textRun = createWordRun(doc, runPrSource, placeholderText);
+
+  const endRun = doc.createElementNS(WORD_NS, "w:r");
+  if (runPrSource) {
+    endRun.appendChild(runPrSource.cloneNode(true));
+  }
+  const endField = doc.createElementNS(WORD_NS, "w:fldChar");
+  endField.setAttributeNS(WORD_NS, "w:fldCharType", "end");
+  endRun.appendChild(endField);
+
+  return [beginRun, instructionRun, separateRun, textRun, endRun];
+}
+
+function replaceDatePlaceholderParagraph(table: Element, replacementBuilder: (doc: XMLDocument, paragraph: Element) => Element) {
+  const texts = Array.from(table.getElementsByTagNameNS(WORD_NS, "t"));
+  const placeholderNode = texts.find((node) => node.textContent?.includes("{{DATE}}"));
+  const placeholderParagraph = getClosestWordAncestor(placeholderNode ?? null, "p");
+  if (!placeholderParagraph || !placeholderParagraph.parentNode) {
+    return;
+  }
+
+  const doc = table.ownerDocument;
+  placeholderParagraph.parentNode.replaceChild(replacementBuilder(doc, placeholderParagraph), placeholderParagraph);
+}
+
+function setPageBreakBefore(table: Element) {
+  const paragraph = table.getElementsByTagNameNS(WORD_NS, "p")[0];
+  if (!paragraph) {
+    return;
+  }
+
+  let pPr = paragraph.getElementsByTagNameNS(WORD_NS, "pPr")[0];
+  if (!pPr) {
+    pPr = table.ownerDocument.createElementNS(WORD_NS, "w:pPr");
+    paragraph.insertBefore(pPr, paragraph.firstChild);
+  }
+
+  const pageBreakBefore = table.ownerDocument.createElementNS(WORD_NS, "w:pageBreakBefore");
+  pPr.insertBefore(pageBreakBefore, pPr.firstChild);
 }
 
 function appendAddress(table: Element, addressLines: string[]) {
@@ -344,12 +430,29 @@ function appendAddress(table: Element, addressLines: string[]) {
 }
 
 function appendDateValue(table: Element, value: string) {
-  const texts = table.getElementsByTagNameNS(WORD_NS, "t");
-  for (const node of Array.from(texts)) {
-    if (node.textContent?.includes("{{DATE}}")) {
-      node.textContent = value;
+  replaceDatePlaceholderParagraph(table, (doc, paragraph) => cloneWithText(doc, paragraph, value));
+}
+
+function appendPageNumberField(table: Element) {
+  replaceDatePlaceholderParagraph(table, (doc, paragraph) => {
+    const clone = paragraph.cloneNode(true) as Element;
+    const pPr = clone.getElementsByTagNameNS(WORD_NS, "pPr")[0]?.cloneNode(true) ?? null;
+    const runPrSource = clone.getElementsByTagNameNS(WORD_NS, "rPr")[0]?.cloneNode(true) as Element | undefined;
+
+    while (clone.firstChild) {
+      clone.removeChild(clone.firstChild);
     }
-  }
+
+    if (pPr) {
+      clone.appendChild(pPr);
+    }
+
+    clone.appendChild(createWordRun(doc, runPrSource, "Seite "));
+    createWordFieldRun(doc, runPrSource, " PAGE ", "1").forEach((run) => clone.appendChild(run));
+    clone.appendChild(createWordRun(doc, runPrSource, "/"));
+    createWordFieldRun(doc, runPrSource, " NUMPAGES ", "1").forEach((run) => clone.appendChild(run));
+    return clone;
+  });
 }
 
 function setFooterClerkName(node: Element, value: string) {
@@ -436,13 +539,14 @@ function buildTemplateObjectTable(doc: XMLDocument, templateTable: Element, row:
   }
 
   if (textCell) {
-    const lines = [
+    const lines: Array<{ text: string; color?: string }> = [
       ...row.renderedTitleLines.map((line) => ({ text: line })),
       ...row.renderedDetailLines.map((line) => ({ text: line })),
-      { text: "" },
-      { text: row.estimate ? `Schätzung: CHF ${row.estimate}` : "Schätzung offen" },
-      { text: row.priceValue ? `${row.priceLabel}: CHF ${row.priceValue}` : "", color: "FF0000" }
+      { text: row.estimate ? `Schätzung: CHF ${row.estimate}` : "Schätzung offen" }
     ];
+    if (row.priceValue) {
+      lines.push({ text: `${row.priceLabel}: CHF ${row.priceValue}`, color: "FF0000" });
+    }
     setParagraphsInCell(doc, textCell, lines);
   }
 
@@ -659,7 +763,12 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     }
 
     const dateClone = dateTable.cloneNode(true) as Element;
-    appendDateValue(dateClone, page.headerRightText);
+    if (page.showAddress) {
+      appendDateValue(dateClone, page.headerRightText);
+    } else {
+      setPageBreakBefore(dateClone);
+      appendPageNumberField(dateClone);
+    }
     body.appendChild(dateClone);
 
     for (const row of page.rows) {
@@ -677,10 +786,6 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       }
       body.appendChild(footerClone);
     });
-
-    if (pageIndex < model.pages.length - 1) {
-      body.appendChild(createPageBreakParagraph(documentDoc));
-    }
   }
 
   body.appendChild(sectionProperties.cloneNode(true));
