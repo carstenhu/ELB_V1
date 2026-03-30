@@ -8,6 +8,7 @@ import {
   ImageRun,
   LineRuleType,
   Packer,
+  PageBreak,
   Paragraph,
   Table,
   TableCell,
@@ -748,10 +749,41 @@ async function createDocxTable(rows: WordPreviewRow[]): Promise<Table> {
 
 export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
   const model = createWordPreviewModel(caseFile, masterData);
-  const allRows = model.pages.flatMap((page) => page.rows);
-  const addressLines = deriveAddressLines(caseFile.consignor);
   const clerkLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
-  const table = await createDocxTable(allRows);
+  const pageChildren = await Promise.all(model.pages.map(async (page, index) => {
+    const children = [];
+
+    if (index > 0) {
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
+    children.push(
+      new Paragraph({
+        spacing: { before: 0, after: 180, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
+        children: [new TextRun({ text: "Schaetzliste", bold: true, size: 28, color: "22352D" })]
+      }),
+      new Paragraph({
+        alignment: page.showAddress ? AlignmentType.RIGHT : AlignmentType.END,
+        spacing: { before: 0, after: page.showAddress ? 240 : 180, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
+        children: [new TextRun({ text: page.headerRightText, size: 20, color: "111111" })]
+      })
+    );
+
+    if (page.showAddress) {
+      children.push(
+        ...page.addressLines.map((line) =>
+          new Paragraph({
+            spacing: { before: 0, after: 0, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
+            children: [new TextRun({ text: line, size: 20, color: "111111" })]
+          })
+        ),
+        new Paragraph({ spacing: { before: 0, after: 240 }, text: "" })
+      );
+    }
+
+    children.push(await createDocxTable(page.rows));
+    return children;
+  }));
 
   const document = new Document({
     sections: [
@@ -781,25 +813,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
             ]
           })
         },
-        children: [
-          new Paragraph({
-            spacing: { before: 0, after: 180, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-            children: [new TextRun({ text: "Schaetzliste", bold: true, size: 28, color: "22352D" })]
-          }),
-          new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            spacing: { before: 0, after: 240, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-            children: [new TextRun({ text: formatSwissDate(caseFile.meta.updatedAt || caseFile.meta.createdAt), size: 20, color: "111111" })]
-          }),
-          ...addressLines.map((line) =>
-            new Paragraph({
-              spacing: { before: 0, after: 0, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-              children: [new TextRun({ text: line, size: 20, color: "111111" })]
-            })
-          ),
-          new Paragraph({ spacing: { before: 0, after: 240 }, text: "" }),
-          table
-        ]
+        children: pageChildren.flat()
       }
     ]
   });
