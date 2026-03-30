@@ -690,15 +690,17 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       body.appendChild(rowTable);
     }
 
-    if (footerTemplateNodes.length > 0) {
-      footerTemplateNodes.forEach((node, index) => {
-        const clone = node.cloneNode(true) as Element;
-        if (index === 1) {
-          replaceFooterClerkName(clone, page.footerLabel);
-        }
-        body.appendChild(clone);
-      });
-    }
+  }
+
+  if (footerTemplateNodes.length > 0) {
+    const finalFooterLabel = model.pages[model.pages.length - 1]?.footerLabel ?? model.pages[0]?.footerLabel ?? "";
+    footerTemplateNodes.forEach((node, index) => {
+      const clone = node.cloneNode(true) as Element;
+      if (index === 1) {
+        replaceFooterClerkName(clone, finalFooterLabel);
+      }
+      body.appendChild(clone);
+    });
   }
 
   body.appendChild(sectPr.cloneNode(true));
