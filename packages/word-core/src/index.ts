@@ -1,24 +1,4 @@
 import JSZip from "jszip";
-import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  Footer,
-  HeightRule,
-  Header,
-  ImageRun,
-  LineRuleType,
-  Packer,
-  PageBreak,
-  Paragraph,
-  Table,
-  TableCell,
-  TableLayoutType,
-  TableRow,
-  TextRun,
-  VerticalAlign,
-  WidthType
-} from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { deriveAddressLines, formatAmountForDisplay, type Asset, type CaseFile, type MasterData } from "@elb/domain/index";
 import templateDocxUrl from "../../../vorlagen/Koller_sl_de.docx?url";
@@ -69,6 +49,13 @@ export interface WordPreviewModel {
   };
 }
 
+const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
+const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
+const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
+const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
+
 const WORD_TEMPLATE_PAGE_HEIGHT_UNITS = 1122.53;
 const WORD_TEMPLATE_PADDING_TOP_UNITS = 179.6;
 const WORD_TEMPLATE_PADDING_BOTTOM_UNITS = 113.47;
@@ -88,20 +75,6 @@ const WORD_TEMPLATE_MIN_ROW_UNITS = 48;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
 const WORD_LETTER_SPACING_PX = 0.8;
-const DOCX_PAGE_WIDTH_TWIPS = 11906;
-const DOCX_PAGE_HEIGHT_TWIPS = 16838;
-const DOCX_MARGIN_TOP_TWIPS = 1080;
-const DOCX_MARGIN_RIGHT_TWIPS = 1080;
-const DOCX_MARGIN_BOTTOM_TWIPS = 1080;
-const DOCX_MARGIN_LEFT_TWIPS = 1080;
-const DOCX_HEADER_MARGIN_TWIPS = 360;
-const DOCX_FOOTER_MARGIN_TWIPS = 360;
-const DOCX_CONTENT_WIDTH_TWIPS = 9184;
-const DOCX_ROW_LINE_TWIPS = Math.round(WORD_TEMPLATE_LINE_HEIGHT_UNITS * 15);
-const DOCX_PHOTO_WIDTH_PX = 189;
-const DOCX_PHOTO_HEIGHT_PX = 234;
-const DOCX_FONT_FAMILY = "NeueHaasGroteskDisp Pro Lt";
-const DOCX_FONT_SIZE = 20;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -116,12 +89,6 @@ const PDF_TEXT_LINE_HEIGHT = 11.5;
 const PDF_ROW_PADDING_BOTTOM = 10;
 const PDF_PHOTO_SIZE = 72;
 
-const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-const DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
-const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
-const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
-const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
 let templateAssetsPromise: Promise<{ headerImageSrc: string }> | null = null;
 let wrapMeasureContext: CanvasRenderingContext2D | null = null;
 
@@ -243,7 +210,6 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     item.referenceNumber.trim() ? `Ref. ${item.referenceNumber.trim()}` : "",
     item.remarks.trim() ? `Bemerkung ${item.remarks.trim()}` : ""
   ].filter(Boolean);
-  const details = detailBlocks;
 
   const renderedTitleLines = wrapWordText(title, WORD_TEXT_MAX_WIDTH_PX);
   const renderedDetailLines = detailBlocks.flatMap((detail) => wrapWordText(detail, WORD_TEXT_MAX_WIDTH_PX));
@@ -274,7 +240,7 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     estimate,
     priceLabel,
     priceValue,
-    details,
+    details: detailBlocks,
     photos,
     ...(photos[0] ? { primaryPhoto: photos[0] } : {}),
     heightUnits: measureWordRowHeight(contentLines.length, Boolean(photos[0]))
@@ -296,6 +262,58 @@ function formatSwissDate(value: string): string {
     month: "2-digit",
     year: "numeric"
   }).format(date);
+}
+
+function parseDataUrl(dataUrl: string): { bytes: Uint8Array; mimeType: string } | null {
+  const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const mimeType = match[1];
+  const base64 = match[2];
+  if (!mimeType || !base64) {
+    return null;
+  }
+
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return { bytes, mimeType };
+}
+
+function createContainedPhotoDataUrl(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        reject(new Error("Bildkontext fuer den Word-Export konnte nicht erzeugt werden."));
+        return;
+      }
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, targetWidth, targetHeight);
+
+      const scale = Math.min(targetWidth / image.width, targetHeight / image.height);
+      const drawWidth = image.width * scale;
+      const drawHeight = image.height * scale;
+      const drawX = (targetWidth - drawWidth) / 2;
+      const drawY = (targetHeight - drawHeight) / 2;
+      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    image.onerror = () => reject(new Error("Bild konnte fuer den Word-Export nicht aufbereitet werden."));
+    image.src = dataUrl;
+  });
 }
 
 function readDataUrlFromZip(zip: JSZip, path: string): Promise<string> {
@@ -323,6 +341,31 @@ export async function loadWordTemplateAssets(): Promise<{ headerImageSrc: string
   }
 
   return templateAssetsPromise;
+}
+
+export function createWordPreviewModel(caseFile: CaseFile, masterData: MasterData): WordPreviewModel {
+  const rows = caseFile.objects.map((item) => buildWordPreviewRow(item, caseFile.assets));
+  const pages = paginateWordRows(rows);
+  const totalPages = Math.max(pages.length, 1);
+  const footerLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
+
+  return {
+    pages: pages.map((rowsOnPage, index) => ({
+      pageNumber: index + 1,
+      totalPages,
+      showAddress: index === 0,
+      addressLines: index === 0 ? deriveAddressLines(caseFile.consignor) : [],
+      headerRightText: index === 0
+        ? formatSwissDate(caseFile.meta.updatedAt || caseFile.meta.createdAt)
+        : `Seite ${index + 1}/${totalPages}`,
+      footerLabel,
+      rows: rowsOnPage
+    })),
+    typography: {
+      family: "Neue Haas Grotesk",
+      note: "Template-basierter Word-Export"
+    }
+  };
 }
 
 function getDirectChildElements(node: Element): Element[] {
@@ -418,59 +461,47 @@ function replaceFooterClerkName(node: Element, value: string) {
   }
 }
 
-function parseDataUrl(dataUrl: string): { bytes: Uint8Array; mimeType: string } | null {
-  const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
-  if (!match) {
-    return null;
-  }
-
-  const mimeType = match[1];
-  const base64 = match[2];
-  if (!mimeType || !base64) {
-    return null;
-  }
-
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return { bytes, mimeType };
+function findFirstTableWithMarker(body: Element, marker: string): Element | null {
+  const tables = getDirectChildElements(body).filter((node) => node.localName === "tbl");
+  return tables.find((table) => table.textContent?.includes(marker)) ?? null;
 }
 
-function createContainedPhotoDataUrl(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const context = canvas.getContext("2d");
-
-      if (!context) {
-        reject(new Error("Bildkontext fuer den Word-Export konnte nicht erzeugt werden."));
-        return;
-      }
-
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, targetWidth, targetHeight);
-
-      const scale = Math.min(targetWidth / image.width, targetHeight / image.height);
-      const drawWidth = image.width * scale;
-      const drawHeight = image.height * scale;
-      const drawX = (targetWidth - drawWidth) / 2;
-      const drawY = (targetHeight - drawHeight) / 2;
-      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-
-      resolve(canvas.toDataURL("image/jpeg", 0.92));
-    };
-    image.onerror = () => reject(new Error("Bild konnte fuer den Word-Export nicht aufbereitet werden."));
-    image.src = dataUrl;
-  });
+function findRowTemplateTable(body: Element): Element | null {
+  const tables = getDirectChildElements(body).filter((node) => node.localName === "tbl");
+  return tables.find((table) => {
+    const cells = table.getElementsByTagNameNS(WORD_NS, "tc");
+    const blips = table.getElementsByTagNameNS(DRAWING_NS, "blip");
+    return cells.length >= 3 && blips.length > 0;
+  }) ?? null;
 }
 
-async function attachGeneratedPhoto(zip: JSZip, relsDoc: XMLDocument, photo: WordPreviewPhoto, counter: number): Promise<string | null> {
+function collectFooterTemplateNodes(body: Element, rowTable: Element): Element[] {
+  const nodes = getDirectChildElements(body);
+  const rowIndex = nodes.findIndex((node) => node === rowTable);
+  const sectIndex = nodes.findIndex((node) => node.localName === "sectPr");
+  if (rowIndex === -1 || sectIndex === -1 || sectIndex <= rowIndex + 1) {
+    return [];
+  }
+
+  return nodes.slice(rowIndex + 1, sectIndex).map((node) => node.cloneNode(true) as Element);
+}
+
+function nextRelationshipCounter(relsDoc: XMLDocument): number {
+  const ids = Array.from(relsDoc.getElementsByTagName("Relationship"))
+    .map((relationship) => relationship.getAttribute("Id") ?? "")
+    .map((id) => {
+      const match = id.match(/^rId(\d+)$/);
+      return match ? Number.parseInt(match[1] ?? "0", 10) : 0;
+    });
+  return Math.max(900, ...ids) + 1;
+}
+
+async function attachGeneratedPhoto(
+  zip: JSZip,
+  relsDoc: XMLDocument,
+  photo: WordPreviewPhoto,
+  counter: number
+): Promise<string | null> {
   const targetWidth = 640;
   const targetHeight = Math.round((targetWidth * WORD_PHOTO_FRAME_HEIGHT_EMU) / WORD_PHOTO_FRAME_WIDTH_EMU);
   const containedDataUrl = await createContainedPhotoDataUrl(photo.src, targetWidth, targetHeight);
@@ -480,7 +511,7 @@ async function attachGeneratedPhoto(zip: JSZip, relsDoc: XMLDocument, photo: Wor
   }
 
   const extension = parsed.mimeType.includes("png") ? "png" : "jpg";
-  const relationshipId = `rId${900 + counter}`;
+  const relationshipId = `rId${counter}`;
   const target = `media/generated_${counter}.${extension}`;
   zip.file(`word/${target}`, parsed.bytes);
 
@@ -518,6 +549,98 @@ function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPr
   }
 
   return clone;
+}
+
+export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
+  const model = createWordPreviewModel(caseFile, masterData);
+
+  const templateResponse = await fetch(templateDocxUrl);
+  const templateBuffer = await templateResponse.arrayBuffer();
+  const zip = await JSZip.loadAsync(templateBuffer);
+
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  const relsXml = await zip.file("word/_rels/document.xml.rels")?.async("string");
+  if (!documentXml || !relsXml) {
+    throw new Error("Word-Vorlage konnte nicht gelesen werden.");
+  }
+
+  const parser = new DOMParser();
+  const documentDoc = parser.parseFromString(documentXml, "application/xml");
+  const relsDoc = parser.parseFromString(relsXml, "application/xml");
+
+  const body = documentDoc.getElementsByTagNameNS(WORD_NS, "body")[0];
+  if (!body) {
+    throw new Error("Word-Vorlage enthaelt keinen gueltigen Body.");
+  }
+
+  const sectPr = getDirectChildElements(body).find((node) => node.localName === "sectPr");
+  const addressTemplate = findFirstTableWithMarker(body, "{{ADDRESS}}");
+  const dateTemplate = findFirstTableWithMarker(body, "{{DATE}}");
+  const rowTemplate = findRowTemplateTable(body);
+
+  if (!sectPr || !addressTemplate || !dateTemplate || !rowTemplate) {
+    throw new Error("Word-Vorlage hat nicht die erwartete Tabellenstruktur.");
+  }
+
+  const footerTemplateNodes = collectFooterTemplateNodes(body, rowTemplate);
+  const relationshipStart = nextRelationshipCounter(relsDoc);
+  let relationshipCounter = relationshipStart;
+
+  while (body.firstChild) {
+    body.removeChild(body.firstChild);
+  }
+
+  for (let pageIndex = 0; pageIndex < model.pages.length; pageIndex += 1) {
+    const page = model.pages[pageIndex];
+    if (!page) {
+      continue;
+    }
+
+    if (pageIndex > 0) {
+      body.appendChild(createPageBreakParagraph(documentDoc));
+    }
+
+    const addressTable = addressTemplate.cloneNode(true) as Element;
+    replaceAddressBlock(addressTable, page.showAddress ? page.addressLines : []);
+    body.appendChild(addressTable);
+
+    const dateTable = dateTemplate.cloneNode(true) as Element;
+    replaceDateValue(dateTable, page.headerRightText);
+    body.appendChild(dateTable);
+
+    for (const row of page.rows) {
+      let imageRelationshipId: string | null = null;
+      if (row.primaryPhoto) {
+        // eslint-disable-next-line no-await-in-loop
+        imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
+        relationshipCounter += 1;
+      }
+
+      const rowTable = buildWordRowTable(documentDoc, rowTemplate, row, imageRelationshipId);
+      body.appendChild(rowTable);
+    }
+
+    if (footerTemplateNodes.length > 0) {
+      footerTemplateNodes.forEach((node, index) => {
+        const clone = node.cloneNode(true) as Element;
+        if (index === 1) {
+          replaceFooterClerkName(clone, page.footerLabel);
+        }
+        body.appendChild(clone);
+      });
+    }
+  }
+
+  body.appendChild(sectPr.cloneNode(true));
+
+  const serializer = new XMLSerializer();
+  zip.file("word/document.xml", serializer.serializeToString(documentDoc));
+  zip.file("word/_rels/document.xml.rels", serializer.serializeToString(relsDoc));
+
+  const outputBuffer = await zip.generateAsync({ type: "arraybuffer" });
+  return new Blob([outputBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  });
 }
 
 function getPdfLineColor(line: WordPreviewRowLine) {
@@ -604,292 +727,6 @@ async function drawPdfRow(page: PDFPage, pdfDocument: PDFDocument, font: PDFFont
     thickness: 0.7,
     color: rgb(0.9, 0.91, 0.89)
   });
-}
-
-export function createWordPreviewModel(caseFile: CaseFile, masterData: MasterData): WordPreviewModel {
-  const rows = caseFile.objects.map((item) => buildWordPreviewRow(item, caseFile.assets));
-  const pages = paginateWordRows(rows);
-  const totalPages = Math.max(pages.length, 1);
-  const footerLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
-
-  return {
-    pages: pages.map((rowsOnPage, index) => ({
-      pageNumber: index + 1,
-      totalPages,
-      showAddress: index === 0,
-      addressLines: index === 0 ? deriveAddressLines(caseFile.consignor) : [],
-      headerRightText: index === 0
-        ? formatSwissDate(caseFile.meta.updatedAt || caseFile.meta.createdAt)
-        : `Seite ${index + 1}/${totalPages}`,
-      footerLabel,
-      rows: rowsOnPage
-    })),
-    typography: {
-      family: "Neue Haas Grotesk",
-      note: "Neu aufgebaute zeilenbasierte Word-Layoutplanung"
-    }
-  };
-}
-
-function toTwipsFromPixels(value: number): number {
-  return Math.round(value * 15);
-}
-
-function createDocxTextRun(text: string, options?: { size?: number; color?: string; bold?: boolean }) {
-  const runOptions: {
-    text: string;
-    font: string;
-    size?: number;
-    color?: string;
-    bold?: boolean;
-  } = {
-    text,
-    font: DOCX_FONT_FAMILY
-  };
-
-  if (options?.size !== undefined) {
-    runOptions.size = options.size;
-  }
-  if (options?.color !== undefined) {
-    runOptions.color = options.color;
-  }
-  if (options?.bold !== undefined) {
-    runOptions.bold = options.bold;
-  }
-
-  return new TextRun(runOptions);
-}
-
-function createDocxTextParagraph(line: WordPreviewRowLine | string): Paragraph {
-  const entry: WordPreviewRowLine = typeof line === "string"
-    ? { text: line, kind: "detail" }
-    : line;
-
-  return new Paragraph({
-    spacing: {
-      before: 0,
-      after: 0,
-      line: DOCX_ROW_LINE_TWIPS,
-      lineRule: LineRuleType.EXACT
-    },
-    children: [
-      createDocxTextRun(entry.text, {
-        size: DOCX_FONT_SIZE,
-        color: entry.color ?? "111111"
-      })
-    ]
-  });
-}
-
-function createDocxParagraph(text: string, options?: {
-  alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
-  after?: number;
-  before?: number;
-  color?: string;
-  bold?: boolean;
-}) {
-  const runOptions: { size?: number; color?: string; bold?: boolean } = {};
-  runOptions.size = DOCX_FONT_SIZE;
-  if (options?.color !== undefined) {
-    runOptions.color = options.color;
-  }
-  if (options?.bold !== undefined) {
-    runOptions.bold = options.bold;
-  }
-
-  const paragraphOptions: {
-    alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
-    spacing: {
-      before: number;
-      after: number;
-      line: number;
-      lineRule: (typeof LineRuleType)[keyof typeof LineRuleType];
-    };
-    children: TextRun[];
-  } = {
-    spacing: {
-      before: options?.before ?? 0,
-      after: options?.after ?? 0,
-      line: DOCX_ROW_LINE_TWIPS,
-      lineRule: LineRuleType.EXACT
-    },
-    children: [
-      createDocxTextRun(text, {
-        ...runOptions,
-        color: runOptions.color ?? "111111"
-      })
-    ]
-  };
-
-  if (options?.alignment !== undefined) {
-    paragraphOptions.alignment = options.alignment;
-  }
-
-  return new Paragraph(paragraphOptions);
-}
-
-async function createDocxImageRun(photo: WordPreviewPhoto): Promise<ImageRun> {
-  const containedDataUrl = await createContainedPhotoDataUrl(photo.src, DOCX_PHOTO_WIDTH_PX, DOCX_PHOTO_HEIGHT_PX);
-  const parsed = parseDataUrl(containedDataUrl);
-
-  if (!parsed) {
-    throw new Error("Bild konnte fuer den Word-Export nicht gelesen werden.");
-  }
-
-  const type = parsed.mimeType.includes("png") ? "png" : "jpg";
-  return new ImageRun({
-    type,
-    data: parsed.bytes,
-    transformation: {
-      width: DOCX_PHOTO_WIDTH_PX,
-      height: DOCX_PHOTO_HEIGHT_PX
-    }
-  });
-}
-
-async function createDocxRow(row: WordPreviewRow): Promise<TableRow> {
-  const height = {
-    value: toTwipsFromPixels(row.heightUnits),
-    rule: HeightRule.ATLEAST
-  } as const;
-
-  const photoParagraph = row.primaryPhoto
-    ? new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: 0, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-      children: [await createDocxImageRun(row.primaryPhoto)]
-    })
-    : new Paragraph({ text: "" });
-
-  return new TableRow({
-    cantSplit: true,
-    height,
-    children: [
-      new TableCell({
-        width: { size: 495, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.TOP,
-        margins: { top: 85, bottom: 85, left: 69, right: 69 },
-        borders: {
-          top: { style: BorderStyle.SINGLE, size: 2, color: "111111" },
-          bottom: { style: BorderStyle.SINGLE, size: 2, color: "111111" },
-          left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-          right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-        },
-        children: [createDocxTextParagraph({ text: row.intNumber, kind: "title" })]
-      }),
-      new TableCell({
-        width: { size: 2975, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.TOP,
-        margins: { top: 85, bottom: 85, left: 69, right: 69 },
-        borders: {
-          top: { style: BorderStyle.SINGLE, size: 2, color: "111111" },
-          bottom: { style: BorderStyle.SINGLE, size: 2, color: "111111" },
-          left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-          right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-        },
-        children: [photoParagraph]
-      }),
-      new TableCell({
-        width: { size: 5035, type: WidthType.DXA },
-        verticalAlign: VerticalAlign.TOP,
-        margins: { top: 85, bottom: 85, left: 69, right: 69 },
-        borders: {
-          top: { style: BorderStyle.SINGLE, size: 2, color: "111111" },
-          bottom: { style: BorderStyle.SINGLE, size: 2, color: "111111" },
-          left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-          right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-        },
-        children: row.contentLines.map((line) => createDocxTextParagraph(line))
-      })
-    ]
-  });
-}
-
-async function createDocxTable(rows: WordPreviewRow[]): Promise<Table> {
-  const tableRows = await Promise.all(rows.map((row) => createDocxRow(row)));
-  return new Table({
-    width: { size: DOCX_CONTENT_WIDTH_TWIPS, type: WidthType.DXA },
-    columnWidths: [495, 2975, 5035],
-    layout: TableLayoutType.FIXED,
-    borders: {
-      top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      insideHorizontal: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-      insideVertical: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-    },
-    rows: tableRows
-  });
-}
-
-export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
-  const model = createWordPreviewModel(caseFile, masterData);
-  const clerkLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
-  const pageChildren = await Promise.all(model.pages.map(async (page, index) => {
-    const children: Array<Paragraph | Table> = [];
-
-    if (index > 0) {
-      children.push(new Paragraph({ children: [new PageBreak()] }));
-    }
-
-    children.push(
-      createDocxParagraph("Schaetzliste", {
-        after: 180,
-        color: "22352D"
-      }),
-      createDocxParagraph(page.headerRightText, {
-        alignment: page.showAddress ? AlignmentType.RIGHT : AlignmentType.END,
-        after: page.showAddress ? 240 : 180
-      })
-    );
-
-    if (page.showAddress) {
-      children.push(
-        ...page.addressLines.map((line) => createDocxParagraph(line)),
-        new Paragraph({ spacing: { before: 0, after: 240 }, text: "" })
-      );
-    }
-
-    children.push(await createDocxTable(page.rows));
-    return children;
-  }));
-
-  const document = new Document({
-    sections: [
-      {
-        properties: {
-          page: {
-            size: { width: DOCX_PAGE_WIDTH_TWIPS, height: DOCX_PAGE_HEIGHT_TWIPS },
-            margin: {
-              top: DOCX_MARGIN_TOP_TWIPS,
-              right: DOCX_MARGIN_RIGHT_TWIPS,
-              bottom: DOCX_MARGIN_BOTTOM_TWIPS,
-              left: DOCX_MARGIN_LEFT_TWIPS,
-              header: DOCX_HEADER_MARGIN_TWIPS,
-              footer: DOCX_FOOTER_MARGIN_TWIPS
-            }
-          }
-        },
-        headers: {
-          default: new Header({
-            children: [createDocxParagraph("KOLLER AUKTIONEN", { after: 0 })]
-          })
-        },
-        footers: {
-          default: new Footer({
-            children: [
-              createDocxParagraph("KOLLER AUKTIONEN"),
-              createDocxParagraph(clerkLabel)
-            ]
-          })
-        },
-        children: pageChildren.flat()
-      }
-    ]
-  });
-
-  return Packer.toBlob(document);
 }
 
 export async function generateWordPdf(caseFile: CaseFile, masterData: MasterData): Promise<Uint8Array> {
