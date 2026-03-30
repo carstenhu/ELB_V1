@@ -16,7 +16,10 @@ import {
   TableLayoutType,
   TableRow,
   TextRun,
+  TextWrappingType,
   VerticalAlign,
+  VerticalPositionRelativeFrom,
+  HorizontalPositionRelativeFrom,
   WidthType
 } from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
@@ -775,7 +778,21 @@ async function createDocxHeaderImageRun(dataUrl: string): Promise<ImageRun | nul
   return new ImageRun({
     type,
     data: parsed.bytes,
-    transformation: { width, height }
+    transformation: { width, height },
+    floating: {
+      behindDocument: true,
+      horizontalPosition: {
+        relative: HorizontalPositionRelativeFrom.PAGE,
+        offset: 0
+      },
+      verticalPosition: {
+        relative: VerticalPositionRelativeFrom.PAGE,
+        offset: 0
+      },
+      wrap: {
+        type: TextWrappingType.NONE
+      }
+    }
   });
 }
 
