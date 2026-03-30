@@ -692,7 +692,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       body.appendChild(rowTable);
     }
 
-    if (page.showFooter && footerTemplateNodes.length > 0) {
+    if (pageIndex === model.pages.length - 1 && footerTemplateNodes.length > 0) {
       footerTemplateNodes.forEach((node, index) => {
         const clone = node.cloneNode(true) as Element;
         if (index === 1) {

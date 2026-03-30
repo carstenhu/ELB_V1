@@ -40,8 +40,9 @@ function RequiredFieldsFallback() {
 function WordTemplatePageView(props: {
   headerImageSrc: string;
   page: ReturnType<typeof createWordPreviewModel>["pages"][number];
+  showFooter: boolean;
 }) {
-  const { page, headerImageSrc } = props;
+  const { page, headerImageSrc, showFooter } = props;
 
   return (
     <div className="word-a4-scroll">
@@ -92,7 +93,7 @@ function WordTemplatePageView(props: {
             ))}
           </div>
 
-          {page.showFooter ? (
+          {showFooter ? (
             <div className="word-template-footer">
               <div>KOLLER AUKTIONEN</div>
               <div>{page.footerLabel}</div>
@@ -142,14 +143,18 @@ export function WordTemplatePreviewPage(props: {
   return (
     <div className="preview-page preview-page--stacked preview-page--word">
       <div className="word-sheet-stack">
-        {model.pages.map((page) => (
+        {model.pages.map((page, pageIndex) => (
           <div key={page.pageNumber} className="word-sheet word-sheet--template">
             <header className="word-sheet__header">
               <div className="word-sheet__eyebrow">Schätzliste</div>
               <div>Koller-Vorlage</div>
             </header>
             <div className="word-sheet__body word-sheet__body--template">
-              <WordTemplatePageView headerImageSrc={headerImageSrc} page={page} />
+              <WordTemplatePageView
+                headerImageSrc={headerImageSrc}
+                page={page}
+                showFooter={pageIndex === model.pages.length - 1}
+              />
             </div>
           </div>
         ))}
