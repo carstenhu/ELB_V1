@@ -54,6 +54,15 @@ function buildOwnerAddressLines(caseFile: CaseFile): string[] {
   ].map((line) => line.trim()).filter(Boolean);
 }
 
+function buildLabeledFieldValue(label: string, value: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return "";
+  }
+
+  return `${label}: ${trimmedValue}`;
+}
+
 export function drawFieldOverlay(args: {
   page: PDFPage;
   form: PdfForm;
@@ -297,6 +306,12 @@ export function fillSharedFields(args: {
   const clerkValue = clerk ? [clerk.name, clerk.phone, clerk.email].filter(Boolean).join(", ") : "";
   const addressValue = joinAddressLines(addressLines);
   const ownerValue = joinAddressLines(ownerLines);
+  const bicValue = buildLabeledFieldValue("BIC", caseFile.bank.bic);
+  const ibanValue = buildLabeledFieldValue("IBAN", caseFile.bank.iban);
+  const beneficiaryValue = buildLabeledFieldValue("Begünstigter", beneficiary);
+  const birthDateValue = buildLabeledFieldValue("Geburtsdatum", caseFile.consignor.birthDate);
+  const nationalityValue = buildLabeledFieldValue("Nationalität", caseFile.consignor.nationality);
+  const passportValue = buildLabeledFieldValue("Passnummer", caseFile.consignor.passportNumber);
   const vatCategoryValue = getVatCategoryLabel(caseFile.consignor.vatCategory);
   const vatNumberValue = caseFile.consignor.vatCategory === "C" && caseFile.consignor.vatNumber.trim()
     ? `MwSt-Nr. ${caseFile.consignor.vatNumber.trim()}`
@@ -318,13 +333,13 @@ export function fillSharedFields(args: {
   setTextFieldSafe(form, "Sachbearbeiter 2", isFollowUpValue(clerkValue) ? "" : clerkValue);
   setMultilineTextFieldSafe(form, "Adresse EL", "");
   setMultilineTextFieldSafe(form, "Adresse EG", "");
-  setTextFieldSafe(form, "BIC/SWIFT", isFollowUpValue(caseFile.bank.bic) ? "" : caseFile.bank.bic);
-  setTextFieldSafe(form, "IBAN/Kontonr", isFollowUpValue(caseFile.bank.iban) ? "" : caseFile.bank.iban);
-  setTextFieldSafe(form, "Bankangaben: Beg\u00fcnstigter", isFollowUpValue(beneficiary) ? "" : beneficiary);
+  setTextFieldSafe(form, "BIC/SWIFT", "");
+  setTextFieldSafe(form, "IBAN/Kontonr", "");
+  setTextFieldSafe(form, "Bankangaben: Beg\u00fcnstigter", "");
   setTextFieldSafe(form, "Seite N/N", `${pageNumber}/${totalPages}`);
-  setTextFieldSafe(form, "EL Geburtsdatum 1", isFollowUpValue(caseFile.consignor.birthDate) ? "" : caseFile.consignor.birthDate);
-  setTextFieldSafe(form, "EL Nationalit\u00e4t  1", isFollowUpValue(caseFile.consignor.nationality) ? "" : caseFile.consignor.nationality);
-  setTextFieldSafe(form, "EL ID/Passnr  1", isFollowUpValue(caseFile.consignor.passportNumber) ? "" : caseFile.consignor.passportNumber);
+  setTextFieldSafe(form, "EL Geburtsdatum 1", "");
+  setTextFieldSafe(form, "EL Nationalit\u00e4t  1", "");
+  setTextFieldSafe(form, "EL ID/Passnr  1", "");
 
   drawFieldOverlay({ page, form, font, fieldName: receiptFieldName, value: caseFile.meta.receiptNumber });
   drawFieldOverlay({ page, form, font, fieldName: "Kommission", value: commissionValue });
@@ -343,12 +358,12 @@ export function fillSharedFields(args: {
   } else {
     clearFieldOverlay(page, form, "Adresse EG");
   }
-  drawFieldOverlay({ page, form, font, fieldName: "BIC/SWIFT", value: caseFile.bank.bic });
-  drawFieldOverlay({ page, form, font, fieldName: "IBAN/Kontonr", value: caseFile.bank.iban });
-  drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: Beg\u00fcnstigter", value: beneficiary });
-  drawFieldOverlay({ page, form, font, fieldName: "EL Geburtsdatum 1", value: caseFile.consignor.birthDate });
-  drawFieldOverlay({ page, form, font, fieldName: "EL Nationalit\u00e4t  1", value: caseFile.consignor.nationality });
-  drawFieldOverlay({ page, form, font, fieldName: "EL ID/Passnr  1", value: caseFile.consignor.passportNumber });
+  drawFieldOverlay({ page, form, font, fieldName: "BIC/SWIFT", value: bicValue, forceVisible: Boolean(bicValue) });
+  drawFieldOverlay({ page, form, font, fieldName: "IBAN/Kontonr", value: ibanValue, multiline: true, forceVisible: Boolean(ibanValue) });
+  drawFieldOverlay({ page, form, font, fieldName: "Bankangaben: Beg\u00fcnstigter", value: beneficiaryValue, multiline: true, forceVisible: Boolean(beneficiaryValue) });
+  drawFieldOverlay({ page, form, font, fieldName: "EL Geburtsdatum 1", value: birthDateValue, forceVisible: Boolean(birthDateValue) });
+  drawFieldOverlay({ page, form, font, fieldName: "EL Nationalit\u00e4t  1", value: nationalityValue, forceVisible: Boolean(nationalityValue) });
+  drawFieldOverlay({ page, form, font, fieldName: "EL ID/Passnr  1", value: passportValue, forceVisible: Boolean(passportValue) });
   drawMissingRequiredFieldOverlay({ page, form, font, caseFile, masterData, pageNumber });
 }
 
