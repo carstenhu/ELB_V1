@@ -948,7 +948,6 @@ textarea {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  min-height: 234.5px;
   background: #ffffff;
 }
 

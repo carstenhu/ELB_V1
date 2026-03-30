@@ -71,7 +71,6 @@ const WORD_TEMPLATE_LINE_HEIGHT_UNITS = 19.2;
 const WORD_TEMPLATE_ROW_GAP_UNITS = 2.4;
 const WORD_TEMPLATE_ROW_PADDING_Y_UNITS = 11.34;
 const WORD_TEMPLATE_ROW_BORDER_UNITS = 2;
-const WORD_TEMPLATE_PHOTO_ROW_UNITS = 245.84;
 const WORD_TEMPLATE_MIN_ROW_UNITS = 48;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
@@ -162,14 +161,14 @@ function wrapWordText(text: string, maxWidth: number): string[] {
   return lines;
 }
 
-function measureWordRowHeight(lineCount: number, hasPhoto: boolean): number {
+function measureWordRowHeight(lineCount: number): number {
   const safeLineCount = Math.max(lineCount, 1);
   const textHeight = WORD_TEMPLATE_ROW_PADDING_Y_UNITS * 2
     + WORD_TEMPLATE_ROW_BORDER_UNITS
     + safeLineCount * WORD_TEMPLATE_LINE_HEIGHT_UNITS
     + Math.max(safeLineCount - 1, 0) * WORD_TEMPLATE_ROW_GAP_UNITS;
 
-  return Math.max(textHeight, hasPhoto ? WORD_TEMPLATE_PHOTO_ROW_UNITS : 0, WORD_TEMPLATE_MIN_ROW_UNITS);
+  return Math.max(textHeight, WORD_TEMPLATE_MIN_ROW_UNITS);
 }
 
 function paginateWordRows(rows: WordPreviewRow[]): WordPreviewRow[][] {
@@ -245,7 +244,7 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     details: detailBlocks,
     photos,
     ...(photos[0] ? { primaryPhoto: photos[0] } : {}),
-    heightUnits: measureWordRowHeight(contentLines.length, Boolean(photos[0]))
+    heightUnits: measureWordRowHeight(contentLines.length)
   };
 }
 
@@ -418,8 +417,14 @@ function setCellParagraphs(doc: XMLDocument, cell: Element, lines: Array<WordPre
     return;
   }
 
+  const preservedCellProps = cell.getElementsByTagNameNS(WORD_NS, "tcPr")[0]?.cloneNode(true) as Element | undefined;
+
   while (cell.firstChild) {
     cell.removeChild(cell.firstChild);
+  }
+
+  if (preservedCellProps) {
+    cell.appendChild(preservedCellProps);
   }
 
   lines.forEach((line) => {
