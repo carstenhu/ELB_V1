@@ -5,6 +5,7 @@ import {
   Document,
   Footer,
   HeightRule,
+  Header,
   ImageRun,
   LineRuleType,
   Packer,
@@ -89,14 +90,19 @@ const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-
 const WORD_LETTER_SPACING_PX = 0.8;
 const DOCX_PAGE_WIDTH_TWIPS = 11906;
 const DOCX_PAGE_HEIGHT_TWIPS = 16838;
-const DOCX_MARGIN_TOP_TWIPS = 1080;
-const DOCX_MARGIN_RIGHT_TWIPS = 1080;
-const DOCX_MARGIN_BOTTOM_TWIPS = 1080;
-const DOCX_MARGIN_LEFT_TWIPS = 1080;
-const DOCX_CONTENT_WIDTH_TWIPS = DOCX_PAGE_WIDTH_TWIPS - DOCX_MARGIN_LEFT_TWIPS - DOCX_MARGIN_RIGHT_TWIPS;
+const DOCX_MARGIN_TOP_TWIPS = 2694;
+const DOCX_MARGIN_RIGHT_TWIPS = 1134;
+const DOCX_MARGIN_BOTTOM_TWIPS = 1702;
+const DOCX_MARGIN_LEFT_TWIPS = 1588;
+const DOCX_HEADER_MARGIN_TWIPS = 0;
+const DOCX_FOOTER_MARGIN_TWIPS = 709;
+const DOCX_CONTENT_WIDTH_TWIPS = 9184;
 const DOCX_ROW_LINE_TWIPS = Math.round(WORD_TEMPLATE_LINE_HEIGHT_UNITS * 15);
 const DOCX_PHOTO_WIDTH_PX = 189;
 const DOCX_PHOTO_HEIGHT_PX = 234;
+const DOCX_HEADER_IMAGE_WIDTH_PX = 794;
+const DOCX_FONT_FAMILY = "NeueHaasGroteskDisp Pro Lt";
+const DOCX_FONT_SIZE = 20;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -630,6 +636,31 @@ function toTwipsFromPixels(value: number): number {
   return Math.round(value * 15);
 }
 
+function createDocxTextRun(text: string, options?: { size?: number; color?: string; bold?: boolean }) {
+  const runOptions: {
+    text: string;
+    font: string;
+    size?: number;
+    color?: string;
+    bold?: boolean;
+  } = {
+    text,
+    font: DOCX_FONT_FAMILY
+  };
+
+  if (options?.size !== undefined) {
+    runOptions.size = options.size;
+  }
+  if (options?.color !== undefined) {
+    runOptions.color = options.color;
+  }
+  if (options?.bold !== undefined) {
+    runOptions.bold = options.bold;
+  }
+
+  return new TextRun(runOptions);
+}
+
 function createDocxTextParagraph(line: WordPreviewRowLine | string): Paragraph {
   const entry: WordPreviewRowLine = typeof line === "string"
     ? { text: line, kind: "detail" }
@@ -643,12 +674,67 @@ function createDocxTextParagraph(line: WordPreviewRowLine | string): Paragraph {
       lineRule: LineRuleType.EXACT
     },
     children: [
-      new TextRun({
-        text: entry.text,
-        size: entry.kind === "title" ? 20 : 18,
+      createDocxTextRun(entry.text, {
+        size: DOCX_FONT_SIZE,
         color: entry.color ?? "111111"
       })
     ]
+  });
+}
+
+function createDocxParagraph(text: string, options?: {
+  alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
+  after?: number;
+  before?: number;
+  color?: string;
+  bold?: boolean;
+}) {
+  const runOptions: { size?: number; color?: string; bold?: boolean } = {};
+  runOptions.size = DOCX_FONT_SIZE;
+  if (options?.color !== undefined) {
+    runOptions.color = options.color;
+  }
+  if (options?.bold !== undefined) {
+    runOptions.bold = options.bold;
+  }
+
+  const paragraphOptions: {
+    alignment?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    spacing: {
+      before: number;
+      after: number;
+      line: number;
+      lineRule: (typeof LineRuleType)[keyof typeof LineRuleType];
+    };
+    children: TextRun[];
+  } = {
+    spacing: {
+      before: options?.before ?? 0,
+      after: options?.after ?? 0,
+      line: DOCX_ROW_LINE_TWIPS,
+      lineRule: LineRuleType.EXACT
+    },
+    children: [
+      createDocxTextRun(text, {
+        ...runOptions,
+        color: runOptions.color ?? "111111"
+      })
+    ]
+  };
+
+  if (options?.alignment !== undefined) {
+    paragraphOptions.alignment = options.alignment;
+  }
+
+  return new Paragraph(paragraphOptions);
+}
+
+async function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.width, height: image.height });
+    image.onerror = () => reject(new Error("Bildgroesse konnte nicht gelesen werden."));
+    image.src = dataUrl;
   });
 }
 
@@ -671,6 +757,28 @@ async function createDocxImageRun(photo: WordPreviewPhoto): Promise<ImageRun> {
   });
 }
 
+async function createDocxHeaderImageRun(dataUrl: string): Promise<ImageRun | null> {
+  if (!dataUrl) {
+    return null;
+  }
+
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed) {
+    return null;
+  }
+
+  const dimensions = await getImageDimensions(dataUrl);
+  const width = DOCX_HEADER_IMAGE_WIDTH_PX;
+  const height = Math.max(1, Math.round((dimensions.height / dimensions.width) * width));
+  const type = parsed.mimeType.includes("png") ? "png" : "jpg";
+
+  return new ImageRun({
+    type,
+    data: parsed.bytes,
+    transformation: { width, height }
+  });
+}
+
 async function createDocxRow(row: WordPreviewRow): Promise<TableRow> {
   const height = {
     value: toTwipsFromPixels(row.heightUnits),
@@ -690,7 +798,7 @@ async function createDocxRow(row: WordPreviewRow): Promise<TableRow> {
     height,
     children: [
       new TableCell({
-        width: { size: toTwipsFromPixels(33), type: WidthType.DXA },
+        width: { size: 495, type: WidthType.DXA },
         verticalAlign: VerticalAlign.TOP,
         margins: { top: 85, bottom: 85, left: 69, right: 69 },
         borders: {
@@ -702,7 +810,7 @@ async function createDocxRow(row: WordPreviewRow): Promise<TableRow> {
         children: [createDocxTextParagraph({ text: row.intNumber, kind: "title" })]
       }),
       new TableCell({
-        width: { size: toTwipsFromPixels(198.33), type: WidthType.DXA },
+        width: { size: 2975, type: WidthType.DXA },
         verticalAlign: VerticalAlign.TOP,
         margins: { top: 85, bottom: 85, left: 69, right: 69 },
         borders: {
@@ -714,7 +822,7 @@ async function createDocxRow(row: WordPreviewRow): Promise<TableRow> {
         children: [photoParagraph]
       }),
       new TableCell({
-        width: { size: toTwipsFromPixels(335.67), type: WidthType.DXA },
+        width: { size: 5035, type: WidthType.DXA },
         verticalAlign: VerticalAlign.TOP,
         margins: { top: 85, bottom: 85, left: 69, right: 69 },
         borders: {
@@ -733,7 +841,7 @@ async function createDocxTable(rows: WordPreviewRow[]): Promise<Table> {
   const tableRows = await Promise.all(rows.map((row) => createDocxRow(row)));
   return new Table({
     width: { size: DOCX_CONTENT_WIDTH_TWIPS, type: WidthType.DXA },
-    columnWidths: [toTwipsFromPixels(33), toTwipsFromPixels(198.33), toTwipsFromPixels(335.67)],
+    columnWidths: [495, 2975, 5035],
     layout: TableLayoutType.FIXED,
     borders: {
       top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
@@ -750,33 +858,29 @@ async function createDocxTable(rows: WordPreviewRow[]): Promise<Table> {
 export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
   const model = createWordPreviewModel(caseFile, masterData);
   const clerkLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
+  const { headerImageSrc } = await loadWordTemplateAssets();
+  const headerImageRun = await createDocxHeaderImageRun(headerImageSrc);
   const pageChildren = await Promise.all(model.pages.map(async (page, index) => {
-    const children = [];
+    const children: Array<Paragraph | Table> = [];
 
     if (index > 0) {
       children.push(new Paragraph({ children: [new PageBreak()] }));
     }
 
     children.push(
-      new Paragraph({
-        spacing: { before: 0, after: 180, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-        children: [new TextRun({ text: "Schaetzliste", bold: true, size: 28, color: "22352D" })]
+      createDocxParagraph("Schaetzliste", {
+        after: 180,
+        color: "22352D"
       }),
-      new Paragraph({
+      createDocxParagraph(page.headerRightText, {
         alignment: page.showAddress ? AlignmentType.RIGHT : AlignmentType.END,
-        spacing: { before: 0, after: page.showAddress ? 240 : 180, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-        children: [new TextRun({ text: page.headerRightText, size: 20, color: "111111" })]
+        after: page.showAddress ? 240 : 180
       })
     );
 
     if (page.showAddress) {
       children.push(
-        ...page.addressLines.map((line) =>
-          new Paragraph({
-            spacing: { before: 0, after: 0, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-            children: [new TextRun({ text: line, size: 20, color: "111111" })]
-          })
-        ),
+        ...page.addressLines.map((line) => createDocxParagraph(line)),
         new Paragraph({ spacing: { before: 0, after: 240 }, text: "" })
       );
     }
@@ -795,21 +899,29 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
               top: DOCX_MARGIN_TOP_TWIPS,
               right: DOCX_MARGIN_RIGHT_TWIPS,
               bottom: DOCX_MARGIN_BOTTOM_TWIPS,
-              left: DOCX_MARGIN_LEFT_TWIPS
+              left: DOCX_MARGIN_LEFT_TWIPS,
+              header: DOCX_HEADER_MARGIN_TWIPS,
+              footer: DOCX_FOOTER_MARGIN_TWIPS
             }
           }
+        },
+        headers: {
+          default: new Header({
+            children: headerImageRun
+              ? [
+                new Paragraph({
+                  spacing: { before: 0, after: 0 },
+                  children: [headerImageRun]
+                })
+              ]
+              : []
+          })
         },
         footers: {
           default: new Footer({
             children: [
-              new Paragraph({
-                spacing: { before: 0, after: 0, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-                children: [new TextRun({ text: "KOLLER AUKTIONEN", size: 18, color: "111111" })]
-              }),
-              new Paragraph({
-                spacing: { before: 0, after: 0, line: DOCX_ROW_LINE_TWIPS, lineRule: LineRuleType.EXACT },
-                children: [new TextRun({ text: clerkLabel, size: 18, color: "111111" })]
-              })
+              createDocxParagraph("KOLLER AUKTIONEN"),
+              createDocxParagraph(clerkLabel)
             ]
           })
         },
