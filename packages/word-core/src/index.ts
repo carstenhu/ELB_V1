@@ -42,14 +42,16 @@ export interface WordPreviewModel {
   };
 }
 
-const PAGE_HEIGHT_UNITS = 980;
-const FIRST_PAGE_HEADER_UNITS = 250;
-const FOLLOW_PAGE_HEADER_UNITS = 96;
-const FOOTER_RESERVE_UNITS = 116;
-const TEXT_LINE_UNITS = 19.2;
+const WORD_TEMPLATE_PAGE_HEIGHT_UNITS = 1122.53;
+const WORD_TEMPLATE_PADDING_TOP_UNITS = 179.6;
+const WORD_TEMPLATE_PADDING_BOTTOM_UNITS = 113.47;
+const WORD_TEMPLATE_HEADER_UNITS = 86.4;
+const WORD_TEMPLATE_FOOTER_UNITS = 20;
+const TEXT_LINE_UNITS = 14.4;
 const ROW_VERTICAL_PADDING_UNITS = 11.34;
 const ROW_BORDER_UNITS = 2;
-const MIN_ROW_UNITS = 72;
+const MIN_ROW_UNITS = 48;
+const PAGE_BREAK_TOLERANCE_UNITS = TEXT_LINE_UNITS * 12.5;
 const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
 const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
 const PHOTO_ROW_UNITS = 245.14;
@@ -150,7 +152,9 @@ function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, foll
   rows.forEach((row) => {
     const rowHeight = row.heightUnits;
 
-    if (currentPage.length > 0 && rowHeight > remainingBudget) {
+    // Allow a small overflow tolerance so a nearly full page does not create
+    // a visually empty follow page for a single remaining row.
+    if (currentPage.length > 0 && rowHeight > remainingBudget + PAGE_BREAK_TOLERANCE_UNITS) {
       pages.push(currentPage);
       currentPage = [];
       remainingBudget = followPageBudget;
@@ -165,6 +169,14 @@ function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, foll
   }
 
   return pages;
+}
+
+function getWordPageRowBudgetUnits(): number {
+  return WORD_TEMPLATE_PAGE_HEIGHT_UNITS
+    - WORD_TEMPLATE_PADDING_TOP_UNITS
+    - WORD_TEMPLATE_PADDING_BOTTOM_UNITS
+    - WORD_TEMPLATE_HEADER_UNITS
+    - WORD_TEMPLATE_FOOTER_UNITS;
 }
 
 function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPreviewRow {
@@ -582,8 +594,8 @@ async function drawPdfRow(page: PDFPage, pdfDocument: PDFDocument, font: PDFFont
 
 export function createWordPreviewModel(caseFile: CaseFile, _masterData: MasterData): WordPreviewModel {
   const rows = caseFile.objects.map((item) => createRow(item, caseFile.assets));
-  const firstPageBudget = PAGE_HEIGHT_UNITS - FIRST_PAGE_HEADER_UNITS - FOOTER_RESERVE_UNITS;
-  const followPageBudget = PAGE_HEIGHT_UNITS - FOLLOW_PAGE_HEADER_UNITS - FOOTER_RESERVE_UNITS;
+  const firstPageBudget = getWordPageRowBudgetUnits();
+  const followPageBudget = getWordPageRowBudgetUnits();
   const chunks = chunkRowsByHeight(rows, firstPageBudget, followPageBudget);
   const totalPages = Math.max(chunks.length, 1);
 
