@@ -36,6 +36,29 @@ type PdfJsModule = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
 
 let pdfJsLoader: Promise<PdfJsModule> | null = null;
 
+function isAndroidBrowserContext(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return /android/i.test(navigator.userAgent || "");
+}
+
+function buildPdfPreviewErrorMessage(error: unknown): string {
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = rawMessage.toLowerCase();
+
+  if (normalized.includes("tohex is not a function")) {
+    return "Die PDF-Vorschau ist auf diesem Android-Geraet auf einen Browserdecoder-Fehler gestossen. Bitte Seite neu laden und erneut versuchen.";
+  }
+
+  if (isAndroidBrowserContext() && (normalized.includes("image") || normalized.includes("decoder"))) {
+    return "Die PDF-Vorschau konnte wegen eines Android-Browserdecoder-Problems nicht geladen werden. Bitte Seite neu laden und erneut versuchen.";
+  }
+
+  return rawMessage || "PDF-Vorschau konnte nicht erzeugt werden.";
+}
+
 async function loadPdfJs(): Promise<PdfJsModule> {
   if (!pdfJsLoader) {
     pdfJsLoader = import("pdfjs-dist/legacy/build/pdf.mjs").then((module) => {
@@ -197,7 +220,7 @@ export function PdfCanvasPreview(props: {
         }
       } catch (error) {
         if (!cancelled) {
-          setStatus(error instanceof Error ? error.message : "PDF-Vorschau konnte nicht erzeugt werden.");
+          setStatus(buildPdfPreviewErrorMessage(error));
           setPages([]);
         }
       }
