@@ -97,14 +97,51 @@ export function drawFieldOverlay(args: {
       ? rect.top - fontSize - 1.2 - index * lineHeight
       : rect.bottom + Math.max((rect.height - fontSize) / 2, 0) + (args.baselineNudge ?? 0.4) - index * lineHeight;
 
-    args.page.drawText(line, {
+    const splitLine = splitLabeledFollowUpLine(line);
+    if (args.color || !splitLine) {
+      args.page.drawText(line, {
+        x: rect.left + 2.5,
+        y,
+        size: fontSize,
+        font: args.font,
+        color: args.color ?? (isFollowUpOverlayValue(args.value) ? FOLLOW_UP_COLOR : PDF_DATA_TEXT_COLOR)
+      });
+      return;
+    }
+
+    args.page.drawText(splitLine.labelPart, {
       x: rect.left + 2.5,
       y,
       size: fontSize,
       font: args.font,
-      color: args.color ?? (isFollowUpOverlayValue(args.value) ? FOLLOW_UP_COLOR : PDF_DATA_TEXT_COLOR)
+      color: PDF_DATA_TEXT_COLOR
+    });
+
+    args.page.drawText(splitLine.valuePart, {
+      x: rect.left + 2.5 + args.font.widthOfTextAtSize(splitLine.labelPart, fontSize),
+      y,
+      size: fontSize,
+      font: args.font,
+      color: FOLLOW_UP_COLOR
     });
   });
+}
+
+function splitLabeledFollowUpLine(line: string): { labelPart: string; valuePart: string } | null {
+  const separatorIndex = line.indexOf(":");
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const labelPart = line.slice(0, separatorIndex + 1);
+  const valuePart = line.slice(separatorIndex + 1);
+  if (!valuePart.trim()) {
+    return null;
+  }
+
+  return isFollowUpOverlayValue(valuePart)
+    ? { labelPart, valuePart }
+    : null;
 }
 
 function isFollowUpOverlayValue(value: string): boolean {
