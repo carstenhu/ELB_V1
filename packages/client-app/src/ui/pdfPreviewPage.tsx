@@ -37,7 +37,12 @@ function RequiredFieldsFallback() {
   );
 }
 
-export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string; onExportStatusChange: (value: string) => void }) {
+export function PdfPreviewPage(props: {
+  caseFile: CaseFile;
+  exportStatus: string;
+  onExportStatusChange: (value: string) => void;
+  onOpenAdmin: () => void;
+}) {
   const state = useAppState();
   const exportPlan = createExportPlan(props.caseFile);
   const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalPdfRequiredFields);
@@ -55,6 +60,7 @@ export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string
             zipFileName={exportPlan.zipFileName}
             missingRequiredFields={requiredEntries.map((entry) => entry.label)}
             exportStatus={props.exportStatus}
+            onOpenAdmin={props.onOpenAdmin}
             onCaptureMissing={() => setRequiredFieldsOpen(true)}
             actions={
               <Suspense fallback={<PreviewActionsFallback />}>

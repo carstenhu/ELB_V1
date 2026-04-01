@@ -877,6 +877,23 @@ textarea {
   padding: 1rem;
 }
 
+.preview-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.preview-card__header h3 {
+  margin: 0;
+}
+
+.preview-card__admin-button {
+  padding: 0.32rem 0.7rem;
+  font-size: 0.82rem;
+}
+
 .preview-card__actions {
   display: flex;
   flex-wrap: wrap;

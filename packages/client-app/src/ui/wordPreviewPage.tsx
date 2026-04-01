@@ -131,6 +131,7 @@ export function WordTemplatePreviewPage(props: {
   caseFile: CaseFile;
   exportStatus: string;
   onExportStatusChange: (value: string) => void;
+  onOpenAdmin: () => void;
 }) {
   const state = useAppState();
   const model = createWordPreviewModel(props.caseFile, state.masterData);
@@ -184,6 +185,7 @@ export function WordTemplatePreviewPage(props: {
           zipFileName={exportPlan.zipFileName}
           missingRequiredFields={requiredEntries.map((entry) => entry.label)}
           exportStatus={props.exportStatus}
+          onOpenAdmin={props.onOpenAdmin}
           requiredFieldsLabel="Word-Schätzliste"
           onCaptureMissing={() => setRequiredFieldsOpen(true)}
           actions={

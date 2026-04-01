@@ -28,7 +28,6 @@ export function WorkspacePageContent(props: {
   exportStatus: string;
   onExportStatusChange: (value: string) => void;
   onPageChange: (page: PageId) => void;
-  onOpenDossierCreate: () => void;
   onOpenClerkSelector: () => void;
   onOpenAdmin: () => void;
 }) {
@@ -53,25 +52,27 @@ export function WorkspacePageContent(props: {
     <main className="page">
       {props.page === "admin" ? <AdminPage /> : null}
       {props.page === "loadCenter" ? <LoadCenterPage onDone={() => props.onPageChange("consignor")} onOpenClerkSelector={props.onOpenClerkSelector} /> : null}
-      {props.page === "consignor" && props.caseFile ? (
-        <ConsignorPage
-          caseFile={props.caseFile}
-          onOpenDossierCreate={props.onOpenDossierCreate}
-          onOpenLoadCenter={() => props.onPageChange("loadCenter")}
-          onOpenClerkSelector={props.onOpenClerkSelector}
-          onOpenAdmin={props.onOpenAdmin}
-        />
-      ) : null}
+      {props.page === "consignor" && props.caseFile ? <ConsignorPage caseFile={props.caseFile} /> : null}
       {props.page === "objects" && props.caseFile ? <ObjectsPage caseFile={props.caseFile} /> : null}
       {props.page === "internal" && props.caseFile ? <InternalPage caseFile={props.caseFile} /> : null}
       {props.page === "pdfPreview" && props.caseFile ? (
         <Suspense fallback={<PreviewLoadingState />}>
-          <PdfPreviewPage caseFile={props.caseFile} exportStatus={props.exportStatus} onExportStatusChange={props.onExportStatusChange} />
+          <PdfPreviewPage
+            caseFile={props.caseFile}
+            exportStatus={props.exportStatus}
+            onExportStatusChange={props.onExportStatusChange}
+            onOpenAdmin={props.onOpenAdmin}
+          />
         </Suspense>
       ) : null}
       {props.page === "wordPreview" && props.caseFile ? (
         <Suspense fallback={<PreviewLoadingState />}>
-          <WordTemplatePreviewPage caseFile={props.caseFile} exportStatus={props.exportStatus} onExportStatusChange={props.onExportStatusChange} />
+          <WordTemplatePreviewPage
+            caseFile={props.caseFile}
+            exportStatus={props.exportStatus}
+            onExportStatusChange={props.onExportStatusChange}
+            onOpenAdmin={props.onOpenAdmin}
+          />
         </Suspense>
       ) : null}
     </main>

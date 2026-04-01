@@ -7,6 +7,7 @@ export function ExportStatusCard(props: {
   actions?: ReactNode;
   className?: string;
   onCaptureMissing?: () => void;
+  onOpenAdmin?: () => void;
   requiredFieldsLabel?: string;
 }) {
   const requiredLabel = props.requiredFieldsLabel ?? "PDF";
@@ -14,7 +15,14 @@ export function ExportStatusCard(props: {
 
   return (
     <div className={props.className ? `preview-card ${props.className}` : "preview-card"}>
-      <h3>Exportstatus</h3>
+      <div className="preview-card__header">
+        <h3>Exportstatus</h3>
+        {props.onOpenAdmin ? (
+          <button type="button" className="secondary-button preview-card__admin-button" onClick={props.onOpenAdmin}>
+            Admin
+          </button>
+        ) : null}
+      </div>
       {props.actions ? <div className="preview-card__actions">{props.actions}</div> : null}
       <div className="preview-card__zip">
         <p><strong>ZIP:</strong> {props.zipFileName}</p>

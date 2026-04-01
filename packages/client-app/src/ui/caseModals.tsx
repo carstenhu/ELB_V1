@@ -17,6 +17,7 @@ export function NewDossierModal(props: {
   suggestedReceiptNumber: string;
   onCreate: (input: { customerName: string; isCompany: boolean; receiptNumber: string }) => void;
   onOpenLoadCenter: () => void;
+  onOpenClerkSelector: () => void;
   onCancel: () => void;
 }) {
   const [customerName, setCustomerName] = useState("");
@@ -86,6 +87,9 @@ export function NewDossierModal(props: {
             <div className="pin-modal__actions">
               <button type="button" onClick={props.onCancel}>
                 Abbrechen
+              </button>
+              <button type="button" onClick={props.onOpenClerkSelector}>
+                Sachbearbeiter wechseln
               </button>
               <button type="button" onClick={props.onOpenLoadCenter}>
                 Dossier laden

@@ -33,8 +33,8 @@ export function App() {
       return;
     }
 
-    setClerkSelectorOpen(!state.activeClerkId);
-  }, [hydrated, state.activeClerkId]);
+    setClerkSelectorOpen(true);
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated || !state.activeClerkId) {
@@ -79,6 +79,10 @@ export function App() {
           setNewDossierModalOpen(false);
           setPage("loadCenter");
         }}
+        onOpenClerkSelector={() => {
+          setNewDossierModalOpen(false);
+          setClerkSelectorOpen(true);
+        }}
         onCancel={() => {
           setNewDossierModalOpen(false);
           if (!state.currentCase) {
@@ -86,14 +90,13 @@ export function App() {
           }
         }}
       />
-      <TopBar page={page} onPageChange={setPage} />
+      <TopBar page={page} onPageChange={setPage} onOpenDossierCreate={() => setNewDossierModalOpen(true)} />
       <WorkspacePageContent
         page={page}
         caseFile={state.currentCase}
         exportStatus={exportStatus}
         onExportStatusChange={setExportStatus}
         onPageChange={setPage}
-        onOpenDossierCreate={() => setNewDossierModalOpen(true)}
         onOpenClerkSelector={() => setClerkSelectorOpen(true)}
         onOpenAdmin={() => setPage("admin")}
       />

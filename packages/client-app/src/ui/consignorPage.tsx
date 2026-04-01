@@ -11,10 +11,6 @@ import { CountryInput, InlineToggle, VAT_CATEGORY_OPTIONS, getFieldInputClassNam
 
 export function ConsignorPage(props: {
   caseFile: CaseFile;
-  onOpenDossierCreate: () => void;
-  onOpenLoadCenter: () => void;
-  onOpenClerkSelector: () => void;
-  onOpenAdmin: () => void;
 }) {
   const state = useAppState();
   const activeClerk = state.masterData.clerks.find((clerk) => clerk.id === state.activeClerkId);
@@ -69,20 +65,6 @@ export function ConsignorPage(props: {
     <>
       <div className="page-grid">
         <Section title="">
-          <div className="inline-actions">
-            <button type="button" className="primary-button" onClick={props.onOpenDossierCreate}>
-              Neues Dossier
-            </button>
-            <button type="button" className="primary-button" onClick={props.onOpenLoadCenter}>
-              Dossier laden
-            </button>
-            <button type="button" className="primary-button" onClick={props.onOpenClerkSelector}>
-              Sachbearbeiter wechseln
-            </button>
-            <button type="button" className="primary-button" onClick={props.onOpenAdmin}>
-              Admin
-            </button>
-          </div>
           <p className="section-status-line">
             Aktiver Sachbearbeiter: <strong>{activeClerk?.name ?? "Kein Sachbearbeiter"}</strong>
           </p>
