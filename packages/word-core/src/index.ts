@@ -711,7 +711,21 @@ function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPr
   }
 
   if (textCell) {
-    setCellParagraphs(doc, textCell, row.contentLines);
+    const docxLines: WordPreviewRowLine[] = [];
+    let insertedEstimateSpacer = false;
+    row.contentLines.forEach((line) => {
+      if (!insertedEstimateSpacer && line.kind === "estimate") {
+        docxLines.push({ text: "", kind: "detail" });
+        insertedEstimateSpacer = true;
+      }
+
+      const normalizedText = line.text
+        .replace("Schaetzung:", "Schätzung:")
+        .replace("Schaetzung offen", "Schätzung offen");
+      docxLines.push({ ...line, text: normalizedText });
+    });
+
+    setCellParagraphs(doc, textCell, docxLines);
   }
 
   return clone;
