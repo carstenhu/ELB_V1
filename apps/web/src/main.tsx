@@ -8,16 +8,30 @@ import "./pwa/pwa.css";
 
 const CHUNK_RECOVERY_KEY = "elb-v1-chunk-recovery-reload";
 
-window.addEventListener("vite:preloadError", (event) => {
-  event.preventDefault();
-
+async function recoverFromChunkError(): Promise<void> {
   // Prevent reload loops if a deployment is briefly unavailable.
   if (sessionStorage.getItem(CHUNK_RECOVERY_KEY) === "1") {
     return;
   }
 
   sessionStorage.setItem(CHUNK_RECOVERY_KEY, "1");
+
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map(async (registration) => registration.unregister()));
+  }
+
+  if ("caches" in window) {
+    const cacheKeys = await caches.keys();
+    await Promise.all(cacheKeys.map(async (cacheKey) => caches.delete(cacheKey)));
+  }
+
   window.location.reload();
+}
+
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  void recoverFromChunkError();
 });
 
 window.addEventListener("error", (event) => {
@@ -26,12 +40,7 @@ window.addEventListener("error", (event) => {
     return;
   }
 
-  if (sessionStorage.getItem(CHUNK_RECOVERY_KEY) === "1") {
-    return;
-  }
-
-  sessionStorage.setItem(CHUNK_RECOVERY_KEY, "1");
-  window.location.reload();
+  void recoverFromChunkError();
 });
 
 window.addEventListener("pageshow", () => {
