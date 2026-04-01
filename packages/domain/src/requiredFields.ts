@@ -20,6 +20,12 @@ export const requiredFieldKeySchema = z.enum([
 export type RequiredFieldKey = z.infer<typeof requiredFieldKeySchema>;
 
 export type RequiredFieldInputKind = "text" | "select";
+export interface RequiredFieldDefinition {
+  key: RequiredFieldKey;
+  label: string;
+  inputKind: RequiredFieldInputKind;
+  objectScoped: boolean;
+}
 
 export interface MissingRequiredField {
   key: RequiredFieldKey | "objects[].create";
@@ -45,6 +51,15 @@ const requiredFieldMetadata: Record<RequiredFieldKey, { label: string; inputKind
 };
 
 const objectScopedRequiredFieldKeys = requiredFieldKeySchema.options.filter((key) => requiredFieldMetadata[key].objectScoped);
+
+export function listRequiredFieldDefinitions(): RequiredFieldDefinition[] {
+  return requiredFieldKeySchema.options.map((key) => ({
+    key,
+    label: requiredFieldMetadata[key].label,
+    inputKind: requiredFieldMetadata[key].inputKind,
+    objectScoped: requiredFieldMetadata[key].objectScoped
+  }));
+}
 
 export function isRequiredFieldKey(value: string): value is RequiredFieldKey {
   return requiredFieldKeySchema.safeParse(value).success;

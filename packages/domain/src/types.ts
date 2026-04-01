@@ -63,7 +63,12 @@ export const masterDataSchema = z.object({
   auctions: z.array(auctionSchema),
   departments: z.array(departmentSchema),
   titles: z.array(z.string()),
-  globalPdfRequiredFields: z.array(z.string()).transform((values) =>
+  globalPdfRequiredFields: z.array(z.string()).default([]).transform((values) =>
+    values
+      .map((value) => value.trim())
+      .filter((value): value is z.infer<typeof requiredFieldKeySchema> => requiredFieldKeySchema.safeParse(value).success)
+  ),
+  globalWordRequiredFields: z.array(z.string()).default([]).transform((values) =>
     values
       .map((value) => value.trim())
       .filter((value): value is z.infer<typeof requiredFieldKeySchema> => requiredFieldKeySchema.safeParse(value).success)

@@ -1,5 +1,5 @@
 import { collectMasterDataReferences } from "@elb/app-core/index";
-import { createEmptyClerk, normalizeRequiredFieldKeys, type MasterData } from "@elb/domain/index";
+import { createEmptyClerk, listRequiredFieldDefinitions, type MasterData, type RequiredFieldKey } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { createSnapshot, hasAdminAccess, lockAdmin, unlockAdmin, updateMasterData } from "../appState";
 import { PdfSignatureEditor } from "../features/pdfPreview/PdfSignatureEditor";
@@ -23,6 +23,7 @@ export function AdminPage() {
   const [dataDirectorySupportsLinking, setDataDirectorySupportsLinking] = useState(false);
   const cases = state.dossiers;
   const unlocked = hasAdminAccess();
+  const requiredFieldDefinitions = listRequiredFieldDefinitions();
 
   useEffect(() => {
     setDraftMasterData(state.masterData);
@@ -55,6 +56,27 @@ export function AdminPage() {
         setMasterDataDirty(true);
       }
       return next;
+    });
+  }
+
+  function toggleRequiredField(target: "pdf" | "word", key: RequiredFieldKey, checked: boolean) {
+    updateDraftMasterData((current) => {
+      const source = target === "pdf" ? current.globalPdfRequiredFields : current.globalWordRequiredFields;
+      const nextValues = checked
+        ? Array.from(new Set([...source, key]))
+        : source.filter((item) => item !== key);
+
+      if (target === "pdf") {
+        return {
+          ...current,
+          globalPdfRequiredFields: nextValues
+        };
+      }
+
+      return {
+        ...current,
+        globalWordRequiredFields: nextValues
+      };
     });
   }
 
@@ -201,18 +223,47 @@ export function AdminPage() {
       ) : null}
 
       {section === "required" ? (
-        <Section title="PDF-Pflichtfelder">
-          <Field label="Feldliste" full>
-            <textarea
-              value={draftMasterData.globalPdfRequiredFields.join("\n")}
-              onChange={(event) =>
-                updateDraftMasterData((current) => ({
-                  ...current,
-                  globalPdfRequiredFields: normalizeRequiredFieldKeys(event.target.value.split("\n"))
-                }))
-              }
-            />
-          </Field>
+        <Section title="Pflichtfelder je Dokumenttyp">
+          <div className="required-fields-table-wrap">
+            <table className="required-fields-table">
+              <thead>
+                <tr>
+                  <th scope="col">Formularfeld</th>
+                  <th scope="col">ELB PDF</th>
+                  <th scope="col">Word Schätzliste</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requiredFieldDefinitions.map((field) => (
+                  <tr key={field.key}>
+                    <td>{field.label}</td>
+                    <td>
+                      <label className="inline-toggle">
+                        <input
+                          type="checkbox"
+                          checked={draftMasterData.globalPdfRequiredFields.includes(field.key)}
+                          onChange={(event) => toggleRequiredField("pdf", field.key, event.target.checked)}
+                        />
+                        <span className="inline-toggle__box" />
+                        <span className="inline-toggle__label">Pflicht</span>
+                      </label>
+                    </td>
+                    <td>
+                      <label className="inline-toggle">
+                        <input
+                          type="checkbox"
+                          checked={draftMasterData.globalWordRequiredFields.includes(field.key)}
+                          onChange={(event) => toggleRequiredField("word", field.key, event.target.checked)}
+                        />
+                        <span className="inline-toggle__box" />
+                        <span className="inline-toggle__label">Pflicht</span>
+                      </label>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Section>
       ) : null}
 

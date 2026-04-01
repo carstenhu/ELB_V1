@@ -76,7 +76,7 @@ export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string
         <PdfEditModal caseFile={props.caseFile} openTarget={editTarget} onClose={() => setEditTarget(null)} onTargetChange={setEditTarget} />
         {requiredFieldsOpen ? (
           <Suspense fallback={<RequiredFieldsFallback />}>
-            <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} />
+            <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} title="Fehlende ELB-PDF-Pflichtfelder" />
           </Suspense>
         ) : null}
         {previewProblem ? (

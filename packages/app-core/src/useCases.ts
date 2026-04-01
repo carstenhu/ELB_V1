@@ -11,7 +11,7 @@ import {
   type ReceiptNumberScope
 } from "@elb/domain/index";
 import { AppError } from "./errors";
-import { validateCaseBusinessRules, validateCaseForExport, validateCaseSchema } from "./validation";
+import { validateCaseBusinessRules, validateCaseForExport, validateCaseSchema, type ExportTarget } from "./validation";
 
 export interface WorkspaceStateLike {
   masterData: MasterData;
@@ -297,16 +297,16 @@ export function finalizeCase(caseFile: CaseFile, context: UseCaseContext = defau
   return updateCaseMeta(caseFile, { status: "finalized" }, context);
 }
 
-export function validateCaseReadiness(caseFile: CaseFile, masterData: MasterData) {
+export function validateCaseReadiness(caseFile: CaseFile, masterData: MasterData, exportTarget: ExportTarget = "bundle") {
   return {
     schema: validateCaseSchema(caseFile),
     business: validateCaseBusinessRules(caseFile),
-    export: validateCaseForExport(caseFile, masterData)
+    export: validateCaseForExport(caseFile, masterData, exportTarget)
   };
 }
 
-export function requireCaseReadyForExport(caseFile: CaseFile, masterData: MasterData): void {
-  const report = validateCaseReadiness(caseFile, masterData);
+export function requireCaseReadyForExport(caseFile: CaseFile, masterData: MasterData, exportTarget: ExportTarget = "bundle"): void {
+  const report = validateCaseReadiness(caseFile, masterData, exportTarget);
   const issues = [...report.schema.issues, ...report.business.issues, ...report.export.issues].filter((issue) => issue.severity === "error");
 
   if (issues.length) {

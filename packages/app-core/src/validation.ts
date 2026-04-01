@@ -28,6 +28,8 @@ export interface ValidationReport {
   issues: ValidationIssue[];
 }
 
+export type ExportTarget = "pdf" | "word" | "bundle";
+
 const nonEmptyTrimmed = z.string().transform((value) => value.trim());
 
 export function validateMasterDataConsistency(masterData: MasterData): ValidationReport {
@@ -266,9 +268,21 @@ export function validateCaseBusinessRules(caseFile: CaseFile): ValidationReport 
   };
 }
 
-export function validateCaseForExport(caseFile: CaseFile, masterData: MasterData): ValidationReport {
+function getRequiredFieldsForTarget(masterData: MasterData, target: ExportTarget): readonly string[] {
+  if (target === "pdf") {
+    return masterData.globalPdfRequiredFields;
+  }
+
+  if (target === "word") {
+    return masterData.globalWordRequiredFields;
+  }
+
+  return Array.from(new Set([...masterData.globalPdfRequiredFields, ...masterData.globalWordRequiredFields]));
+}
+
+export function validateCaseForExport(caseFile: CaseFile, masterData: MasterData, target: ExportTarget = "bundle"): ValidationReport {
   const issues: ValidationIssue[] = [...validateMasterDataConsistency(masterData).issues, ...validateCaseReferenceIntegrity(caseFile, masterData)];
-  issues.push(...collectMissingRequiredFields(caseFile, masterData.globalPdfRequiredFields).map(toExportValidationIssue));
+  issues.push(...collectMissingRequiredFields(caseFile, getRequiredFieldsForTarget(masterData, target)).map(toExportValidationIssue));
   if (!caseFile.objects.length && !issues.some((issue) => issue.path === "objects")) {
     issues.push(toExportValidationIssue({ key: "objects[].create", label: "Mindestens ein Objekt", inputKind: "action" }));
   }

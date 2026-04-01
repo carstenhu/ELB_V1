@@ -137,7 +137,7 @@ export function WordTemplatePreviewPage(props: {
   const model = createWordPreviewModel(props.caseFile, state.masterData);
   const pdfModel = createPdfPreviewModel(props.caseFile, state.masterData);
   const exportPlan = createExportPlan(props.caseFile);
-  const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalPdfRequiredFields);
+  const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalWordRequiredFields);
   const hasMissingRequiredFields = requiredEntries.length > 0;
   const [headerImageSrc, setHeaderImageSrc] = useState("");
   const [requiredFieldsOpen, setRequiredFieldsOpen] = useState(false);
@@ -188,6 +188,7 @@ export function WordTemplatePreviewPage(props: {
           zipFileName={exportPlan.zipFileName}
           missingRequiredFields={requiredEntries.map((entry) => entry.label)}
           exportStatus={props.exportStatus}
+          requiredFieldsLabel="Word-Schätzliste"
           onCaptureMissing={() => setRequiredFieldsOpen(true)}
           actions={
             <Suspense fallback={<PreviewActionsFallback />}>
@@ -205,7 +206,7 @@ export function WordTemplatePreviewPage(props: {
       </div>
       {requiredFieldsOpen ? (
         <Suspense fallback={<RequiredFieldsFallback />}>
-          <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} />
+          <RequiredFieldsModal caseFile={props.caseFile} entries={requiredEntries} onClose={() => setRequiredFieldsOpen(false)} title="Fehlende Word-Schätzlisten-Pflichtfelder" />
         </Suspense>
       ) : null}
       {previewProblem ? (

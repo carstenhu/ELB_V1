@@ -41,6 +41,17 @@ export function loadSeedMasterData(): MasterData {
       "objects[].departmentId",
       "objects[].shortDescription"
     ],
+    globalWordRequiredFields: [
+      "meta.receiptNumber",
+      "meta.clerkId",
+      "consignor.lastName",
+      "consignor.street",
+      "consignor.zip",
+      "consignor.city",
+      "objects[].auctionId",
+      "objects[].departmentId",
+      "objects[].shortDescription"
+    ],
     adminPin: DEFAULT_ADMIN_PIN,
   };
 }

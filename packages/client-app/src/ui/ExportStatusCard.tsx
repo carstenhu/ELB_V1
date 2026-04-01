@@ -9,7 +9,10 @@ export function ExportStatusCard(props: {
   actions?: ReactNode;
   className?: string;
   onCaptureMissing?: () => void;
+  requiredFieldsLabel?: string;
 }) {
+  const requiredLabel = props.requiredFieldsLabel ?? "PDF";
+
   return (
     <div className={props.className ? `preview-card ${props.className}` : "preview-card"}>
       <h3>Exportstatus</h3>
@@ -20,7 +23,7 @@ export function ExportStatusCard(props: {
       {props.missingRequiredFields.length ? (
         <>
           <div className="preview-card__section-head">
-            <h4>Fehlende PDF-Pflichtfelder</h4>
+            <h4>Fehlende {requiredLabel}-Pflichtfelder</h4>
             {props.onCaptureMissing ? (
               <button type="button" onClick={props.onCaptureMissing}>
                 Angaben erfassen
@@ -34,7 +37,7 @@ export function ExportStatusCard(props: {
           </ul>
         </>
       ) : (
-        <p>Alle konfigurierten PDF-Pflichtfelder sind aktuell befuellt.</p>
+        <p>Alle konfigurierten {requiredLabel}-Pflichtfelder sind aktuell befuellt.</p>
       )}
       {props.exportStatus ? <p>{props.exportStatus}</p> : null}
     </div>

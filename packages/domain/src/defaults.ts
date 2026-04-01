@@ -22,6 +22,7 @@ export function createEmptyMasterData(): MasterData {
     departments: [],
     titles: [],
     globalPdfRequiredFields: [],
+    globalWordRequiredFields: [],
     adminPin: DEFAULT_ADMIN_PIN,
   };
 }
@@ -51,6 +52,7 @@ export function normalizeMasterData(masterData: MasterData): MasterData {
     ...createEmptyMasterData(),
     ...masterData,
     globalPdfRequiredFields: normalizeRequiredFieldKeys(masterData.globalPdfRequiredFields),
+    globalWordRequiredFields: normalizeRequiredFieldKeys(masterData.globalWordRequiredFields ?? []),
     clerks: masterData.clerks.map((clerk) =>
       createEmptyClerk({
         id: clerk.id,

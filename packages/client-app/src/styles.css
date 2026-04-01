@@ -586,6 +586,38 @@ textarea {
   border-radius: 18px;
 }
 
+.required-fields-table-wrap {
+  overflow-x: auto;
+}
+
+.required-fields-table {
+  width: 100%;
+  min-width: 540px;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.required-fields-table th,
+.required-fields-table td {
+  text-align: left;
+  padding: 0.46rem 0.5rem;
+  border-bottom: 1px solid #e2e7df;
+  vertical-align: middle;
+}
+
+.required-fields-table th {
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5a675f;
+}
+
+.required-fields-table td:nth-child(2),
+.required-fields-table td:nth-child(3) {
+  width: 165px;
+  white-space: nowrap;
+}
+
 .signature-preview {
   max-width: 240px;
   width: 100%;

@@ -159,9 +159,13 @@ function extractProblemDetails(error: unknown, title: string): PreviewProblemDet
   };
 }
 
-async function ensureCaseReady(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]): Promise<void> {
+async function ensureCaseReady(
+  caseFile: CaseFile,
+  masterData: ReturnType<typeof useAppState>["masterData"],
+  exportTarget: "pdf" | "word" | "bundle"
+): Promise<void> {
   const { requireCaseReadyForExport } = await import("@elb/app-core/index");
-  requireCaseReadyForExport(caseFile, masterData);
+  requireCaseReadyForExport(caseFile, masterData, exportTarget);
 }
 
 async function createPdfBytes(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]): Promise<Uint8Array> {
@@ -206,7 +210,7 @@ export function usePreviewActions(
 
     try {
       previewWindow = openPendingWindow("PDF wird vorbereitet", "Die PDF-Datei wird erzeugt und gleich geoeffnet.");
-      await ensureCaseReady(caseFile, state.masterData);
+      await ensureCaseReady(caseFile, state.masterData, "word");
       onExportStatusChange("PDF wird erzeugt...");
       const pdfBytes = await createPdfBytes(caseFile, state.masterData);
       const result = await platform.pdfPreview.open({
@@ -231,7 +235,7 @@ export function usePreviewActions(
 
   async function downloadWordDocx(): Promise<void> {
     try {
-      await ensureCaseReady(caseFile, state.masterData);
+      await ensureCaseReady(caseFile, state.masterData, "pdf");
       onExportStatusChange("Word-Datei wird erzeugt...");
       const [{ createExportPlan }, wordDocxBlob] = await Promise.all([
         import("@elb/export-core/index"),
@@ -262,7 +266,7 @@ export function usePreviewActions(
 
     try {
       downloadWindow = openPendingWindow("ZIP wird vorbereitet", "Der Export wird erzeugt und der Download startet gleich.");
-      await ensureCaseReady(caseFile, state.masterData);
+      await ensureCaseReady(caseFile, state.masterData, "bundle");
       onExportStatusChange("ZIP wird erzeugt...");
       const { bundle, zipBlob } = await createZipBundle(caseFile, state.masterData);
 

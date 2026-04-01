@@ -9,7 +9,7 @@ import {
   updateRequiredFieldValues
 } from "./requiredFields";
 
-export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void }) {
+export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: RequiredFieldEntry[]; onClose: () => void; title?: string }) {
   const state = useAppState();
 
   if (!props.entries.length) {
@@ -24,7 +24,7 @@ export function RequiredFieldsModal(props: { caseFile: CaseFile; entries: Requir
     <div className="pin-modal">
       <div className="overlay__card">
         <div className="admin-header">
-          <h2>Fehlende PDF-Pflichtfelder</h2>
+          <h2>{props.title ?? "Fehlende PDF-Pflichtfelder"}</h2>
           <button onClick={props.onClose}>Schliessen</button>
         </div>
         <div className="page-grid">
