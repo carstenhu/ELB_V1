@@ -358,13 +358,87 @@ function readDataUrlFromZip(zip: JSZip, path: string): Promise<string> {
   });
 }
 
+function resolveTemplatePath(basePath: string, target: string): string {
+  if (!target) {
+    return "";
+  }
+
+  if (target.startsWith("/")) {
+    return target.replace(/^\/+/, "");
+  }
+
+  const baseSegments = basePath.split("/").slice(0, -1);
+  const targetSegments = target.split("/");
+  const resolved = [...baseSegments];
+  targetSegments.forEach((segment) => {
+    if (!segment || segment === ".") {
+      return;
+    }
+
+    if (segment === "..") {
+      resolved.pop();
+      return;
+    }
+
+    resolved.push(segment);
+  });
+  return resolved.join("/");
+}
+
+async function loadHeaderImageFromTemplate(zip: JSZip): Promise<string> {
+  const headerFiles = Object.keys(zip.files)
+    .filter((path) => /^word\/header\d+\.xml$/.test(path))
+    .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
+
+  for (const headerPath of headerFiles) {
+    const headerXml = await zip.file(headerPath)?.async("string");
+    if (!headerXml) {
+      continue;
+    }
+
+    const headerDoc = new DOMParser().parseFromString(headerXml, "application/xml");
+    const blip = headerDoc.getElementsByTagNameNS(DRAWING_NS, "blip")[0];
+    const relationshipId = blip?.getAttributeNS(REL_NS, "embed");
+    if (!relationshipId) {
+      continue;
+    }
+
+    const relPath = `word/_rels/${headerPath.split("/").pop()}.rels`;
+    const relXml = await zip.file(relPath)?.async("string");
+    if (!relXml) {
+      continue;
+    }
+
+    const relDoc = new DOMParser().parseFromString(relXml, "application/xml");
+    const relationships = Array.from(relDoc.getElementsByTagName("Relationship"));
+    const relationship = relationships.find((node) => node.getAttribute("Id") === relationshipId);
+    const target = relationship?.getAttribute("Target") ?? "";
+    const mediaPath = resolveTemplatePath(headerPath, target);
+    if (!mediaPath) {
+      continue;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    const dataUrl = await readDataUrlFromZip(zip, mediaPath);
+    if (dataUrl) {
+      return dataUrl;
+    }
+  }
+
+  const fallbackMediaPath = Object.keys(zip.files)
+    .filter((path) => /^word\/media\/.+\.(png|jpe?g)$/i.test(path))
+    .sort((left, right) => left.localeCompare(right, "en", { numeric: true }))[0];
+
+  return fallbackMediaPath ? readDataUrlFromZip(zip, fallbackMediaPath) : "";
+}
+
 export async function loadWordTemplateAssets(): Promise<{ headerImageSrc: string }> {
   if (!templateAssetsPromise) {
     templateAssetsPromise = (async () => {
       const response = await fetch(templateDocxUrl);
       const buffer = await response.arrayBuffer();
       const zip = await JSZip.loadAsync(buffer);
-      const headerImageSrc = await readDataUrlFromZip(zip, "word/media/image2.jpg");
+      const headerImageSrc = await loadHeaderImageFromTemplate(zip);
       return { headerImageSrc };
     })();
   }
