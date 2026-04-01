@@ -480,7 +480,7 @@ function replaceAddressBlock(table: Element, addressLines: string[]) {
   setCellParagraphs(doc, cell, addressLines.length > 0 ? addressLines : [""]);
 }
 
-function compactDateBlockForFollowPage(table: Element) {
+function compactDateBlock(table: Element) {
   const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
   if (!cell) {
     return;
@@ -518,6 +518,25 @@ function replaceFooterClerkName(node: Element, value: string) {
   if (lastText) {
     lastText.textContent = value;
   }
+}
+
+function getFooterClerkNameNodeIndex(nodes: Element[]): number {
+  let candidateIndex = -1;
+
+  nodes.forEach((node, index) => {
+    const text = (node.textContent ?? "").trim();
+    if (!text) {
+      return;
+    }
+
+    if (text.toUpperCase().includes("KOLLER")) {
+      return;
+    }
+
+    candidateIndex = index;
+  });
+
+  return candidateIndex;
 }
 
 function findFirstTableWithMarker(body: Element, marker: string): Element | null {
@@ -702,6 +721,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
   }
 
   const footerTemplateNodes = collectFooterTemplateNodes(body, rowTemplate);
+  const footerClerkNodeIndex = getFooterClerkNameNodeIndex(footerTemplateNodes);
   const relationshipStart = nextRelationshipCounter(relsDoc);
   let relationshipCounter = relationshipStart;
 
@@ -720,13 +740,12 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     }
 
     const dateTable = dateTemplate.cloneNode(true) as Element;
-    replaceDateValue(dateTable, page.headerRightText);
+    compactDateBlock(dateTable);
+    replaceDateValue(dateTable, page.showAddress ? page.headerRightText : "");
     if (page.showAddress) {
       const addressTable = addressTemplate.cloneNode(true) as Element;
       replaceAddressBlock(addressTable, page.addressLines);
       body.appendChild(addressTable);
-    } else {
-      compactDateBlockForFollowPage(dateTable);
     }
     body.appendChild(dateTable);
 
@@ -745,7 +764,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     if (pageIndex === model.pages.length - 1 && footerTemplateNodes.length > 0) {
       footerTemplateNodes.forEach((node, index) => {
         const clone = node.cloneNode(true) as Element;
-        if (index === 1) {
+        if (index === footerClerkNodeIndex) {
           replaceFooterClerkName(clone, page.footerLabel);
         }
         body.appendChild(clone);
