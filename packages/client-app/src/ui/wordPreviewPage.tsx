@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { type CaseFile } from "@elb/domain/index";
 import { createExportPlan } from "@elb/export-core/index";
-import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import { createWordPreviewModel, loadWordTemplateAssets } from "@elb/word-core/index";
 import type { PreviewProblemDetails } from "../features/preview/usePreviewActions";
 import { getRequiredFieldEntries } from "../features/preview/requiredFields";
@@ -135,7 +134,6 @@ export function WordTemplatePreviewPage(props: {
 }) {
   const state = useAppState();
   const model = createWordPreviewModel(props.caseFile, state.masterData);
-  const pdfModel = createPdfPreviewModel(props.caseFile, state.masterData);
   const exportPlan = createExportPlan(props.caseFile);
   const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalWordRequiredFields);
   const hasMissingRequiredFields = requiredEntries.length > 0;
@@ -183,8 +181,6 @@ export function WordTemplatePreviewPage(props: {
         ))}
         <ExportStatusCard
           className="preview-card--bottom"
-          beneficiary={pdfModel.beneficiary}
-          clerkLabel={pdfModel.clerkLabel}
           zipFileName={exportPlan.zipFileName}
           missingRequiredFields={requiredEntries.map((entry) => entry.label)}
           exportStatus={props.exportStatus}

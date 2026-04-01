@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import { type CaseFile } from "@elb/domain/index";
 import { createExportPlan } from "@elb/export-core/index";
-import { createPdfPreviewModel } from "@elb/pdf-core/index";
 import type { PreviewProblemDetails } from "../features/preview/usePreviewActions";
 import { PdfCanvasPreview, type PdfEditTarget } from "../pdfPreview";
 import { getRequiredFieldEntries } from "../features/preview/requiredFields";
@@ -40,7 +39,6 @@ function RequiredFieldsFallback() {
 
 export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string; onExportStatusChange: (value: string) => void }) {
   const state = useAppState();
-  const model = createPdfPreviewModel(props.caseFile, state.masterData);
   const exportPlan = createExportPlan(props.caseFile);
   const requiredEntries = getRequiredFieldEntries(props.caseFile, state.masterData.globalPdfRequiredFields);
   const hasMissingRequiredFields = requiredEntries.length > 0;
@@ -54,8 +52,6 @@ export function PdfPreviewPage(props: { caseFile: CaseFile; exportStatus: string
         <div className="preview-sheet__content">
           <PdfCanvasPreview caseFile={props.caseFile} masterData={state.masterData} onEdit={setEditTarget} />
           <ExportStatusCard
-            beneficiary={model.beneficiary}
-            clerkLabel={model.clerkLabel}
             zipFileName={exportPlan.zipFileName}
             missingRequiredFields={requiredEntries.map((entry) => entry.label)}
             exportStatus={props.exportStatus}
