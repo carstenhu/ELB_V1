@@ -149,7 +149,10 @@ export function PdfCanvasPreview(props: {
         const chunks = await buildObjectPageChunks(previewModel.objectRows);
         const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
         const loadingTask = pdfjsLib.getDocument({
-          data: pdfBytes
+          data: pdfBytes,
+          // Android WebViews occasionally fail in the ImageDecoder pipeline
+          // (e.g. "toHex is not a function"). Force the stable fallback.
+          isImageDecoderSupported: false
         });
         const pdfDocument = await loadingTask.promise;
         const rendered: RenderedPage[] = [];
