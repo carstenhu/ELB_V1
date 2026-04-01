@@ -104,6 +104,7 @@ function WordTemplatePageView(props: {
                       {detail}
                     </div>
                   ))}
+                  <div className="word-template-row__line word-template-row__line--spacer" aria-hidden="true" />
                   <div className="word-template-row__line">{item.estimate ? `Schätzung: CHF ${item.estimate}` : "Schätzung offen"}</div>
                   {item.priceValue ? (
                     <div className="word-template-row__line word-template-row__line--accent">

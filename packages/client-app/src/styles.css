@@ -996,6 +996,10 @@ textarea {
   color: #9d1414;
 }
 
+.word-template-row__line--spacer {
+  min-height: 19.2px;
+}
+
 .word-template-footer {
   position: static;
   width: 567px;
