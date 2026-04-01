@@ -462,6 +462,15 @@ function setCellParagraphs(doc: XMLDocument, cell: Element, lines: Array<WordPre
 
 function createPageBreakParagraph(doc: XMLDocument): Element {
   const paragraph = doc.createElementNS(WORD_NS, "w:p");
+  const paragraphProps = doc.createElementNS(WORD_NS, "w:pPr");
+  const spacing = doc.createElementNS(WORD_NS, "w:spacing");
+  spacing.setAttributeNS(WORD_NS, "w:before", "0");
+  spacing.setAttributeNS(WORD_NS, "w:after", "0");
+  spacing.setAttributeNS(WORD_NS, "w:line", "240");
+  spacing.setAttributeNS(WORD_NS, "w:lineRule", "auto");
+  paragraphProps.appendChild(spacing);
+  paragraph.appendChild(paragraphProps);
+
   const run = doc.createElementNS(WORD_NS, "w:r");
   const breakNode = doc.createElementNS(WORD_NS, "w:br");
   breakNode.setAttributeNS(WORD_NS, "w:type", "page");
