@@ -60,8 +60,13 @@ export function getFieldRects(form: PdfForm, fieldName: string) {
 }
 
 export function decodeDataUrl(dataUrl: string): Uint8Array {
-  const [, base64 = ""] = dataUrl.split(",", 2);
-  const binary = atob(base64);
+  const match = dataUrl.match(/^data:.*?;base64,(.*)$/i);
+  if (!match || !match[1]) {
+    throw new Error("Bildquelle ist keine gueltige Base64-Data-URL.");
+  }
+
+  const normalizedBase64 = match[1].replaceAll(/\s+/g, "").replaceAll("-", "+").replaceAll("_", "/");
+  const binary = atob(normalizedBase64);
   const bytes = new Uint8Array(binary.length);
 
   for (let index = 0; index < binary.length; index += 1) {
@@ -71,9 +76,38 @@ export function decodeDataUrl(dataUrl: string): Uint8Array {
   return bytes;
 }
 
+async function loadImageBytesFromSource(source: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const trimmedSource = source.trim();
+  if (!trimmedSource) {
+    throw new Error("Bildquelle ist leer.");
+  }
+
+  if (trimmedSource.startsWith("data:")) {
+    const mimeTypeMatch = trimmedSource.match(/^data:(.*?);base64,/i);
+    return {
+      bytes: decodeDataUrl(trimmedSource),
+      mimeType: (mimeTypeMatch?.[1] || "image/jpeg").toLowerCase()
+    };
+  }
+
+  if (trimmedSource.startsWith("http://") || trimmedSource.startsWith("https://") || trimmedSource.startsWith("blob:")) {
+    const response = await fetch(trimmedSource);
+    if (!response.ok) {
+      throw new Error(`Bildquelle konnte nicht geladen werden (${response.status}).`);
+    }
+
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      mimeType: (response.headers.get("content-type") || "image/jpeg").toLowerCase()
+    };
+  }
+
+  throw new Error("Bildquelle ist weder Data-URL noch HTTP/Blob-URL.");
+}
+
 export async function embedImageFromDataUrl(pdf: PDFDocument, dataUrl: string) {
-  const bytes = decodeDataUrl(dataUrl);
-  if (dataUrl.startsWith("data:image/png")) {
+  const { bytes, mimeType } = await loadImageBytesFromSource(dataUrl);
+  if (mimeType.includes("png")) {
     return pdf.embedPng(bytes);
   }
 
