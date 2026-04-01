@@ -26,9 +26,8 @@ export function PreviewActionButtons(props: {
       <button onClick={() => void actions.openDataFolder()}>Datenordner oeffnen</button>
       <button onClick={() => actions.saveDraft()}>Entwurf speichern</button>
       <button onClick={() => guardRequiredFields(() => void actions.openPdf())}>PDF anzeigen</button>
-      {props.includeWordDocxButton ? (
-        <button onClick={() => guardRequiredFields(() => void actions.downloadWordDocx())}>Word-Datei erzeugen</button>
-      ) : null}
+      <button onClick={() => guardRequiredFields(() => void actions.openSupplementPdf())}>Zusatz-PDF anzeigen</button>
+      <button onClick={() => guardRequiredFields(() => void actions.downloadWordDocx())}>Word-Datei erzeugen</button>
       <button onClick={() => guardRequiredFields(() => void actions.exportArtifacts())}>Dossier speichern</button>
     </>
   );

@@ -23,13 +23,69 @@ function decodeDataUrl(dataUrl: string): Uint8Array {
   return bytes;
 }
 
-function createPortableCaseFile(caseFile: CaseFile): CaseFile {
+function normalizeIntNumberSegment(value: string, fallbackIndex: number): string {
+  const digitsOnly = value.replace(/[^\d]/g, "");
+  if (digitsOnly) {
+    return digitsOnly.padStart(4, "0");
+  }
+
+  return String(fallbackIndex + 1).padStart(4, "0");
+}
+
+function ensureUniquePath(path: string, usedPaths: Set<string>): string {
+  if (!usedPaths.has(path)) {
+    usedPaths.add(path);
+    return path;
+  }
+
+  const match = path.match(/^(.*?)(\.[^.]+)$/);
+  const base = match ? match[1] : path;
+  const extension = match ? match[2] : "";
+  let counter = 2;
+  let nextPath = `${base}_${counter}${extension}`;
+  while (usedPaths.has(nextPath)) {
+    counter += 1;
+    nextPath = `${base}_${counter}${extension}`;
+  }
+  usedPaths.add(nextPath);
+  return nextPath;
+}
+
+function buildAssetExportPathMap(caseFile: CaseFile): Map<string, string> {
+  const pathByAssetId = new Map<string, string>();
+  const usedPaths = new Set<string>();
+
+  caseFile.objects.forEach((objectItem, objectIndex) => {
+    const intSegment = normalizeIntNumberSegment(objectItem.intNumber, objectIndex);
+    objectItem.photoAssetIds.forEach((assetId, photoIndex) => {
+      if (!assetId || pathByAssetId.has(assetId)) {
+        return;
+      }
+
+      const preferredPath = `bilder/optimized/${intSegment}_${photoIndex + 1}.jpg`;
+      pathByAssetId.set(assetId, ensureUniquePath(preferredPath, usedPaths));
+    });
+  });
+
+  caseFile.assets.forEach((asset, assetIndex) => {
+    if (pathByAssetId.has(asset.id)) {
+      return;
+    }
+
+    const fallbackPath = `bilder/optimized/asset_${String(assetIndex + 1).padStart(4, "0")}.jpg`;
+    pathByAssetId.set(asset.id, ensureUniquePath(fallbackPath, usedPaths));
+  });
+
+  return pathByAssetId;
+}
+
+function createPortableCaseFile(caseFile: CaseFile, assetExportPathMap: Map<string, string>): CaseFile {
   return {
     ...caseFile,
     assets: caseFile.assets.map((asset) => ({
       ...asset,
-      originalPath: `bilder/optimized/${asset.id}.jpg`,
-      optimizedPath: `bilder/optimized/${asset.id}.jpg`
+      originalPath: assetExportPathMap.get(asset.id) ?? `bilder/optimized/${asset.id}.jpg`,
+      optimizedPath: assetExportPathMap.get(asset.id) ?? `bilder/optimized/${asset.id}.jpg`
     }))
   };
 }
@@ -48,14 +104,14 @@ export function createExportMetadata(caseFile: CaseFile): ExportMetadata {
   };
 }
 
-function createImageManifest(caseFile: CaseFile): string {
+function createImageManifest(caseFile: CaseFile, assetExportPathMap: Map<string, string>): string {
   return JSON.stringify(
     {
       count: caseFile.assets.length,
       images: caseFile.assets.map((asset) => ({
         id: asset.id,
         fileName: asset.fileName,
-        optimizedPath: `bilder/optimized/${asset.id}.jpg`,
+        optimizedPath: assetExportPathMap.get(asset.id) ?? `bilder/optimized/${asset.id}.jpg`,
         width: asset.width,
         height: asset.height
       }))
@@ -68,14 +124,15 @@ function createImageManifest(caseFile: CaseFile): string {
 export async function generateExportBundle(caseFile: CaseFile, masterData: MasterData): Promise<GeneratedExportBundle> {
   const plan = createExportPlan(caseFile);
   const metadata = createExportMetadata(caseFile);
-  const portableCaseFile = createPortableCaseFile(caseFile);
+  const assetExportPathMap = buildAssetExportPathMap(caseFile);
+  const portableCaseFile = createPortableCaseFile(caseFile, assetExportPathMap);
   const elbPdfBytes = await generateElbPdf(caseFile, masterData);
   const supplementPdfBytes = await generateSupplementPdf(caseFile, masterData);
   const wordDocxBlob = await generateWordDocx(caseFile, masterData);
   const wordPdfBytes = await generateWordPdf(caseFile, masterData);
 
   const imageArtifacts = caseFile.assets.map((asset) => ({
-    fileName: `bilder/optimized/${asset.id}.jpg`,
+    fileName: assetExportPathMap.get(asset.id) ?? `bilder/optimized/${asset.id}.jpg`,
     mimeType: "image/jpeg",
     content: toArrayBuffer(decodeDataUrl(asset.optimizedPath || asset.originalPath))
   }));
@@ -95,7 +152,7 @@ export async function generateExportBundle(caseFile: CaseFile, masterData: Maste
         content: wordDocxBlob
       },
       { fileName: "schaetzliste.pdf", mimeType: "application/pdf", content: toArrayBuffer(wordPdfBytes) },
-      { fileName: "bilder/manifest.json", mimeType: "application/json", content: createImageManifest(caseFile) },
+      { fileName: "bilder/manifest.json", mimeType: "application/json", content: createImageManifest(caseFile, assetExportPathMap) },
       ...imageArtifacts
     ]
   };

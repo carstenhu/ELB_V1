@@ -1,7 +1,7 @@
 import type { CaseFile } from "@elb/domain/index";
 import type { ValidationIssue } from "@elb/app-core/index";
 import { createLogger } from "@elb/shared/logger";
-import { finalizeCurrentCase, saveDraft } from "../../appState";
+import { createSnapshot, finalizeCurrentCase, saveDraft } from "../../appState";
 import { usePlatform } from "../../platform/platformContext";
 import { useAppState } from "../../useAppState";
 import type { PreviewEditableFieldIssue } from "./previewProblemFields";
@@ -178,6 +178,11 @@ async function createPdfBytes(caseFile: CaseFile, masterData: ReturnType<typeof 
   return generateElbPdf(caseFile, masterData);
 }
 
+async function createSupplementPdfBytes(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]): Promise<Uint8Array> {
+  const { generateSupplementPdf } = await import("@elb/pdf-core/index");
+  return generateSupplementPdf(caseFile, masterData);
+}
+
 async function createWordDocxBlob(caseFile: CaseFile, masterData: ReturnType<typeof useAppState>["masterData"]): Promise<Blob> {
   const { generateWordDocx } = await import("@elb/word-core/index");
   return generateWordDocx(caseFile, masterData);
@@ -238,6 +243,34 @@ export function usePreviewActions(
     }
   }
 
+  async function openSupplementPdf(): Promise<void> {
+    let previewWindow: Window | null = null;
+
+    try {
+      previewWindow = openPendingWindow("Zusatz-PDF wird vorbereitet", "Die Zusatz-PDF-Datei wird erzeugt und gleich geoeffnet.");
+      await ensureCaseReady(caseFile, state.masterData, "word");
+      onExportStatusChange("Zusatz-PDF wird erzeugt...");
+      const pdfBytes = await createSupplementPdfBytes(caseFile, state.masterData);
+      const result = await platform.pdfPreview.open({
+        caseFile,
+        fileName: "zusatz.pdf",
+        pdfContent: pdfBytes,
+        initiatedWindow: previewWindow
+      });
+      onExportStatusChange(result.message);
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.close();
+      }
+      logger.error("Zusatz-PDF-Vorschau fehlgeschlagen.", error);
+      const problem = extractProblemDetails(error, "Zusatz-PDF kann nicht angezeigt werden");
+      if (problem) {
+        onPreviewProblem?.(problem);
+      }
+      onExportStatusChange(problem ? buildProblemStatus(problem, "Zusatz-PDF konnte nicht geoeffnet werden.") : formatErrorMessage(error, "Zusatz-PDF konnte nicht geoeffnet werden."));
+    }
+  }
+
   async function downloadWordDocx(): Promise<void> {
     try {
       await ensureCaseReady(caseFile, state.masterData, "pdf");
@@ -284,7 +317,8 @@ export function usePreviewActions(
       });
 
       finalizeCurrentCase();
-      onExportStatusChange(result.message);
+      await platform.workspaceRepository.save(createSnapshot());
+      onExportStatusChange(`${result.message}. Workspace wurde aktualisiert.`);
     } catch (error) {
       if (downloadWindow && !downloadWindow.closed) {
         downloadWindow.close();
@@ -303,6 +337,7 @@ export function usePreviewActions(
     exportArtifacts,
     openDataFolder,
     openPdf,
+    openSupplementPdf,
     saveDraft
   };
 }
