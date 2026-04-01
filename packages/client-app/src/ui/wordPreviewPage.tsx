@@ -44,13 +44,14 @@ function WordTemplatePageView(props: {
 }) {
   const { page, headerImageSrc, showFooter } = props;
   const previewLineHeightPx = 19.2;
-  const previewTopMinHeightPx = 86.4;
+  const previewTopMinHeightFirstPagePx = 86.4;
+  const previewTopMinHeightFollowPagePx = 30;
   const previewGapAfterDatePx = 34;
   const addressLineCount = page.showAddress ? Math.max(page.addressLines.length, 1) : 0;
   const dateOffsetPx = page.showAddress ? Math.max(addressLineCount * previewLineHeightPx - previewLineHeightPx, 0) : 0;
   const topBlockMinHeightPx = page.showAddress
-    ? Math.max(previewTopMinHeightPx, dateOffsetPx + previewLineHeightPx + previewGapAfterDatePx)
-    : previewTopMinHeightPx;
+    ? Math.max(previewTopMinHeightFirstPagePx, dateOffsetPx + previewLineHeightPx + previewGapAfterDatePx)
+    : previewTopMinHeightFollowPagePx;
 
   return (
     <div className="word-a4-scroll">
@@ -78,7 +79,7 @@ function WordTemplatePageView(props: {
 
           <div
             className="word-preview-list word-preview-list--template"
-            style={{ marginTop: page.showAddress ? "14px" : "4px" }}
+            style={{ marginTop: page.showAddress ? "14px" : "0px" }}
           >
             {page.rows.map((item) => (
               <article key={item.id} className="word-template-row" style={{ minHeight: `${item.heightUnits}px` }}>
