@@ -937,7 +937,6 @@ textarea {
   display: grid;
   align-content: start;
   width: 567px;
-  margin-top: 14px;
   gap: 0;
   overflow: hidden;
   justify-self: start;

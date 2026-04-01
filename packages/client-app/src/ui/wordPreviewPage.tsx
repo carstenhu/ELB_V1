@@ -76,7 +76,10 @@ function WordTemplatePageView(props: {
             </div>
           </div>
 
-          <div className="word-preview-list word-preview-list--template">
+          <div
+            className="word-preview-list word-preview-list--template"
+            style={{ marginTop: page.showAddress ? "14px" : "4px" }}
+          >
             {page.rows.map((item) => (
               <article key={item.id} className="word-template-row" style={{ minHeight: `${item.heightUnits}px` }}>
                 <div className="word-template-row__int">{item.intNumber}</div>
