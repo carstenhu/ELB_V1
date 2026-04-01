@@ -997,13 +997,13 @@ textarea {
 }
 
 .word-template-footer {
-  position: absolute;
-  left: 105.87px;
-  right: 75.6px;
-  bottom: 58px;
+  position: static;
+  width: 567px;
+  justify-self: start;
+  margin-top: 10px;
   display: grid;
   gap: 0.15rem;
-  align-content: end;
+  align-content: start;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
   font-size: 13.33px;
   line-height: 19.2px;

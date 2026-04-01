@@ -45,7 +45,7 @@ function WordTemplatePageView(props: {
   const { page, headerImageSrc, showFooter } = props;
   const previewLineHeightPx = 19.2;
   const previewTopMinHeightPx = 86.4;
-  const previewGapAfterDatePx = 22;
+  const previewGapAfterDatePx = 34;
   const addressLineCount = page.showAddress ? Math.max(page.addressLines.length, 1) : 0;
   const dateOffsetPx = page.showAddress ? Math.max(addressLineCount * previewLineHeightPx - previewLineHeightPx, 0) : 0;
   const topBlockMinHeightPx = page.showAddress
