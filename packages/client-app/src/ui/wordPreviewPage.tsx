@@ -73,7 +73,7 @@ function WordTemplatePageView(props: {
                     <img
                       src={item.primaryPhoto.src}
                       alt={item.primaryPhoto.alt}
-                      style={{ maxHeight: `${item.photoFrameHeightUnits}px` }}
+                      style={{ width: "189.13px", maxHeight: `${item.photoFrameHeightUnits}px` }}
                     />
                   ) : null}
                 </div>

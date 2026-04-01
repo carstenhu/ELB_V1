@@ -7,6 +7,8 @@ export interface WordPreviewPhoto {
   id: string;
   src: string;
   alt: string;
+  width: number;
+  height: number;
 }
 
 export interface WordPreviewRowLine {
@@ -58,8 +60,9 @@ const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relations
 const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
 const WORD_UNIT_TO_EMU = 9525;
 const WORD_PHOTO_FRAME_WIDTH_UNITS = WORD_PHOTO_FRAME_WIDTH_EMU / WORD_UNIT_TO_EMU;
-const WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS = 120;
-const WORD_PHOTO_FRAME_TARGET_HEIGHT_EMU = Math.round(WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS * WORD_UNIT_TO_EMU);
+const WORD_PHOTO_FRAME_MAX_HEIGHT_EMU = 2233930;
+const WORD_PHOTO_FRAME_MAX_HEIGHT_UNITS = WORD_PHOTO_FRAME_MAX_HEIGHT_EMU / WORD_UNIT_TO_EMU;
+const WORD_PHOTO_FRAME_MIN_HEIGHT_UNITS = 54;
 
 const WORD_TEMPLATE_PAGE_HEIGHT_UNITS = 1122.53;
 const WORD_TEMPLATE_PADDING_TOP_UNITS = 179.6;
@@ -73,10 +76,9 @@ const WORD_TEMPLATE_LIST_HEIGHT_UNITS = WORD_TEMPLATE_PAGE_HEIGHT_UNITS
   - WORD_TEMPLATE_FOOTER_UNITS;
 const WORD_TEMPLATE_LINE_HEIGHT_UNITS = 19.2;
 const WORD_TEMPLATE_ROW_GAP_UNITS = 2.4;
-const WORD_TEMPLATE_ROW_PADDING_Y_UNITS = 11.34;
-const WORD_TEMPLATE_ROW_BORDER_UNITS = 2;
+const WORD_TEMPLATE_ROW_PADDING_Y_UNITS = 5.67;
+const WORD_TEMPLATE_ROW_BORDER_UNITS = 1;
 const WORD_TEMPLATE_MIN_ROW_UNITS = 48;
-const WORD_TEMPLATE_PHOTO_ROW_MIN_UNITS = WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS + WORD_TEMPLATE_ROW_PADDING_Y_UNITS;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
 const WORD_LETTER_SPACING_PX = 0.8;
@@ -166,15 +168,30 @@ function wrapWordText(text: string, maxWidth: number): string[] {
   return lines;
 }
 
-function measureWordRowHeight(lineCount: number, hasPhoto: boolean): number {
+function measureWordRowHeight(lineCount: number, photoFrameHeightUnits: number | null): number {
   const safeLineCount = Math.max(lineCount, 1);
   const textHeight = WORD_TEMPLATE_ROW_PADDING_Y_UNITS * 2
     + WORD_TEMPLATE_ROW_BORDER_UNITS
     + safeLineCount * WORD_TEMPLATE_LINE_HEIGHT_UNITS
     + Math.max(safeLineCount - 1, 0) * WORD_TEMPLATE_ROW_GAP_UNITS;
 
-  const photoHeight = hasPhoto ? WORD_TEMPLATE_PHOTO_ROW_MIN_UNITS : 0;
+  const photoHeight = photoFrameHeightUnits === null
+    ? 0
+    : photoFrameHeightUnits + WORD_TEMPLATE_ROW_PADDING_Y_UNITS * 2 + WORD_TEMPLATE_ROW_BORDER_UNITS;
+
   return Math.max(textHeight, WORD_TEMPLATE_MIN_ROW_UNITS, photoHeight);
+}
+
+function measurePhotoFrameHeightUnits(photo: WordPreviewPhoto | undefined): number {
+  if (!photo || photo.width <= 0 || photo.height <= 0) {
+    return WORD_PHOTO_FRAME_MAX_HEIGHT_UNITS;
+  }
+
+  const proportionalHeight = WORD_PHOTO_FRAME_WIDTH_UNITS * (photo.height / photo.width);
+  return Math.min(
+    WORD_PHOTO_FRAME_MAX_HEIGHT_UNITS,
+    Math.max(WORD_PHOTO_FRAME_MIN_HEIGHT_UNITS, proportionalHeight)
+  );
 }
 
 function paginateWordRows(rows: WordPreviewRow[]): WordPreviewRow[][] {
@@ -208,7 +225,9 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     .map((asset) => ({
       id: asset.id,
       src: asset.optimizedPath || asset.originalPath,
-      alt: asset.fileName
+      alt: asset.fileName,
+      width: asset.width,
+      height: asset.height
     }));
 
   const title = item.shortDescription || item.description || "Ohne Kurzbeschrieb";
@@ -236,6 +255,8 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     { text: estimate ? `Schaetzung: CHF ${estimate}` : "Schaetzung offen", kind: "estimate" as const },
     ...(priceValue ? [{ text: `${priceLabel}: CHF ${priceValue}`, kind: "price" as const, color: "FF0000" }] : [])
   ];
+  const primaryPhoto = photos[0];
+  const photoFrameHeightUnits = measurePhotoFrameHeightUnits(primaryPhoto);
 
   return {
     id: item.id,
@@ -249,9 +270,9 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     priceValue,
     details: detailBlocks,
     photos,
-    ...(photos[0] ? { primaryPhoto: photos[0] } : {}),
-    photoFrameHeightUnits: WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS,
-    heightUnits: measureWordRowHeight(contentLines.length, photos.length > 0)
+    ...(primaryPhoto ? { primaryPhoto } : {}),
+    photoFrameHeightUnits,
+    heightUnits: measureWordRowHeight(contentLines.length, primaryPhoto ? photoFrameHeightUnits : null)
   };
 }
 
@@ -538,10 +559,10 @@ async function attachGeneratedPhoto(
   zip: JSZip,
   relsDoc: XMLDocument,
   photo: WordPreviewPhoto,
-  frameHeightEmu: number,
   counter: number
 ): Promise<string | null> {
   const targetWidth = 640;
+  const frameHeightEmu = Math.round(measurePhotoFrameHeightUnits(photo) * WORD_UNIT_TO_EMU);
   const targetHeight = Math.round((targetWidth * frameHeightEmu) / WORD_PHOTO_FRAME_WIDTH_EMU);
   const containedDataUrl = await createContainedPhotoDataUrl(photo.src, targetWidth, targetHeight);
   const parsed = parseDataUrl(containedDataUrl);
@@ -636,7 +657,7 @@ function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPr
     const blip = photoCell.getElementsByTagNameNS(DRAWING_NS, "blip")[0];
     if (blip && imageRelationshipId) {
       blip.setAttributeNS(REL_NS, "r:embed", imageRelationshipId);
-      updatePhotoDrawingExtent(clone, WORD_PHOTO_FRAME_WIDTH_EMU, WORD_PHOTO_FRAME_TARGET_HEIGHT_EMU);
+      updatePhotoDrawingExtent(clone, WORD_PHOTO_FRAME_WIDTH_EMU, Math.round(row.photoFrameHeightUnits * WORD_UNIT_TO_EMU));
     } else {
       setCellParagraphs(doc, photoCell, [""]);
     }
@@ -713,13 +734,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       let imageRelationshipId: string | null = null;
       if (row.primaryPhoto) {
         // eslint-disable-next-line no-await-in-loop
-        imageRelationshipId = await attachGeneratedPhoto(
-          zip,
-          relsDoc,
-          row.primaryPhoto,
-          WORD_PHOTO_FRAME_TARGET_HEIGHT_EMU,
-          relationshipCounter
-        );
+        imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
         relationshipCounter += 1;
       }
 

@@ -976,9 +976,9 @@ textarea {
 }
 
 .word-template-row__photo img {
-  width: auto;
+  display: block;
+  width: 189.13px;
   height: auto;
-  max-width: 189.13px;
   object-fit: contain;
   object-position: center top;
 }
