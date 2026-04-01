@@ -510,6 +510,28 @@ function replaceDateBlock(table: Element, value: string, leadingEmptyLines: numb
   setCellParagraphs(doc, cell, lines);
 }
 
+function normalizeDateBlockParagraphSpacing(table: Element): void {
+  const paragraphs = Array.from(table.getElementsByTagNameNS(WORD_NS, "p"));
+  paragraphs.forEach((paragraph) => {
+    let paragraphProps = paragraph.getElementsByTagNameNS(WORD_NS, "pPr")[0];
+    if (!paragraphProps) {
+      paragraphProps = table.ownerDocument.createElementNS(WORD_NS, "w:pPr");
+      paragraph.insertBefore(paragraphProps, paragraph.firstChild);
+    }
+
+    let spacing = paragraphProps.getElementsByTagNameNS(WORD_NS, "spacing")[0];
+    if (!spacing) {
+      spacing = table.ownerDocument.createElementNS(WORD_NS, "w:spacing");
+      paragraphProps.appendChild(spacing);
+    }
+
+    spacing.setAttributeNS(WORD_NS, "w:before", "0");
+    spacing.setAttributeNS(WORD_NS, "w:after", "0");
+    spacing.setAttributeNS(WORD_NS, "w:line", "240");
+    spacing.setAttributeNS(WORD_NS, "w:lineRule", "auto");
+  });
+}
+
 function replaceDateValue(table: Element, value: string) {
   Array.from(table.getElementsByTagNameNS(WORD_NS, "t")).forEach((node) => {
     if (node.textContent?.includes("{{DATE}}")) {
@@ -745,6 +767,7 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     const dateTable = dateTemplate.cloneNode(true) as Element;
     replaceDateValue(dateTable, firstPage.headerRightText);
     replaceDateBlock(dateTable, firstPage.headerRightText, 3, 3);
+    normalizeDateBlockParagraphSpacing(dateTable);
     body.appendChild(dateTable);
   }
 
