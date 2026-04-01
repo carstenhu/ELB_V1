@@ -69,7 +69,13 @@ function WordTemplatePageView(props: {
               <article key={item.id} className="word-template-row" style={{ minHeight: `${item.heightUnits}px` }}>
                 <div className="word-template-row__int">{item.intNumber}</div>
                 <div className="word-template-row__photo">
-                  {item.primaryPhoto ? <img src={item.primaryPhoto.src} alt={item.primaryPhoto.alt} /> : null}
+                  {item.primaryPhoto ? (
+                    <img
+                      src={item.primaryPhoto.src}
+                      alt={item.primaryPhoto.alt}
+                      style={{ maxHeight: `${item.photoFrameHeightUnits}px` }}
+                    />
+                  ) : null}
                 </div>
                 <div className="word-template-row__text">
                   {item.renderedTitleLines.map((line, index) => (

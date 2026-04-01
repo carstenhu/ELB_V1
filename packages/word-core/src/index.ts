@@ -28,6 +28,7 @@ export interface WordPreviewRow {
   details: string[];
   photos: WordPreviewPhoto[];
   primaryPhoto?: WordPreviewPhoto;
+  photoFrameHeightUnits: number;
   heightUnits: number;
 }
 
@@ -55,7 +56,10 @@ const DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
 const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
 const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
-const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
+const WORD_UNIT_TO_EMU = 9525;
+const WORD_PHOTO_FRAME_WIDTH_UNITS = WORD_PHOTO_FRAME_WIDTH_EMU / WORD_UNIT_TO_EMU;
+const WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS = 120;
+const WORD_PHOTO_FRAME_TARGET_HEIGHT_EMU = Math.round(WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS * WORD_UNIT_TO_EMU);
 
 const WORD_TEMPLATE_PAGE_HEIGHT_UNITS = 1122.53;
 const WORD_TEMPLATE_PADDING_TOP_UNITS = 179.6;
@@ -72,6 +76,7 @@ const WORD_TEMPLATE_ROW_GAP_UNITS = 2.4;
 const WORD_TEMPLATE_ROW_PADDING_Y_UNITS = 11.34;
 const WORD_TEMPLATE_ROW_BORDER_UNITS = 2;
 const WORD_TEMPLATE_MIN_ROW_UNITS = 48;
+const WORD_TEMPLATE_PHOTO_ROW_MIN_UNITS = WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS + WORD_TEMPLATE_ROW_PADDING_Y_UNITS;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
 const WORD_LETTER_SPACING_PX = 0.8;
@@ -161,14 +166,15 @@ function wrapWordText(text: string, maxWidth: number): string[] {
   return lines;
 }
 
-function measureWordRowHeight(lineCount: number): number {
+function measureWordRowHeight(lineCount: number, hasPhoto: boolean): number {
   const safeLineCount = Math.max(lineCount, 1);
   const textHeight = WORD_TEMPLATE_ROW_PADDING_Y_UNITS * 2
     + WORD_TEMPLATE_ROW_BORDER_UNITS
     + safeLineCount * WORD_TEMPLATE_LINE_HEIGHT_UNITS
     + Math.max(safeLineCount - 1, 0) * WORD_TEMPLATE_ROW_GAP_UNITS;
 
-  return Math.max(textHeight, WORD_TEMPLATE_MIN_ROW_UNITS);
+  const photoHeight = hasPhoto ? WORD_TEMPLATE_PHOTO_ROW_MIN_UNITS : 0;
+  return Math.max(textHeight, WORD_TEMPLATE_MIN_ROW_UNITS, photoHeight);
 }
 
 function paginateWordRows(rows: WordPreviewRow[]): WordPreviewRow[][] {
@@ -244,7 +250,8 @@ function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[])
     details: detailBlocks,
     photos,
     ...(photos[0] ? { primaryPhoto: photos[0] } : {}),
-    heightUnits: measureWordRowHeight(contentLines.length)
+    photoFrameHeightUnits: WORD_PHOTO_FRAME_TARGET_HEIGHT_UNITS,
+    heightUnits: measureWordRowHeight(contentLines.length, photos.length > 0)
   };
 }
 
@@ -531,10 +538,11 @@ async function attachGeneratedPhoto(
   zip: JSZip,
   relsDoc: XMLDocument,
   photo: WordPreviewPhoto,
+  frameHeightEmu: number,
   counter: number
 ): Promise<string | null> {
   const targetWidth = 640;
-  const targetHeight = Math.round((targetWidth * WORD_PHOTO_FRAME_HEIGHT_EMU) / WORD_PHOTO_FRAME_WIDTH_EMU);
+  const targetHeight = Math.round((targetWidth * frameHeightEmu) / WORD_PHOTO_FRAME_WIDTH_EMU);
   const containedDataUrl = await createContainedPhotoDataUrl(photo.src, targetWidth, targetHeight);
   const parsed = parseDataUrl(containedDataUrl);
   if (!parsed) {
@@ -553,6 +561,21 @@ async function attachGeneratedPhoto(
   relsDoc.documentElement.appendChild(relationship);
 
   return relationshipId;
+}
+
+function updatePhotoDrawingExtent(table: Element, widthEmu: number, heightEmu: number): void {
+  const wpExtents = Array.from(table.getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing", "extent"));
+  wpExtents.forEach((extent) => {
+    extent.setAttribute("cx", String(widthEmu));
+    extent.setAttribute("cy", String(heightEmu));
+  });
+
+  const drawingExtents = Array.from(table.getElementsByTagNameNS(DRAWING_NS, "ext"))
+    .filter((extent) => extent.hasAttribute("cx") && extent.hasAttribute("cy"));
+  drawingExtents.forEach((extent) => {
+    extent.setAttribute("cx", String(widthEmu));
+    extent.setAttribute("cy", String(heightEmu));
+  });
 }
 
 function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPreviewRow, imageRelationshipId: string | null): Element {
@@ -613,6 +636,7 @@ function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPr
     const blip = photoCell.getElementsByTagNameNS(DRAWING_NS, "blip")[0];
     if (blip && imageRelationshipId) {
       blip.setAttributeNS(REL_NS, "r:embed", imageRelationshipId);
+      updatePhotoDrawingExtent(clone, WORD_PHOTO_FRAME_WIDTH_EMU, WORD_PHOTO_FRAME_TARGET_HEIGHT_EMU);
     } else {
       setCellParagraphs(doc, photoCell, [""]);
     }
@@ -689,7 +713,13 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       let imageRelationshipId: string | null = null;
       if (row.primaryPhoto) {
         // eslint-disable-next-line no-await-in-loop
-        imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
+        imageRelationshipId = await attachGeneratedPhoto(
+          zip,
+          relsDoc,
+          row.primaryPhoto,
+          WORD_PHOTO_FRAME_TARGET_HEIGHT_EMU,
+          relationshipCounter
+        );
         relationshipCounter += 1;
       }
 
