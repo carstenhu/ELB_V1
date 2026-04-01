@@ -728,6 +728,8 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
 
   const footerTemplateNodes = collectFooterTemplateNodes(body, rowTemplate);
   const footerClerkNodeIndex = getFooterClerkNameNodeIndex(footerTemplateNodes);
+  const allRows = model.pages.flatMap((page) => page.rows);
+  const firstPage = model.pages[0];
   const relationshipStart = nextRelationshipCounter(relsDoc);
   let relationshipCounter = relationshipStart;
 
@@ -735,47 +737,53 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
     body.removeChild(body.firstChild);
   }
 
-  for (let pageIndex = 0; pageIndex < model.pages.length; pageIndex += 1) {
-    const page = model.pages[pageIndex];
-    if (!page) {
-      continue;
-    }
+  if (firstPage?.showAddress) {
+    const addressTable = addressTemplate.cloneNode(true) as Element;
+    replaceAddressBlock(addressTable, firstPage.addressLines);
+    body.appendChild(addressTable);
 
-    if (pageIndex > 0) {
-      body.appendChild(createPageBreakParagraph(documentDoc));
-    }
+    const dateTable = dateTemplate.cloneNode(true) as Element;
+    replaceDateValue(dateTable, firstPage.headerRightText);
+    replaceDateBlock(dateTable, firstPage.headerRightText, 3, 3);
+    body.appendChild(dateTable);
+  }
 
-    if (page.showAddress) {
-      const addressTable = addressTemplate.cloneNode(true) as Element;
-      replaceAddressBlock(addressTable, page.addressLines);
-      body.appendChild(addressTable);
-      const dateTable = dateTemplate.cloneNode(true) as Element;
-      replaceDateValue(dateTable, page.headerRightText);
-      replaceDateBlock(dateTable, page.headerRightText, 3, 3);
-      body.appendChild(dateTable);
-    }
-
-    for (const row of page.rows) {
-      let imageRelationshipId: string | null = null;
-      if (row.primaryPhoto) {
-        // eslint-disable-next-line no-await-in-loop
-        imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
-        relationshipCounter += 1;
-      }
-
-      const rowTable = buildWordRowTable(documentDoc, rowTemplate, row, imageRelationshipId);
-      body.appendChild(rowTable);
-    }
-
-    if (pageIndex === model.pages.length - 1 && footerTemplateNodes.length > 0) {
-      footerTemplateNodes.forEach((node, index) => {
-        const clone = node.cloneNode(true) as Element;
-        if (index === footerClerkNodeIndex) {
-          replaceFooterClerkName(clone, page.footerLabel);
-        }
-        body.appendChild(clone);
+  if (allRows.length > 0) {
+    const objectsTable = rowTemplate.cloneNode(true) as Element;
+    const templateRow = objectsTable.getElementsByTagNameNS(WORD_NS, "tr")[0];
+    if (templateRow) {
+      const existingRows = Array.from(objectsTable.getElementsByTagNameNS(WORD_NS, "tr"));
+      existingRows.forEach((rowNode) => {
+        rowNode.parentNode?.removeChild(rowNode);
       });
+
+      for (const row of allRows) {
+        let imageRelationshipId: string | null = null;
+        if (row.primaryPhoto) {
+          // eslint-disable-next-line no-await-in-loop
+          imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
+          relationshipCounter += 1;
+        }
+
+        const rowTable = buildWordRowTable(documentDoc, rowTemplate, row, imageRelationshipId);
+        const generatedRow = rowTable.getElementsByTagNameNS(WORD_NS, "tr")[0];
+        if (generatedRow) {
+          objectsTable.appendChild(generatedRow.cloneNode(true));
+        }
+      }
     }
+
+    body.appendChild(objectsTable);
+  }
+
+  if (footerTemplateNodes.length > 0) {
+    footerTemplateNodes.forEach((node, index) => {
+      const clone = node.cloneNode(true) as Element;
+      if (index === footerClerkNodeIndex && firstPage) {
+        replaceFooterClerkName(clone, firstPage.footerLabel);
+      }
+      body.appendChild(clone);
+    });
   }
 
   body.appendChild(sectPr.cloneNode(true));
