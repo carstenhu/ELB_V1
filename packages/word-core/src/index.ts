@@ -480,28 +480,25 @@ function replaceAddressBlock(table: Element, addressLines: string[]) {
   setCellParagraphs(doc, cell, addressLines.length > 0 ? addressLines : [""]);
 }
 
-function compactDateBlock(table: Element) {
+function replaceDateBlock(table: Element, value: string, leadingEmptyLines: number, trailingEmptyLines: number) {
   const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
   if (!cell) {
     return;
   }
 
-  const paragraphs = Array.from(cell.getElementsByTagNameNS(WORD_NS, "p"));
-  if (!paragraphs.length) {
+  const doc = table.ownerDocument;
+  const safeLeading = Math.max(leadingEmptyLines, 0);
+  const safeTrailing = Math.max(trailingEmptyLines, 0);
+  const lines = [
+    ...Array.from({ length: safeLeading }, () => ""),
+    value,
+    ...Array.from({ length: safeTrailing }, () => "")
+  ];
+
+  if (!lines.length) {
     return;
   }
-
-  const nonEmptyParagraph = paragraphs.find((paragraph) => paragraph.textContent?.trim());
-  const paragraphToKeep = nonEmptyParagraph ?? paragraphs[0];
-  if (!paragraphToKeep) {
-    return;
-  }
-
-  paragraphs.forEach((paragraph) => {
-    if (paragraph !== paragraphToKeep) {
-      paragraph.parentNode?.removeChild(paragraph);
-    }
-  });
+  setCellParagraphs(doc, cell, lines);
 }
 
 function replaceDateValue(table: Element, value: string) {
@@ -739,15 +736,15 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
       body.appendChild(createPageBreakParagraph(documentDoc));
     }
 
-    const dateTable = dateTemplate.cloneNode(true) as Element;
-    compactDateBlock(dateTable);
-    replaceDateValue(dateTable, page.showAddress ? page.headerRightText : "");
     if (page.showAddress) {
       const addressTable = addressTemplate.cloneNode(true) as Element;
       replaceAddressBlock(addressTable, page.addressLines);
       body.appendChild(addressTable);
+      const dateTable = dateTemplate.cloneNode(true) as Element;
+      replaceDateValue(dateTable, page.headerRightText);
+      replaceDateBlock(dateTable, page.headerRightText, 3, 3);
+      body.appendChild(dateTable);
     }
-    body.appendChild(dateTable);
 
     for (const row of page.rows) {
       let imageRelationshipId: string | null = null;
