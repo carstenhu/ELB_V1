@@ -17,6 +17,9 @@ import {
 
 export const FOLLOW_UP_COLOR = rgb(0.74, 0.14, 0.11);
 export const REQUIRED_FIELD_COLOR = rgb(0.76, 0.08, 0.12);
+export const PDF_DATA_TEXT_COLOR = rgb(0, 0, 0);
+export const PDF_DATA_FONT_SIZE = 9.4;
+export const PDF_DATA_LINE_HEIGHT = 10.8;
 
 function appendContactLines(lines: string[], phone: string, email: string): string[] {
   const nextLines = [...lines];
@@ -72,6 +75,7 @@ export function drawFieldOverlay(args: {
   multiline?: boolean;
   forceVisible?: boolean;
   color?: ReturnType<typeof rgb>;
+  baselineNudge?: number;
 }): void {
   if (!args.forceVisible && !isFollowUpValue(args.value)) {
     return;
@@ -82,21 +86,33 @@ export function drawFieldOverlay(args: {
     return;
   }
 
-  const fontSize = args.multiline ? 9.4 : 10.5;
-  const lineHeight = args.multiline ? 10.6 : 10.5;
+  const fontSize = PDF_DATA_FONT_SIZE;
+  const lineHeight = PDF_DATA_LINE_HEIGHT;
   const lines = args.multiline
     ? wrapText(args.font, args.value, fontSize, Math.max(rect.width - 6, 1))
     : [args.value];
 
   lines.forEach((line, index) => {
+    const y = args.multiline
+      ? rect.top - fontSize - 1.2 - index * lineHeight
+      : rect.bottom + Math.max((rect.height - fontSize) / 2, 0) + (args.baselineNudge ?? 0.4) - index * lineHeight;
+
     args.page.drawText(line, {
       x: rect.left + 2.5,
-      y: rect.top - fontSize - (args.multiline ? 1.2 : 2.5) - index * lineHeight,
+      y,
       size: fontSize,
       font: args.font,
-      color: args.color ?? (isFollowUpValue(args.value) ? FOLLOW_UP_COLOR : rgb(0, 0, 0))
+      color: args.color ?? (isFollowUpOverlayValue(args.value) ? FOLLOW_UP_COLOR : PDF_DATA_TEXT_COLOR)
     });
   });
+}
+
+function isFollowUpOverlayValue(value: string): boolean {
+  if (isFollowUpValue(value)) {
+    return true;
+  }
+
+  return value.toLowerCase().includes("angaben folgen");
 }
 
 function clearFieldOverlay(page: PDFPage, form: PdfForm, fieldName: string): void {
@@ -341,7 +357,7 @@ export function fillSharedFields(args: {
   setTextFieldSafe(form, "EL Nationalit\u00e4t  1", "");
   setTextFieldSafe(form, "EL ID/Passnr  1", "");
 
-  drawFieldOverlay({ page, form, font, fieldName: receiptFieldName, value: caseFile.meta.receiptNumber });
+  drawFieldOverlay({ page, form, font, fieldName: receiptFieldName, value: caseFile.meta.receiptNumber, baselineNudge: 1.2 });
   drawFieldOverlay({ page, form, font, fieldName: "Kommission", value: commissionValue });
   drawFieldOverlay({ page, form, font, fieldName: "Transport", value: transportValue });
   drawFieldOverlay({ page, form, font, fieldName: "Abb.-Kosten", value: imagingValue });
@@ -351,7 +367,7 @@ export function fillSharedFields(args: {
   drawFieldOverlay({ page, form, font, fieldName: vatCategoryFieldName, value: vatCategoryValue, forceVisible: Boolean(vatCategoryValue) });
   drawFieldOverlay({ page, form, font, fieldName: "Diverses/Provenienz 2", value: provenanceValue });
   drawFieldOverlay({ page, form, font, fieldName: "Internet  1", value: internetValue });
-  drawFieldOverlay({ page, form, font, fieldName: "Sachbearbeiter 2", value: clerkValue });
+  drawFieldOverlay({ page, form, font, fieldName: "Sachbearbeiter 2", value: clerkValue, baselineNudge: 1.2 });
   drawFieldOverlay({ page, form, font, fieldName: "Adresse EL", value: addressValue, multiline: true, forceVisible: true });
   if (ownerValue) {
     drawFieldOverlay({ page, form, font, fieldName: "Adresse EG", value: ownerValue, multiline: true, forceVisible: true });

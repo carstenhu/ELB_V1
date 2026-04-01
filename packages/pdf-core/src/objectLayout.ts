@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, type PDFFont } from "pdf-lib";
 import templatePdfUrl from "../../../vorlagen/template.pdf?url";
 import templateObjectsPdfUrl from "../../../vorlagen/template_objekte.pdf?url";
+import { PDF_DATA_FONT_SIZE, PDF_DATA_LINE_HEIGHT } from "./renderSupport";
 import { wrapText } from "./drawingSupport";
 import { buildEstimateText, buildObjectText } from "./previewModel";
 import { getFieldRects, loadTemplateBytes, type PdfForm } from "./templateSupport";
@@ -26,12 +27,34 @@ function unionRects(rects: Array<ReturnType<typeof import("./templateSupport").n
   };
 }
 
-function toHotspotRect(union: NonNullable<ReturnType<typeof unionRects>>, pageWidth: number, pageHeight: number): PdfHotspotRect {
+function toHotspotRect(
+  union: NonNullable<ReturnType<typeof unionRects>>,
+  pageWidth: number,
+  pageHeight: number,
+  options?: { contentAligned?: boolean }
+): PdfHotspotRect {
+  let left = union.left;
+  let right = union.right;
+  let top = union.top;
+  let bottom = union.bottom;
+
+  if (options?.contentAligned) {
+    const insetX = Math.min(union.width * 0.02, 3);
+    const insetY = Math.min(union.height * 0.22, 4);
+    left += insetX;
+    right -= insetX;
+    top -= insetY;
+    bottom += insetY;
+  }
+
+  const width = Math.max(right - left, 0);
+  const height = Math.max(top - bottom, 0);
+
   return {
-    leftPct: (union.left / pageWidth) * 100,
-    topPct: ((pageHeight - union.top) / pageHeight) * 100,
-    widthPct: (union.width / pageWidth) * 100,
-    heightPct: (union.height / pageHeight) * 100
+    leftPct: (left / pageWidth) * 100,
+    topPct: ((pageHeight - top) / pageHeight) * 100,
+    widthPct: (width / pageWidth) * 100,
+    heightPct: (height / pageHeight) * 100
   };
 }
 
@@ -145,8 +168,8 @@ export function getObjectFieldGeometry(form: PdfForm, suffix: "1" | "2"): Object
   const top = Math.min(intNumber.top, auctionLabel.top, departmentCode.top, description.top, estimate.top);
   const bottom = Math.max(intNumber.bottom, auctionLabel.bottom, departmentCode.bottom, description.bottom, estimate.bottom);
   const height = Math.max(top - bottom, 1);
-  const fontSize = 8.7;
-  const lineHeight = 10.8;
+  const fontSize = PDF_DATA_FONT_SIZE;
+  const lineHeight = PDF_DATA_LINE_HEIGHT;
   const topPadding = 1;
   const bottomPadding = 0.8;
   const leftPadding = 1.8;
@@ -278,7 +301,7 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
 
   const fieldMap = pageKind === "main"
     ? {
-        meta: ["ELB Nr"],
+        meta: ["ELB Nr", "Sachbearbeiter 2"],
         consignor: ["Adresse EL"],
         consignorIdentity: ["EL Geburtsdatum 1", "EL Nationalit\u00e4t  1", "EL ID/Passnr  1"],
         vatCategory: ["MwSt. Kategorie"],
@@ -292,7 +315,7 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
         clerkSignature: ["Koller Auktionen Sig 1"]
       }
     : {
-        meta: ["ELB Nr 2", "Seite N/N"],
+        meta: ["ELB Nr 2", "Sachbearbeiter 2", "Seite N/N"],
         consignor: ["Adresse EL"],
         consignorIdentity: [],
         vatCategory: [],
@@ -306,12 +329,12 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
         clerkSignature: ["Koller Auktionen Sig 1"]
       };
 
-  function buildHotspot(fields: string[]) {
+  function buildHotspot(fields: string[], options?: { contentAligned?: boolean }) {
     const union = getUnionForFields(form, fields);
     if (!union) {
       return { topPct: 0, leftPct: 0, widthPct: 0, heightPct: 0 };
     }
-    return toHotspotRect(union, pageWidth, pageHeight);
+    return toHotspotRect(union, pageWidth, pageHeight, options);
   }
 
   function buildObjectHotspot() {
@@ -341,15 +364,15 @@ export async function getPdfHotspotMap(pageKind: "main" | "follow"): Promise<Pdf
   }
 
   return {
-    meta: buildHotspot(fieldMap.meta),
+    meta: buildHotspot(fieldMap.meta, { contentAligned: true }),
     consignor: buildHotspot(fieldMap.consignor),
-    consignorIdentity: buildHotspot(fieldMap.consignorIdentity),
-    vatCategory: buildHotspot(fieldMap.vatCategory),
-    vatNumber: buildHotspot(fieldMap.vatNumber),
+    consignorIdentity: buildHotspot(fieldMap.consignorIdentity, { contentAligned: true }),
+    vatCategory: buildHotspot(fieldMap.vatCategory, { contentAligned: true }),
+    vatNumber: buildHotspot(fieldMap.vatNumber, { contentAligned: true }),
     owner: buildHotspot(fieldMap.owner),
-    bank: buildHotspot(fieldMap.bank),
-    commission: buildHotspot(fieldMap.commission),
-    costs: buildHotspot(fieldMap.costs),
+    bank: buildHotspot(fieldMap.bank, { contentAligned: true }),
+    commission: buildHotspot(fieldMap.commission, { contentAligned: true }),
+    costs: buildHotspot(fieldMap.costs, { contentAligned: true }),
     object: buildObjectHotspot(),
     consignorSignature: buildHotspot(fieldMap.consignorSignature),
     clerkSignature: buildHotspot(fieldMap.clerkSignature)

@@ -6,6 +6,7 @@ import { buildObjectPageChunks, getObjectFieldGeometry } from "./objectLayout";
 import { createPdfPreviewModel, isFollowUpValue } from "./previewModel";
 import {
   FOLLOW_UP_COLOR,
+  PDF_DATA_TEXT_COLOR,
   buildMissingObjectFieldMap,
   drawMissingObjectFieldOverlays,
   drawSignatureIntoFields,
@@ -54,7 +55,7 @@ async function drawObjectChunk(args: {
           y: lineTop - baselineOffset,
           size: geometry.fontSize,
           font,
-          color: isFollowUpValue(line) ? FOLLOW_UP_COLOR : rgb(0.07, 0.1, 0.09)
+          color: isFollowUpValue(line) ? FOLLOW_UP_COLOR : PDF_DATA_TEXT_COLOR
         });
       });
     });
