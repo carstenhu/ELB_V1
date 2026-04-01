@@ -884,11 +884,13 @@ textarea {
 }
 
 .word-preview-page__top--template {
-  position: relative;
+  display: grid;
+  grid-template-columns: 295px 1fr;
+  column-gap: 0;
+  align-items: start;
   width: 612.27px;
   min-height: 86.4px;
   margin-top: 0;
-  align-items: flex-start;
   justify-self: start;
 }
 
@@ -902,8 +904,6 @@ textarea {
 }
 
 .word-address-block--template {
-  position: absolute;
-  inset: 0 auto auto 0;
   width: 295px;
   padding-top: 0;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
@@ -918,8 +918,7 @@ textarea {
 }
 
 .word-date-block {
-  position: absolute;
-  right: 0;
+  justify-self: end;
   width: 220px;
   text-align: right;
   font-family: "Neue Haas Grotesk Text Pro", "Helvetica Neue", sans-serif;
@@ -929,12 +928,8 @@ textarea {
   color: #101514;
 }
 
-.word-date-block--first {
-  top: 116px;
-}
-
-.word-date-block--follow {
-  top: 116px;
+.word-preview-page__top--template-follow {
+  grid-template-columns: 1fr;
 }
 
 .word-preview-list--template {

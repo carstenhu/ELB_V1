@@ -43,23 +43,34 @@ function WordTemplatePageView(props: {
   showFooter: boolean;
 }) {
   const { page, headerImageSrc, showFooter } = props;
+  const previewLineHeightPx = 19.2;
+  const previewTopMinHeightPx = 86.4;
+  const addressLineCount = page.showAddress ? Math.max(page.addressLines.length, 1) : 0;
+  const dateOffsetPx = page.showAddress ? addressLineCount * previewLineHeightPx + 3 : 0;
+  const topBlockMinHeightPx = page.showAddress
+    ? Math.max(previewTopMinHeightPx, dateOffsetPx + previewLineHeightPx)
+    : previewTopMinHeightPx;
 
   return (
     <div className="word-a4-scroll">
       <div className="word-a4-scroll__inner">
         <div className="word-preview-page word-preview-page--template">
           {headerImageSrc ? <img className="word-preview-page__header-image" src={headerImageSrc} alt="" /> : null}
-          <div className="word-preview-page__top word-preview-page__top--template">
+          <div
+            className={`word-preview-page__top word-preview-page__top--template ${page.showAddress ? "word-preview-page__top--template-first" : "word-preview-page__top--template-follow"}`}
+            style={{ minHeight: `${topBlockMinHeightPx}px` }}
+          >
             {page.showAddress ? (
               <div className="word-address-block word-address-block--template">
                 {page.addressLines.map((line) => (
                   <div key={line}>{line}</div>
                 ))}
               </div>
-            ) : (
-              <div className="word-address-block word-address-block--template word-address-block--empty" />
-            )}
-            <div className={`word-date-block ${page.showAddress ? "word-date-block--first" : "word-date-block--follow"}`}>
+            ) : null}
+            <div
+              className={`word-date-block ${page.showAddress ? "word-date-block--first" : "word-date-block--follow"}`}
+              style={{ marginTop: `${dateOffsetPx}px` }}
+            >
               <div className="word-date-block__value">{page.headerRightText}</div>
             </div>
           </div>
