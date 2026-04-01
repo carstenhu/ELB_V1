@@ -5,6 +5,8 @@ import { loadCaseById } from "../appState";
 import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
 
+type DossierSyncState = "synced" | "local-only" | "pending" | "error" | undefined;
+
 function sortDossiers(caseFiles: readonly CaseFile[]): CaseFile[] {
   return [...caseFiles].sort((left, right) =>
     right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
@@ -23,12 +25,42 @@ function getDossierStatusLabel(caseFile: CaseFile, currentDossierIdByClerk: Reco
   return caseFile.meta.status === "finalized" ? "Gespeichert" : "In Bearbeitung";
 }
 
-function getSyncStateLabel(state: "synced" | "local-only" | "pending" | "error" | undefined): string | null {
+function getSyncStateLabel(state: DossierSyncState): string | null {
   if (!state) return null;
   if (state === "synced") return "Synchronisiert";
   if (state === "local-only") return "Nur lokal";
   if (state === "pending") return "Wartet auf Sync";
   return "Sync-Fehler";
+}
+
+function DossierList(props: {
+  dossiers: CaseFile[];
+  clerkNameById: Map<string, string>;
+  currentDossierIdByClerk: Record<string, string | null>;
+  syncStates: Record<string, DossierSyncState>;
+  onSelectDossier: (id: string) => void;
+}) {
+  return (
+    <div className="load-list">
+      {props.dossiers.map((dossier) => (
+        <button
+          key={dossier.meta.id}
+          type="button"
+          className="primary-button load-list__item"
+          onClick={() => props.onSelectDossier(dossier.meta.id)}
+        >
+          <strong>{`${props.clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} - ${getDossierDisplayName(dossier)}`}</strong>
+          <span>
+            {[
+              getDossierStatusLabel(dossier, props.currentDossierIdByClerk),
+              `ELB ${dossier.meta.receiptNumber}`,
+              getSyncStateLabel(props.syncStates[dossier.meta.id])
+            ].filter(Boolean).join(" - ")}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector?: () => void }) {
@@ -42,12 +74,30 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
   );
   const clerkNameById = new Map(state.masterData.clerks.map((clerk) => [clerk.id, clerk.name]));
 
-  const visibleDossiers = useMemo(() => {
+  const syncStates = useMemo(
+    () =>
+      Object.fromEntries(
+        state.dossiers.map((dossier) => [dossier.meta.id, dossierSyncStatus?.dossiers[dossier.meta.id]?.state])
+      ) as Record<string, DossierSyncState>,
+    [state.dossiers, dossierSyncStatus]
+  );
+
+  const supabaseDossiers = useMemo(
+    () => sortDossiers(state.dossiers.filter((dossier) => syncStates[dossier.meta.id] === "synced")),
+    [state.dossiers, syncStates]
+  );
+
+  const localDossiers = useMemo(() => {
     const base = showAllClerks || !state.activeClerkId
       ? state.dossiers
       : state.dossiers.filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId);
-    return sortDossiers(base);
-  }, [showAllClerks, state.activeClerkId, state.dossiers]);
+    return sortDossiers(base.filter((dossier) => syncStates[dossier.meta.id] !== "synced"));
+  }, [showAllClerks, state.activeClerkId, state.dossiers, syncStates]);
+
+  function handleSelectDossier(id: string) {
+    loadCaseById(id);
+    props.onDone?.();
+  }
 
   return (
     <div className="page-grid">
@@ -76,32 +126,37 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
                   : "Dossierquelle wird vorbereitet."}
           </p>
         ) : null}
-        {!visibleDossiers.length ? <p>Keine Dossiers vorhanden.</p> : null}
-        {visibleDossiers.length ? (
-          <div className="load-list">
-            {visibleDossiers.map((dossier) => (
-              <button
-                key={dossier.meta.id}
-                type="button"
-                className="primary-button load-list__item"
-                onClick={() => {
-                  loadCaseById(dossier.meta.id);
-                  props.onDone?.();
-                }}
-              >
-                <strong>{`${clerkNameById.get(dossier.meta.clerkId) ?? "Unbekannt"} · ${getDossierDisplayName(dossier)}`}</strong>
-                <span>
-                  {[
-                    getDossierStatusLabel(dossier, state.currentDossierIdByClerk),
-                    `ELB ${dossier.meta.receiptNumber}`,
-                    getSyncStateLabel(dossierSyncStatus?.dossiers[dossier.meta.id]?.state)
-                  ].filter(Boolean).join(" · ")}
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
+
+        <div className="load-group">
+          <h3 className="load-group__title">Supabase-Dossiers</h3>
+          <p className="section-status-line">Hier siehst du alle Dossiers aus Supabase und kannst sie direkt laden.</p>
+          {!supabaseDossiers.length ? <p>Keine Supabase-Dossiers gefunden.</p> : null}
+          {supabaseDossiers.length ? (
+            <DossierList
+              dossiers={supabaseDossiers}
+              clerkNameById={clerkNameById}
+              currentDossierIdByClerk={state.currentDossierIdByClerk}
+              syncStates={syncStates}
+              onSelectDossier={handleSelectDossier}
+            />
+          ) : null}
+        </div>
+
+        <div className="load-group">
+          <h3 className="load-group__title">Lokale Dossiers</h3>
+          {!localDossiers.length ? <p>Keine lokalen Dossiers vorhanden.</p> : null}
+          {localDossiers.length ? (
+            <DossierList
+              dossiers={localDossiers}
+              clerkNameById={clerkNameById}
+              currentDossierIdByClerk={state.currentDossierIdByClerk}
+              syncStates={syncStates}
+              onSelectDossier={handleSelectDossier}
+            />
+          ) : null}
+        </div>
       </Section>
     </div>
   );
 }
+

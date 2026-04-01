@@ -9,11 +9,18 @@ export interface WordPreviewPhoto {
   alt: string;
 }
 
+export interface WordPreviewRowLine {
+  text: string;
+  kind: "title" | "detail" | "estimate" | "price";
+  color?: string;
+}
+
 export interface WordPreviewRow {
   id: string;
   intNumber: string;
   renderedTitleLines: string[];
   renderedDetailLines: string[];
+  contentLines: WordPreviewRowLine[];
   title: string;
   estimate: string;
   priceLabel: string;
@@ -28,6 +35,7 @@ export interface WordPreviewPageModel {
   pageNumber: number;
   totalPages: number;
   showAddress: boolean;
+  showFooter: boolean;
   addressLines: string[];
   headerRightText: string;
   footerLabel: string;
@@ -42,20 +50,32 @@ export interface WordPreviewModel {
   };
 }
 
-const PAGE_HEIGHT_UNITS = 980;
-const FIRST_PAGE_HEADER_UNITS = 250;
-const FOLLOW_PAGE_HEADER_UNITS = 96;
-const FOOTER_RESERVE_UNITS = 116;
-const TEXT_LINE_UNITS = 19.2;
-const ROW_VERTICAL_PADDING_UNITS = 11.34;
-const ROW_BORDER_UNITS = 2;
-const MIN_ROW_UNITS = 72;
+const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
+const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
 const WORD_PHOTO_FRAME_WIDTH_EMU = 1801495;
 const WORD_PHOTO_FRAME_HEIGHT_EMU = 2233930;
-const PHOTO_ROW_UNITS = 245.14;
+
+const WORD_TEMPLATE_PAGE_HEIGHT_UNITS = 1122.53;
+const WORD_TEMPLATE_PADDING_TOP_UNITS = 179.6;
+const WORD_TEMPLATE_PADDING_BOTTOM_UNITS = 113.47;
+const WORD_TEMPLATE_HEADER_UNITS = 86.4;
+const WORD_TEMPLATE_FOOTER_UNITS = 48.8;
+const WORD_TEMPLATE_LIST_HEIGHT_UNITS = WORD_TEMPLATE_PAGE_HEIGHT_UNITS
+  - WORD_TEMPLATE_PADDING_TOP_UNITS
+  - WORD_TEMPLATE_PADDING_BOTTOM_UNITS
+  - WORD_TEMPLATE_HEADER_UNITS
+  - WORD_TEMPLATE_FOOTER_UNITS;
+const WORD_TEMPLATE_LINE_HEIGHT_UNITS = 19.2;
+const WORD_TEMPLATE_ROW_GAP_UNITS = 2.4;
+const WORD_TEMPLATE_ROW_PADDING_Y_UNITS = 11.34;
+const WORD_TEMPLATE_ROW_BORDER_UNITS = 2;
+const WORD_TEMPLATE_MIN_ROW_UNITS = 48;
 const WORD_TEXT_MAX_WIDTH_PX = 326.47;
 const WORD_FONT = "13.33px 'Neue Haas Grotesk Text Pro', 'Helvetica Neue', sans-serif";
 const WORD_LETTER_SPACING_PX = 0.8;
+const WORD_UNIT_TO_TWIP = 15;
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
@@ -66,11 +86,12 @@ const ADDRESS_BLOCK_HEIGHT = 112;
 const FOLLOW_HEADER_HEIGHT = 34;
 const FOOTER_HEIGHT = 64;
 const ROW_UNIT_TO_PT = 0.54;
-const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-const DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
-const REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-const PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
+const PDF_TEXT_LINE_HEIGHT = 11.5;
+const PDF_ROW_PADDING_BOTTOM = 10;
+const PDF_PHOTO_SIZE = 72;
+
 let templateAssetsPromise: Promise<{ headerImageSrc: string }> | null = null;
+let wrapMeasureContext: CanvasRenderingContext2D | null = null;
 
 function normalizeDisplayIntNumber(value: string): string {
   const digits = value.trim();
@@ -81,8 +102,6 @@ function normalizeDisplayIntNumber(value: string): string {
   const parsed = Number.parseInt(digits, 10);
   return Number.isFinite(parsed) ? String(parsed) : digits;
 }
-
-let wrapMeasureContext: CanvasRenderingContext2D | null = null;
 
 function getWrapMeasureContext(): CanvasRenderingContext2D | null {
   if (wrapMeasureContext) {
@@ -113,7 +132,7 @@ function measureWordTextWidth(text: string): number {
   return context.measureText(text).width + letterSpacingWidth;
 }
 
-function wrapPreviewText(text: string, maxWidth: number): string[] {
+function wrapWordText(text: string, maxWidth: number): string[] {
   const normalized = text.trim();
   if (!normalized) {
     return [];
@@ -142,22 +161,32 @@ function wrapPreviewText(text: string, maxWidth: number): string[] {
   return lines;
 }
 
-function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, followPageBudget: number): WordPreviewRow[][] {
+function measureWordRowHeight(lineCount: number): number {
+  const safeLineCount = Math.max(lineCount, 1);
+  const textHeight = WORD_TEMPLATE_ROW_PADDING_Y_UNITS * 2
+    + WORD_TEMPLATE_ROW_BORDER_UNITS
+    + safeLineCount * WORD_TEMPLATE_LINE_HEIGHT_UNITS
+    + Math.max(safeLineCount - 1, 0) * WORD_TEMPLATE_ROW_GAP_UNITS;
+
+  return Math.max(textHeight, WORD_TEMPLATE_MIN_ROW_UNITS);
+}
+
+function paginateWordRows(rows: WordPreviewRow[]): WordPreviewRow[][] {
   const pages: WordPreviewRow[][] = [];
   let currentPage: WordPreviewRow[] = [];
-  let remainingBudget = firstPageBudget;
+  let currentHeight = 0;
 
   rows.forEach((row) => {
-    const rowHeight = row.heightUnits;
-
-    if (currentPage.length > 0 && rowHeight > remainingBudget) {
+    const nextHeight = currentHeight + row.heightUnits;
+    if (currentPage.length > 0 && nextHeight > WORD_TEMPLATE_LIST_HEIGHT_UNITS) {
       pages.push(currentPage);
-      currentPage = [];
-      remainingBudget = followPageBudget;
+      currentPage = [row];
+      currentHeight = row.heightUnits;
+      return;
     }
 
     currentPage.push(row);
-    remainingBudget -= rowHeight;
+    currentHeight = nextHeight;
   });
 
   if (currentPage.length > 0 || pages.length === 0) {
@@ -167,7 +196,7 @@ function chunkRowsByHeight(rows: WordPreviewRow[], firstPageBudget: number, foll
   return pages;
 }
 
-function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPreviewRow {
+function buildWordPreviewRow(item: CaseFile["objects"][number], assets: Asset[]): WordPreviewRow {
   const photos = assets
     .filter((asset) => item.photoAssetIds.includes(asset.id))
     .map((asset) => ({
@@ -176,37 +205,46 @@ function createRow(item: CaseFile["objects"][number], assets: Asset[]): WordPrev
       alt: asset.fileName
     }));
 
-  const details = [
+  const title = item.shortDescription || item.description || "Ohne Kurzbeschrieb";
+  const detailBlocks = [
     item.description.trim(),
     item.referenceNumber.trim() ? `Ref. ${item.referenceNumber.trim()}` : "",
     item.remarks.trim() ? `Bemerkung ${item.remarks.trim()}` : ""
   ].filter(Boolean);
 
+  const renderedTitleLines = wrapWordText(title, WORD_TEXT_MAX_WIDTH_PX);
+  const renderedDetailLines = detailBlocks.flatMap((detail) => wrapWordText(detail, WORD_TEXT_MAX_WIDTH_PX));
   const estimate = [formatAmountForDisplay(item.estimate.low), formatAmountForDisplay(item.estimate.high)]
     .filter(Boolean)
     .join(" - ");
+  const priceLabel = item.pricingMode === "startPrice"
+    ? "Startpreis"
+    : item.pricingMode === "netLimit"
+      ? "Nettolimite"
+      : "Limite";
+  const priceValue = formatAmountForDisplay(item.priceValue);
 
-  const renderedTitleLines = wrapPreviewText(item.shortDescription || item.description || "Ohne Kurzbeschrieb", WORD_TEXT_MAX_WIDTH_PX);
-  const renderedDetailLines = details.flatMap((detail) => wrapPreviewText(detail, WORD_TEXT_MAX_WIDTH_PX));
-  const priceLines = item.priceValue.trim() ? 1 : 0;
-  const totalRenderedLines = Math.max(renderedTitleLines.length + renderedDetailLines.length + 1 + priceLines, 1);
-  const textHeightUnits = ROW_VERTICAL_PADDING_UNITS * 2 + totalRenderedLines * TEXT_LINE_UNITS + ROW_BORDER_UNITS;
-  const photoHeightUnits = photos[0] ? PHOTO_ROW_UNITS : 0;
-  const heightUnits = Math.max(textHeightUnits, photoHeightUnits, MIN_ROW_UNITS);
+  const contentLines: WordPreviewRowLine[] = [
+    ...renderedTitleLines.map((line) => ({ text: line, kind: "title" as const })),
+    ...renderedDetailLines.map((line) => ({ text: line, kind: "detail" as const })),
+    { text: estimate ? `Schaetzung: CHF ${estimate}` : "Schaetzung offen", kind: "estimate" as const },
+    ...(priceValue ? [{ text: `${priceLabel}: CHF ${priceValue}`, kind: "price" as const, color: "FF0000" }] : [])
+  ];
 
   return {
     id: item.id,
     intNumber: normalizeDisplayIntNumber(item.intNumber),
     renderedTitleLines,
     renderedDetailLines,
-    title: item.shortDescription || item.description || "Ohne Kurzbeschrieb",
+    contentLines,
+    title,
     estimate,
-    priceLabel: item.pricingMode === "startPrice" ? "Startpreis" : item.pricingMode === "netLimit" ? "Nettolimite" : "Limite",
-    priceValue: formatAmountForDisplay(item.priceValue),
-    details,
+    priceLabel,
+    priceValue,
+    details: detailBlocks,
     photos,
     ...(photos[0] ? { primaryPhoto: photos[0] } : {}),
-    heightUnits
+    heightUnits: measureWordRowHeight(contentLines.length)
   };
 }
 
@@ -227,18 +265,28 @@ function formatSwissDate(value: string): string {
   }).format(date);
 }
 
-async function readZipDataUrl(zip: JSZip, path: string): Promise<string> {
-  const file = zip.file(path);
-  if (!file) {
-    return "";
+function parseDataUrl(dataUrl: string): { bytes: Uint8Array; mimeType: string } | null {
+  const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+  if (!match) {
+    return null;
   }
 
-  const base64 = await file.async("base64");
-  const extension = path.split(".").pop()?.toLowerCase();
-  const mimeType = extension === "png" ? "image/png" : "image/jpeg";
-  return `data:${mimeType};base64,${base64}`;
+  const mimeType = match[1];
+  const base64 = match[2];
+  if (!mimeType || !base64) {
+    return null;
+  }
+
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return { bytes, mimeType };
 }
 
+<<<<<<< HEAD
 export async function loadWordTemplateAssets(): Promise<{ headerImageSrc: string }> {
   if (!templateAssetsPromise) {
     templateAssetsPromise = (async () => {
@@ -465,6 +513,9 @@ function setFooterClerkName(node: Element, value: string) {
 }
 
 async function createContainedPhotoDataUrl(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
+=======
+function createContainedPhotoDataUrl(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
+>>>>>>> d375752613b7189a9aa66924a336480270774ada
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
@@ -495,38 +546,296 @@ async function createContainedPhotoDataUrl(dataUrl: string, targetWidth: number,
   });
 }
 
-async function ensureImageRelationship(zip: JSZip, relsDoc: XMLDocument, photo: WordPreviewPhoto, counter: number): Promise<string | null> {
+function readDataUrlFromZip(zip: JSZip, path: string): Promise<string> {
+  const file = zip.file(path);
+  if (!file) {
+    return Promise.resolve("");
+  }
+
+  return file.async("base64").then((base64) => {
+    const extension = path.split(".").pop()?.toLowerCase();
+    const mimeType = extension === "png" ? "image/png" : "image/jpeg";
+    return `data:${mimeType};base64,${base64}`;
+  });
+}
+
+export async function loadWordTemplateAssets(): Promise<{ headerImageSrc: string }> {
+  if (!templateAssetsPromise) {
+    templateAssetsPromise = (async () => {
+      const response = await fetch(templateDocxUrl);
+      const buffer = await response.arrayBuffer();
+      const zip = await JSZip.loadAsync(buffer);
+      const headerImageSrc = await readDataUrlFromZip(zip, "word/media/image2.jpg");
+      return { headerImageSrc };
+    })();
+  }
+
+  return templateAssetsPromise;
+}
+
+export function createWordPreviewModel(caseFile: CaseFile, masterData: MasterData): WordPreviewModel {
+  const rows = caseFile.objects.map((item) => buildWordPreviewRow(item, caseFile.assets));
+  const pages = paginateWordRows(rows);
+  const totalPages = Math.max(pages.length, 1);
+  const footerLabel = masterData.clerks.find((clerk) => clerk.id === caseFile.meta.clerkId)?.name || "Sachbearbeiter offen";
+
+  return {
+    pages: pages.map((rowsOnPage, index) => ({
+      pageNumber: index + 1,
+      totalPages,
+      showAddress: index === 0,
+      showFooter: index === totalPages - 1,
+      addressLines: index === 0 ? deriveAddressLines(caseFile.consignor) : [],
+      headerRightText: index === 0
+        ? formatSwissDate(caseFile.meta.updatedAt || caseFile.meta.createdAt)
+        : `Seite ${index + 1}/${totalPages}`,
+      footerLabel,
+      rows: rowsOnPage
+    })),
+    typography: {
+      family: "Neue Haas Grotesk",
+      note: "Template-basierter Word-Export"
+    }
+  };
+}
+
+function getDirectChildElements(node: Element): Element[] {
+  return Array.from(node.childNodes).filter((child): child is Element => child.nodeType === Node.ELEMENT_NODE);
+}
+
+function cloneParagraphWithText(doc: XMLDocument, paragraph: Element, line: WordPreviewRowLine | string): Element {
+  const entry: { text: string; color?: string } = typeof line === "string" ? { text: line } : line;
+  const clone = paragraph.cloneNode(true) as Element;
+  const paragraphProps = clone.getElementsByTagNameNS(WORD_NS, "pPr")[0]?.cloneNode(true) ?? null;
+  const runPropsTemplate = clone.getElementsByTagNameNS(WORD_NS, "rPr")[0]?.cloneNode(true) as Element | undefined;
+
+  while (clone.firstChild) {
+    clone.removeChild(clone.firstChild);
+  }
+
+  if (paragraphProps) {
+    clone.appendChild(paragraphProps);
+  }
+
+  const run = doc.createElementNS(WORD_NS, "w:r");
+  if (runPropsTemplate) {
+    const runProps = runPropsTemplate.cloneNode(true) as Element;
+    if (entry.color) {
+      const existingColor = runProps.getElementsByTagNameNS(WORD_NS, "color")[0];
+      if (existingColor) {
+        existingColor.setAttributeNS(WORD_NS, "w:val", entry.color);
+      } else {
+        const colorNode = doc.createElementNS(WORD_NS, "w:color");
+        colorNode.setAttributeNS(WORD_NS, "w:val", entry.color);
+        runProps.appendChild(colorNode);
+      }
+    }
+    run.appendChild(runProps);
+  }
+
+  const textNode = doc.createElementNS(WORD_NS, "w:t");
+  textNode.textContent = entry.text;
+  run.appendChild(textNode);
+  clone.appendChild(run);
+  return clone;
+}
+
+function setCellParagraphs(doc: XMLDocument, cell: Element, lines: Array<WordPreviewRowLine | string>) {
+  const templateParagraph = cell.getElementsByTagNameNS(WORD_NS, "p")[0];
+  if (!templateParagraph) {
+    return;
+  }
+
+  const preservedCellProps = cell.getElementsByTagNameNS(WORD_NS, "tcPr")[0]?.cloneNode(true) as Element | undefined;
+
+  while (cell.firstChild) {
+    cell.removeChild(cell.firstChild);
+  }
+
+  if (preservedCellProps) {
+    cell.appendChild(preservedCellProps);
+  }
+
+  lines.forEach((line) => {
+    cell.appendChild(cloneParagraphWithText(doc, templateParagraph, line));
+  });
+}
+
+function createPageBreakParagraph(doc: XMLDocument): Element {
+  const paragraph = doc.createElementNS(WORD_NS, "w:p");
+  const run = doc.createElementNS(WORD_NS, "w:r");
+  const breakNode = doc.createElementNS(WORD_NS, "w:br");
+  breakNode.setAttributeNS(WORD_NS, "w:type", "page");
+  run.appendChild(breakNode);
+  paragraph.appendChild(run);
+  return paragraph;
+}
+
+function replaceAddressBlock(table: Element, addressLines: string[]) {
+  const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
+  if (!cell) {
+    return;
+  }
+
+  const doc = table.ownerDocument;
+  setCellParagraphs(doc, cell, addressLines.length > 0 ? addressLines : [""]);
+}
+
+function compactDateBlockForFollowPage(table: Element) {
+  const cell = table.getElementsByTagNameNS(WORD_NS, "tc")[0];
+  if (!cell) {
+    return;
+  }
+
+  const paragraphs = Array.from(cell.getElementsByTagNameNS(WORD_NS, "p"));
+  if (!paragraphs.length) {
+    return;
+  }
+
+  const nonEmptyParagraph = paragraphs.find((paragraph) => paragraph.textContent?.trim());
+  const paragraphToKeep = nonEmptyParagraph ?? paragraphs[0];
+  if (!paragraphToKeep) {
+    return;
+  }
+
+  paragraphs.forEach((paragraph) => {
+    if (paragraph !== paragraphToKeep) {
+      paragraph.parentNode?.removeChild(paragraph);
+    }
+  });
+}
+
+function replaceDateValue(table: Element, value: string) {
+  Array.from(table.getElementsByTagNameNS(WORD_NS, "t")).forEach((node) => {
+    if (node.textContent?.includes("{{DATE}}")) {
+      node.textContent = value;
+    }
+  });
+}
+
+function replaceFooterClerkName(node: Element, value: string) {
+  const texts = Array.from(node.getElementsByTagNameNS(WORD_NS, "t"));
+  const lastText = texts[texts.length - 1];
+  if (lastText) {
+    lastText.textContent = value;
+  }
+}
+
+function findFirstTableWithMarker(body: Element, marker: string): Element | null {
+  const tables = getDirectChildElements(body).filter((node) => node.localName === "tbl");
+  return tables.find((table) => table.textContent?.includes(marker)) ?? null;
+}
+
+function findRowTemplateTable(body: Element): Element | null {
+  const tables = getDirectChildElements(body).filter((node) => node.localName === "tbl");
+  return tables.find((table) => {
+    const cells = table.getElementsByTagNameNS(WORD_NS, "tc");
+    const blips = table.getElementsByTagNameNS(DRAWING_NS, "blip");
+    return cells.length >= 3 && blips.length > 0;
+  }) ?? null;
+}
+
+function collectFooterTemplateNodes(body: Element, rowTable: Element): Element[] {
+  const nodes = getDirectChildElements(body);
+  const rowIndex = nodes.findIndex((node) => node === rowTable);
+  const sectIndex = nodes.findIndex((node) => node.localName === "sectPr");
+  if (rowIndex === -1 || sectIndex === -1 || sectIndex <= rowIndex + 1) {
+    return [];
+  }
+
+  return nodes.slice(rowIndex + 1, sectIndex).map((node) => node.cloneNode(true) as Element);
+}
+
+function nextRelationshipCounter(relsDoc: XMLDocument): number {
+  const ids = Array.from(relsDoc.getElementsByTagName("Relationship"))
+    .map((relationship) => relationship.getAttribute("Id") ?? "")
+    .map((id) => {
+      const match = id.match(/^rId(\d+)$/);
+      return match ? Number.parseInt(match[1] ?? "0", 10) : 0;
+    });
+  return Math.max(900, ...ids) + 1;
+}
+
+async function attachGeneratedPhoto(
+  zip: JSZip,
+  relsDoc: XMLDocument,
+  photo: WordPreviewPhoto,
+  counter: number
+): Promise<string | null> {
   const targetWidth = 640;
   const targetHeight = Math.round((targetWidth * WORD_PHOTO_FRAME_HEIGHT_EMU) / WORD_PHOTO_FRAME_WIDTH_EMU);
-  const parsed = dataUrlToBytes(await createContainedPhotoDataUrl(photo.src, targetWidth, targetHeight));
+  const containedDataUrl = await createContainedPhotoDataUrl(photo.src, targetWidth, targetHeight);
+  const parsed = parseDataUrl(containedDataUrl);
   if (!parsed) {
     return null;
   }
 
   const extension = parsed.mimeType.includes("png") ? "png" : "jpg";
-  const relationshipId = `rId${900 + counter}`;
+  const relationshipId = `rId${counter}`;
   const target = `media/generated_${counter}.${extension}`;
   zip.file(`word/${target}`, parsed.bytes);
 
-  const root = relsDoc.documentElement;
   const relationship = relsDoc.createElementNS(PACKAGE_REL_NS, "Relationship");
   relationship.setAttribute("Id", relationshipId);
   relationship.setAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image");
   relationship.setAttribute("Target", target);
-  root.appendChild(relationship);
+  relsDoc.documentElement.appendChild(relationship);
 
   return relationshipId;
 }
 
-function buildTemplateObjectTable(doc: XMLDocument, templateTable: Element, row: WordPreviewRow, imageRelationshipId: string | null): Element {
+function buildWordRowTable(doc: XMLDocument, templateTable: Element, row: WordPreviewRow, imageRelationshipId: string | null): Element {
   const clone = templateTable.cloneNode(true) as Element;
+  const tableProps = clone.getElementsByTagNameNS(WORD_NS, "tblPr")[0];
+  const tableBorders = tableProps?.getElementsByTagNameNS(WORD_NS, "tblBorders")[0];
+  const rowNode = clone.getElementsByTagNameNS(WORD_NS, "tr")[0];
   const cells = Array.from(clone.getElementsByTagNameNS(WORD_NS, "tc"));
   const intCell = cells[0];
   const photoCell = cells[1];
   const textCell = cells[2];
 
+  if (tableBorders) {
+    const topBorder = tableBorders.getElementsByTagNameNS(WORD_NS, "top")[0];
+    const bottomBorder = tableBorders.getElementsByTagNameNS(WORD_NS, "bottom")[0];
+    topBorder?.setAttributeNS(WORD_NS, "w:val", "nil");
+    bottomBorder?.setAttributeNS(WORD_NS, "w:val", "nil");
+  }
+
+  if (rowNode) {
+    let rowProps = rowNode.getElementsByTagNameNS(WORD_NS, "trPr")[0];
+    if (!rowProps) {
+      rowProps = doc.createElementNS(WORD_NS, "w:trPr");
+      rowNode.insertBefore(rowProps, rowNode.firstChild);
+    }
+
+    let rowHeight = rowProps.getElementsByTagNameNS(WORD_NS, "trHeight")[0];
+    if (!rowHeight) {
+      rowHeight = doc.createElementNS(WORD_NS, "w:trHeight");
+      rowProps.appendChild(rowHeight);
+    }
+
+    rowHeight.setAttributeNS(WORD_NS, "w:val", String(Math.round(row.heightUnits * WORD_UNIT_TO_TWIP)));
+    rowHeight.setAttributeNS(WORD_NS, "w:hRule", "atLeast");
+  }
+
+  cells.forEach((cell) => {
+    let cellProps = cell.getElementsByTagNameNS(WORD_NS, "tcPr")[0];
+    if (!cellProps) {
+      cellProps = doc.createElementNS(WORD_NS, "w:tcPr");
+      cell.insertBefore(cellProps, cell.firstChild);
+    }
+
+    let verticalAlign = cellProps.getElementsByTagNameNS(WORD_NS, "vAlign")[0];
+    if (!verticalAlign) {
+      verticalAlign = doc.createElementNS(WORD_NS, "w:vAlign");
+      cellProps.appendChild(verticalAlign);
+    }
+
+    verticalAlign.setAttributeNS(WORD_NS, "w:val", "top");
+  });
+
   if (intCell) {
-    setParagraphsInCell(doc, intCell, [{ text: row.intNumber }]);
+    setCellParagraphs(doc, intCell, [row.intNumber]);
   }
 
   if (photoCell) {
@@ -534,11 +843,12 @@ function buildTemplateObjectTable(doc: XMLDocument, templateTable: Element, row:
     if (blip && imageRelationshipId) {
       blip.setAttributeNS(REL_NS, "r:embed", imageRelationshipId);
     } else {
-      setParagraphsInCell(doc, photoCell, [{ text: "" }]);
+      setCellParagraphs(doc, photoCell, [""]);
     }
   }
 
   if (textCell) {
+<<<<<<< HEAD
     const lines: Array<{ text: string; color?: string }> = [
       ...row.renderedTitleLines.map((line) => ({ text: line })),
       ...row.renderedDetailLines.map((line) => ({ text: line })),
@@ -548,58 +858,127 @@ function buildTemplateObjectTable(doc: XMLDocument, templateTable: Element, row:
       lines.push({ text: `${row.priceLabel}: CHF ${row.priceValue}`, color: "FF0000" });
     }
     setParagraphsInCell(doc, textCell, lines);
+=======
+    setCellParagraphs(doc, textCell, row.contentLines);
+>>>>>>> d375752613b7189a9aa66924a336480270774ada
   }
 
   return clone;
 }
 
-function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mimeType: string } | null {
-  const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
-  if (!match) {
-    return null;
+export async function generateWordDocx(caseFile: CaseFile, masterData: MasterData): Promise<Blob> {
+  const model = createWordPreviewModel(caseFile, masterData);
+
+  const templateResponse = await fetch(templateDocxUrl);
+  const templateBuffer = await templateResponse.arrayBuffer();
+  const zip = await JSZip.loadAsync(templateBuffer);
+
+  const documentXml = await zip.file("word/document.xml")?.async("string");
+  const relsXml = await zip.file("word/_rels/document.xml.rels")?.async("string");
+  if (!documentXml || !relsXml) {
+    throw new Error("Word-Vorlage konnte nicht gelesen werden.");
   }
 
-  const mimeType = match[1];
-  const base64 = match[2];
-  if (!mimeType || !base64) {
-    return null;
-  }
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+  const parser = new DOMParser();
+  const documentDoc = parser.parseFromString(documentXml, "application/xml");
+  const relsDoc = parser.parseFromString(relsXml, "application/xml");
 
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+  const body = documentDoc.getElementsByTagNameNS(WORD_NS, "body")[0];
+  if (!body) {
+    throw new Error("Word-Vorlage enthaelt keinen gueltigen Body.");
   }
 
-  return { bytes, mimeType };
+  const sectPr = getDirectChildElements(body).find((node) => node.localName === "sectPr");
+  const addressTemplate = findFirstTableWithMarker(body, "{{ADDRESS}}");
+  const dateTemplate = findFirstTableWithMarker(body, "{{DATE}}");
+  const rowTemplate = findRowTemplateTable(body);
+
+  if (!sectPr || !addressTemplate || !dateTemplate || !rowTemplate) {
+    throw new Error("Word-Vorlage hat nicht die erwartete Tabellenstruktur.");
+  }
+
+  const footerTemplateNodes = collectFooterTemplateNodes(body, rowTemplate);
+  const relationshipStart = nextRelationshipCounter(relsDoc);
+  let relationshipCounter = relationshipStart;
+
+  while (body.firstChild) {
+    body.removeChild(body.firstChild);
+  }
+
+  for (let pageIndex = 0; pageIndex < model.pages.length; pageIndex += 1) {
+    const page = model.pages[pageIndex];
+    if (!page) {
+      continue;
+    }
+
+    if (pageIndex > 0) {
+      body.appendChild(createPageBreakParagraph(documentDoc));
+    }
+
+    const dateTable = dateTemplate.cloneNode(true) as Element;
+    replaceDateValue(dateTable, page.headerRightText);
+    if (page.showAddress) {
+      const addressTable = addressTemplate.cloneNode(true) as Element;
+      replaceAddressBlock(addressTable, page.addressLines);
+      body.appendChild(addressTable);
+    } else {
+      compactDateBlockForFollowPage(dateTable);
+    }
+    body.appendChild(dateTable);
+
+    for (const row of page.rows) {
+      let imageRelationshipId: string | null = null;
+      if (row.primaryPhoto) {
+        // eslint-disable-next-line no-await-in-loop
+        imageRelationshipId = await attachGeneratedPhoto(zip, relsDoc, row.primaryPhoto, relationshipCounter);
+        relationshipCounter += 1;
+      }
+
+      const rowTable = buildWordRowTable(documentDoc, rowTemplate, row, imageRelationshipId);
+      body.appendChild(rowTable);
+    }
+
+    if (pageIndex === model.pages.length - 1 && footerTemplateNodes.length > 0) {
+      footerTemplateNodes.forEach((node, index) => {
+        const clone = node.cloneNode(true) as Element;
+        if (index === 1) {
+          replaceFooterClerkName(clone, page.footerLabel);
+        }
+        body.appendChild(clone);
+      });
+    }
+  }
+
+  body.appendChild(sectPr.cloneNode(true));
+
+  const serializer = new XMLSerializer();
+  zip.file("word/document.xml", serializer.serializeToString(documentDoc));
+  zip.file("word/_rels/document.xml.rels", serializer.serializeToString(relsDoc));
+
+  const outputBuffer = await zip.generateAsync({ type: "arraybuffer" });
+  return new Blob([outputBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  });
 }
 
-function drawWrappedText(page: PDFPage, font: PDFFont, text: string, x: number, y: number, maxWidth: number, lineHeight: number, size: number, color = rgb(0.15, 0.21, 0.18)) {
-  const words = text.split(/\s+/).filter(Boolean);
-  let currentLine = "";
-  let cursorY = y;
-
-  words.forEach((word) => {
-    const nextLine = currentLine ? `${currentLine} ${word}` : word;
-    if (font.widthOfTextAtSize(nextLine, size) > maxWidth && currentLine) {
-      page.drawText(currentLine, { x, y: cursorY, size, font, color });
-      cursorY -= lineHeight;
-      currentLine = word;
-    } else {
-      currentLine = nextLine;
-    }
-  });
-
-  if (currentLine) {
-    page.drawText(currentLine, { x, y: cursorY, size, font, color });
-    cursorY -= lineHeight;
+function getPdfLineColor(line: WordPreviewRowLine) {
+  if (line.kind === "price") {
+    return rgb(0.62, 0.08, 0.08);
   }
 
-  return cursorY;
+  if (line.kind === "detail") {
+    return rgb(0.32, 0.39, 0.36);
+  }
+
+  return rgb(0.15, 0.21, 0.18);
+}
+
+function getPdfLineSize(line: WordPreviewRowLine) {
+  return line.kind === "title" ? 10 : 9;
 }
 
 async function drawPdfPhoto(page: PDFPage, pdfDocument: PDFDocument, photo: WordPreviewPhoto, x: number, y: number, size: number) {
-  const parsed = dataUrlToBytes(photo.src);
+  const parsed = parseDataUrl(photo.src);
   if (!parsed) {
     return;
   }
@@ -631,63 +1010,44 @@ async function drawPdfRow(page: PDFPage, pdfDocument: PDFDocument, font: PDFFont
     color: rgb(0.13, 0.21, 0.18)
   });
 
-  page.drawText(row.estimate || "Schätzung offen", {
-    x: A4_WIDTH - PDF_MARGIN_X - 120,
-    y,
-    size: 10,
-    font,
-    color: rgb(0.13, 0.21, 0.18)
-  });
-
   const titleX = x + 78;
   let cursorY = y;
 
-  row.renderedTitleLines.forEach((line) => {
-    page.drawText(line, {
+  for (const line of row.contentLines) {
+    page.drawText(line.text, {
       x: titleX,
       y: cursorY,
-      size: 10,
+      size: getPdfLineSize(line),
       font,
-      color: rgb(0.15, 0.21, 0.18)
+      color: getPdfLineColor(line)
     });
-    cursorY -= 12;
-  });
-
-  row.renderedDetailLines.forEach((line) => {
-    page.drawText(line, {
-      x: titleX,
-      y: cursorY,
-      size: 9,
-      font,
-      color: rgb(0.32, 0.39, 0.36)
-    });
-    cursorY -= 11;
-  });
+    cursorY -= PDF_TEXT_LINE_HEIGHT;
+  }
 
   if (row.primaryPhoto) {
-    const photoSize = 72;
-    let photoY = cursorY - photoSize - 4;
-    const photoX = titleX;
-    await drawPdfPhoto(page, pdfDocument, row.primaryPhoto, photoX, photoY, photoSize);
+    const photoY = cursorY - PDF_PHOTO_SIZE - 4;
+    await drawPdfPhoto(page, pdfDocument, row.primaryPhoto, titleX, photoY, PDF_PHOTO_SIZE);
     page.drawRectangle({
-      x: photoX,
+      x: titleX,
       y: photoY,
-      width: photoSize,
-      height: photoSize,
+      width: PDF_PHOTO_SIZE,
+      height: PDF_PHOTO_SIZE,
       borderColor: rgb(0.84, 0.86, 0.83),
       borderWidth: 0.6
     });
     cursorY = photoY - 18;
   }
 
+  const dividerY = cursorY - PDF_ROW_PADDING_BOTTOM;
   page.drawLine({
-    start: { x: x, y: cursorY },
-    end: { x: A4_WIDTH - PDF_MARGIN_X, y: cursorY },
+    start: { x, y: dividerY },
+    end: { x: A4_WIDTH - PDF_MARGIN_X, y: dividerY },
     thickness: 0.7,
     color: rgb(0.9, 0.91, 0.89)
   });
 }
 
+<<<<<<< HEAD
 export function createWordPreviewModel(caseFile: CaseFile, _masterData: MasterData): WordPreviewModel {
   const rows = caseFile.objects.map((item) => createRow(item, caseFile.assets));
   const firstPageBudget = PAGE_HEIGHT_UNITS - FIRST_PAGE_HEADER_UNITS - FOOTER_RESERVE_UNITS;
@@ -797,6 +1157,8 @@ export async function generateWordDocx(caseFile: CaseFile, masterData: MasterDat
   return zip.generateAsync({ type: "blob" });
 }
 
+=======
+>>>>>>> d375752613b7189a9aa66924a336480270774ada
 export async function generateWordPdf(caseFile: CaseFile, masterData: MasterData): Promise<Uint8Array> {
   const model = createWordPreviewModel(caseFile, masterData);
   const pdfDocument = await PDFDocument.create();
@@ -806,7 +1168,7 @@ export async function generateWordPdf(caseFile: CaseFile, masterData: MasterData
     const page = pdfDocument.addPage([A4_WIDTH, A4_HEIGHT]);
     let y = A4_HEIGHT - PDF_MARGIN_TOP;
 
-    page.drawText("Schätzliste", {
+    page.drawText("Schaetzliste", {
       x: PDF_MARGIN_X,
       y,
       size: 14,
@@ -814,13 +1176,16 @@ export async function generateWordPdf(caseFile: CaseFile, masterData: MasterData
       color: rgb(0.13, 0.21, 0.18)
     });
 
-    page.drawText(previewPage.showAddress ? "Einlieferer + Objekte" : `Seite ${previewPage.pageNumber}/${previewPage.totalPages}`, {
-      x: A4_WIDTH - PDF_MARGIN_X - 120,
-      y,
-      size: 10,
-      font,
-      color: rgb(0.36, 0.42, 0.39)
-    });
+    page.drawText(
+      previewPage.showAddress ? "Einlieferer + Objekte" : `Seite ${previewPage.pageNumber}/${previewPage.totalPages}`,
+      {
+        x: A4_WIDTH - PDF_MARGIN_X - 120,
+        y,
+        size: 10,
+        font,
+        color: rgb(0.36, 0.42, 0.39)
+      }
+    );
 
     y -= 28;
 
@@ -871,4 +1236,3 @@ export async function generateWordPdf(caseFile: CaseFile, masterData: MasterData
 
   return pdfDocument.save();
 }
-

@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { createAuditRepository } from "@elb/persistence/auditRepository";
 import { importMasterDataFromJson, serializeMasterData } from "@elb/persistence/masterDataSync";
 import {
@@ -6,15 +7,34 @@ import {
   persistExportArtifactsToDisk,
   persistGeneratedPdfToDisk
 } from "@elb/persistence/filesystem";
+import { migrateLegacyPayload, type WorkspaceRepository, type WorkspaceSnapshot } from "@elb/app-core/index";
 import { createMasterDataRepository, createWorkspaceRepository } from "@elb/persistence/repository";
 import { createLogger } from "@elb/shared/logger";
 import type { AppPlatform } from "@elb/client-app/platform/platformTypes";
-import type { MasterData } from "@elb/domain/index";
+import { loadSeedMasterData, normalizeRequiredFieldKeys, type CaseFile, type MasterData } from "@elb/domain/index";
+import { desktopDossierSyncStatusStore } from "./desktopDossierSyncStatus";
 
 const logger = createLogger("desktop-platform");
 const DEFAULT_SUPABASE_BUCKET = "elb-v1-data";
 const REMOTE_MASTER_DATA_PATH = "Stammdaten/master-data.json";
 const REMOTE_DOSSIER_EXPORTS_ROOT = "desktop-dossiers";
+const REMOTE_WORKSPACE_META_PATH = "workspace.json";
+const REMOTE_CURRENT_POINTER_FILE_NAME = "current.json";
+const REMOTE_DOSSIER_FILE_NAME = "dossier.json";
+const REMOTE_ASSET_REF_PREFIX = "remote://";
+
+interface RemoteWorkspaceMeta {
+  activeClerkId: string | null;
+}
+
+interface RemoteCurrentDossierPointer {
+  caseId: string | null;
+}
+
+interface SupabaseListEntry {
+  name: string;
+  id: string | null;
+}
 
 async function loadTauriCore() {
   const module = await import("@tauri-apps/api/core");
@@ -66,6 +86,17 @@ function buildSupabaseObjectUrl(url: string, bucket: string, path: string): stri
   return `${url.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
 }
 
+function buildSupabaseListUrl(url: string, bucket: string): string {
+  return `${url.replace(/\/+$/, "")}/storage/v1/object/list/${encodeURIComponent(bucket)}`;
+}
+
+function createSupabaseAuthHeaders(config: { key: string }): HeadersInit {
+  return {
+    apikey: config.key,
+    Authorization: `Bearer ${config.key}`
+  };
+}
+
 function sanitizeRemoteSegment(value: string): string {
   return value
     .normalize("NFKD")
@@ -79,6 +110,34 @@ function buildRemoteExportPath(clerkId: string, caseId: string, zipFileName: str
   return `${REMOTE_DOSSIER_EXPORTS_ROOT}/${sanitizeRemoteSegment(clerkId)}/${sanitizeRemoteSegment(caseId)}/${sanitizeRemoteSegment(zipFileName)}`;
 }
 
+function getRemoteClerkRoot(clerkId: string): string {
+  return `clerks/${sanitizeRemoteSegment(clerkId)}`;
+}
+
+function getRemoteCurrentPointerPath(clerkId: string): string {
+  return `${getRemoteClerkRoot(clerkId)}/${REMOTE_CURRENT_POINTER_FILE_NAME}`;
+}
+
+function getRemoteDossiersRoot(clerkId: string): string {
+  return `${getRemoteClerkRoot(clerkId)}/dossiers`;
+}
+
+function toDataUrl(mimeType: string, bytes: Uint8Array): string {
+  let binary = "";
+  for (const value of bytes) {
+    binary += String.fromCharCode(value);
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
+}
+
+function isRemoteAssetRef(path: string): boolean {
+  return path.startsWith(REMOTE_ASSET_REF_PREFIX);
+}
+
+function fromRemoteAssetRef(path: string): string {
+  return path.slice(REMOTE_ASSET_REF_PREFIX.length);
+}
+
 async function toBinaryBytes(input: Blob | ArrayBuffer | Uint8Array): Promise<Uint8Array> {
   if (input instanceof Blob) return new Uint8Array(await input.arrayBuffer());
   return input instanceof Uint8Array ? input : new Uint8Array(input);
@@ -86,6 +145,500 @@ async function toBinaryBytes(input: Blob | ArrayBuffer | Uint8Array): Promise<Ui
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function downloadTextFromSupabase(config: { url: string; key: string; bucket: string }, path: string): Promise<string | null> {
+  const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
+    headers: createSupabaseAuthHeaders(config)
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Supabase-Datei konnte nicht geladen werden (${response.status}): ${path}`);
+  }
+
+  return response.text();
+}
+
+async function downloadBinaryFromSupabase(config: { url: string; key: string; bucket: string }, path: string): Promise<{ mimeType: string; bytes: Uint8Array } | null> {
+  const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
+    headers: createSupabaseAuthHeaders(config)
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Supabase-Binaerdatei konnte nicht geladen werden (${response.status}): ${path}`);
+  }
+
+  const mimeType = response.headers.get("content-type") || "application/octet-stream";
+  return {
+    mimeType,
+    bytes: new Uint8Array(await response.arrayBuffer())
+  };
+}
+
+async function listSupabaseEntries(config: { url: string; key: string; bucket: string }, prefix: string): Promise<SupabaseListEntry[]> {
+  const response = await fetch(buildSupabaseListUrl(config.url, config.bucket), {
+    method: "POST",
+    headers: {
+      ...createSupabaseAuthHeaders(config),
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      prefix,
+      limit: 1000,
+      offset: 0,
+      sortBy: { column: "name", order: "desc" }
+    })
+  });
+
+  if (response.status === 404) {
+    return [];
+  }
+
+  if (!response.ok) {
+    throw new Error(`Supabase-Liste konnte nicht geladen werden (${response.status}): ${prefix || "/"}`);
+  }
+
+  const payload = await response.json() as Array<{ name?: unknown; id?: unknown }> | null;
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload
+    .filter((entry): entry is { name: string; id: string | null } => typeof entry?.name === "string")
+    .map((entry) => ({ name: entry.name, id: typeof entry.id === "string" ? entry.id : null }));
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function guessMimeTypeFromPath(path: string): string {
+  const normalized = path.toLowerCase();
+  if (normalized.endsWith(".png")) return "image/png";
+  if (normalized.endsWith(".webp")) return "image/webp";
+  if (normalized.endsWith(".gif")) return "image/gif";
+  return "image/jpeg";
+}
+
+async function hydrateDesktopZipAssets(zip: JSZip, caseFile: CaseFile): Promise<CaseFile> {
+  const assets = await Promise.all(caseFile.assets.map(async (asset) => {
+    const sourcePath = (asset.optimizedPath || asset.originalPath || "").replace(/^\/+/, "");
+    if (!sourcePath) {
+      return asset;
+    }
+
+    const directFile = zip.file(sourcePath) ?? null;
+    const fallbackName = sourcePath.split("/").at(-1);
+    const fallbackFile = fallbackName
+      ? (zip.file(new RegExp(`${escapeRegex(fallbackName)}$`, "i"))[0] ?? null)
+      : null;
+    const imageFile = directFile ?? fallbackFile;
+
+    if (!imageFile) {
+      return asset;
+    }
+
+    const bytes = await imageFile.async("uint8array");
+    const dataUrl = toDataUrl(guessMimeTypeFromPath(imageFile.name), bytes);
+    return {
+      ...asset,
+      originalPath: dataUrl,
+      optimizedPath: dataUrl
+    };
+  }));
+
+  return {
+    ...caseFile,
+    assets
+  };
+}
+
+async function loadDesktopDossierFromZipBinary(zipBytes: Uint8Array): Promise<{ caseFile: CaseFile; masterData: MasterData | null } | null> {
+  const zip = await JSZip.loadAsync(toArrayBuffer(zipBytes));
+  const caseFileEntry = zip.file("case.json") ?? zip.file(/(^|\/)case\.json$/i)[0] ?? null;
+
+  if (!caseFileEntry) {
+    return null;
+  }
+
+  const caseRaw = await caseFileEntry.async("text");
+  const envelope = migrateLegacyPayload(JSON.parse(caseRaw) as unknown);
+  const hydratedCase = await hydrateDesktopZipAssets(zip, envelope.caseFile);
+
+  const masterDataEntry = zip.file("master-data.json") ?? zip.file(/(^|\/)master-data\.json$/i)[0] ?? null;
+  if (!masterDataEntry) {
+    return { caseFile: hydratedCase, masterData: null };
+  }
+
+  try {
+    return {
+      caseFile: hydratedCase,
+      masterData: importMasterDataFromJson(await masterDataEntry.async("text"))
+    };
+  } catch {
+    return { caseFile: hydratedCase, masterData: null };
+  }
+}
+
+async function loadRemoteDesktopDossiers(config: { url: string; key: string; bucket: string }): Promise<{ dossiers: CaseFile[]; masterDataCandidates: MasterData[] }> {
+  const clerkEntries = await listSupabaseEntries(config, REMOTE_DOSSIER_EXPORTS_ROOT);
+  const zipPaths: string[] = [];
+
+  for (const clerkEntry of clerkEntries) {
+    if (clerkEntry.id || !clerkEntry.name.trim()) {
+      continue;
+    }
+
+    const clerkRoot = `${REMOTE_DOSSIER_EXPORTS_ROOT}/${clerkEntry.name}`;
+    const caseEntries = await listSupabaseEntries(config, clerkRoot);
+    for (const caseEntry of caseEntries) {
+      if (caseEntry.id || !caseEntry.name.trim()) {
+        continue;
+      }
+
+      const caseRoot = `${clerkRoot}/${caseEntry.name}`;
+      const fileEntries = await listSupabaseEntries(config, caseRoot);
+      fileEntries
+        .filter((entry) => Boolean(entry.id) && entry.name.toLowerCase().endsWith(".zip"))
+        .forEach((entry) => zipPaths.push(`${caseRoot}/${entry.name}`));
+    }
+  }
+
+  const dossiers: CaseFile[] = [];
+  const masterDataCandidates: MasterData[] = [];
+
+  for (const zipPath of zipPaths) {
+    try {
+      const binary = await downloadBinaryFromSupabase(config, zipPath);
+      if (!binary) {
+        continue;
+      }
+
+      const loaded = await loadDesktopDossierFromZipBinary(binary.bytes);
+      if (!loaded) {
+        logger.warn(`Desktop-Dossier-ZIP ohne case.json wird uebersprungen: ${zipPath}`);
+        continue;
+      }
+
+      dossiers.push(loaded.caseFile);
+      if (loaded.masterData) {
+        masterDataCandidates.push(loaded.masterData);
+      }
+    } catch (error) {
+      logger.warn(`Desktop-Dossier-ZIP konnte nicht geladen werden: ${zipPath}`, error);
+    }
+  }
+
+  return {
+    dossiers: dedupeCases(dossiers),
+    masterDataCandidates
+  };
+}
+
+function buildRemoteSnapshot(args: {
+  localSnapshot: WorkspaceSnapshot | null;
+  workspaceSnapshot: WorkspaceSnapshot | null;
+  desktopDossiers: CaseFile[];
+  desktopMasterDataCandidates: MasterData[];
+}): WorkspaceSnapshot | null {
+  const desktopDossiers = dedupeCases(args.desktopDossiers);
+
+  if (!args.workspaceSnapshot && desktopDossiers.length === 0) {
+    return null;
+  }
+
+  const seedMasterData = args.localSnapshot?.masterData ?? loadSeedMasterData();
+  const mergedDesktopMasterData = args.desktopMasterDataCandidates.reduce((current, candidate) => mergeMasterData(current, candidate), seedMasterData);
+
+  if (!args.workspaceSnapshot) {
+    const currentDossierIdByClerk: Record<string, string | null> = {};
+    desktopDossiers.forEach((dossier) => {
+      if (!currentDossierIdByClerk[dossier.meta.clerkId]) {
+        currentDossierIdByClerk[dossier.meta.clerkId] = dossier.meta.id;
+      }
+    });
+
+    const activeClerkId = args.localSnapshot?.activeClerkId ?? desktopDossiers[0]?.meta.clerkId ?? null;
+    const snapshot: WorkspaceSnapshot = {
+      masterData: mergedDesktopMasterData,
+      activeClerkId,
+      currentCase: null,
+      currentDossierIdByClerk,
+      dossiers: desktopDossiers
+    };
+
+    return {
+      ...snapshot,
+      currentCase: resolveCurrentCase(snapshot)
+    };
+  }
+
+  const mergedCurrentByClerk = { ...args.workspaceSnapshot.currentDossierIdByClerk };
+  desktopDossiers.forEach((dossier) => {
+    if (!mergedCurrentByClerk[dossier.meta.clerkId]) {
+      mergedCurrentByClerk[dossier.meta.clerkId] = dossier.meta.id;
+    }
+  });
+
+  const snapshot: WorkspaceSnapshot = {
+    ...args.workspaceSnapshot,
+    masterData: mergeMasterData(args.workspaceSnapshot.masterData, mergedDesktopMasterData),
+    currentDossierIdByClerk: mergedCurrentByClerk,
+    dossiers: dedupeCases([...args.workspaceSnapshot.dossiers, ...desktopDossiers])
+  };
+
+  return {
+    ...snapshot,
+    currentCase: resolveCurrentCase(snapshot)
+  };
+}
+
+function mergeMasterData(local: MasterData, remote: MasterData): MasterData {
+  const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
+    const byId = new Map<string, T>();
+    left.forEach((item) => byId.set(item.id, item));
+    right.forEach((item) => {
+      if (!byId.has(item.id)) {
+        byId.set(item.id, item);
+      }
+    });
+    return [...byId.values()];
+  };
+
+  const mergeStrings = (left: string[], right: string[]) => {
+    const values = new Set(left);
+    right.forEach((value) => values.add(value));
+    return [...values];
+  };
+
+  return {
+    ...local,
+    clerks: mergeById(local.clerks, remote.clerks),
+    auctions: mergeById(local.auctions, remote.auctions),
+    departments: mergeById(local.departments, remote.departments),
+    titles: mergeStrings(local.titles, remote.titles),
+    globalPdfRequiredFields: normalizeRequiredFieldKeys(mergeStrings(local.globalPdfRequiredFields, remote.globalPdfRequiredFields)),
+    adminPin: local.adminPin || remote.adminPin
+  };
+}
+
+function dedupeCases(caseFiles: readonly CaseFile[]): CaseFile[] {
+  const byId = new Map<string, CaseFile>();
+
+  caseFiles.forEach((caseFile) => {
+    const existing = byId.get(caseFile.meta.id);
+    if (!existing || caseFile.meta.updatedAt > existing.meta.updatedAt) {
+      byId.set(caseFile.meta.id, caseFile);
+    }
+  });
+
+  return [...byId.values()].sort((left, right) =>
+    right.meta.updatedAt.localeCompare(left.meta.updatedAt, "de-CH", { numeric: true, sensitivity: "base" })
+  );
+}
+
+function resolveCurrentCase(snapshot: WorkspaceSnapshot): CaseFile | null {
+  if (snapshot.currentCase) {
+    const updatedCurrent = snapshot.dossiers.find((dossier) => dossier.meta.id === snapshot.currentCase?.meta.id);
+    if (updatedCurrent) {
+      return updatedCurrent;
+    }
+  }
+
+  if (!snapshot.activeClerkId) {
+    return null;
+  }
+
+  const currentCaseId = snapshot.currentDossierIdByClerk[snapshot.activeClerkId];
+  if (!currentCaseId) {
+    return null;
+  }
+
+  return snapshot.dossiers.find((dossier) => dossier.meta.id === currentCaseId) ?? null;
+}
+
+function mergeWorkspaceSnapshots(localSnapshot: WorkspaceSnapshot | null, remoteSnapshot: WorkspaceSnapshot | null): WorkspaceSnapshot | null {
+  if (!localSnapshot && !remoteSnapshot) {
+    return null;
+  }
+
+  if (!localSnapshot) {
+    return remoteSnapshot;
+  }
+
+  if (!remoteSnapshot) {
+    return localSnapshot;
+  }
+
+  const merged: WorkspaceSnapshot = {
+    masterData: mergeMasterData(localSnapshot.masterData, remoteSnapshot.masterData),
+    activeClerkId: localSnapshot.activeClerkId ?? remoteSnapshot.activeClerkId,
+    currentCase: localSnapshot.currentCase ?? remoteSnapshot.currentCase,
+    currentDossierIdByClerk: {
+      ...remoteSnapshot.currentDossierIdByClerk,
+      ...localSnapshot.currentDossierIdByClerk
+    },
+    dossiers: dedupeCases([...localSnapshot.dossiers, ...remoteSnapshot.dossiers])
+  };
+
+  return {
+    ...merged,
+    currentCase: resolveCurrentCase(merged)
+  };
+}
+
+async function hydrateRemoteAssets(config: { url: string; key: string; bucket: string }, caseFile: CaseFile): Promise<CaseFile> {
+  const assets = await Promise.all(caseFile.assets.map(async (asset) => {
+    const sourcePath = asset.optimizedPath || asset.originalPath;
+    if (!isRemoteAssetRef(sourcePath)) {
+      return asset;
+    }
+
+    const binary = await downloadBinaryFromSupabase(config, fromRemoteAssetRef(sourcePath));
+    if (!binary) {
+      return asset;
+    }
+
+    const dataUrl = toDataUrl(binary.mimeType, binary.bytes);
+    return {
+      ...asset,
+      originalPath: dataUrl,
+      optimizedPath: dataUrl
+    };
+  }));
+
+  return {
+    ...caseFile,
+    assets
+  };
+}
+
+async function loadRemoteClerkDossiers(config: { url: string; key: string; bucket: string }, clerkId: string): Promise<{ currentCaseId: string | null; dossiers: CaseFile[] } | null> {
+  const currentPointerRaw = await downloadTextFromSupabase(config, getRemoteCurrentPointerPath(clerkId));
+  const currentPointer = currentPointerRaw ? JSON.parse(currentPointerRaw) as RemoteCurrentDossierPointer : null;
+  const dossierEntries = await listSupabaseEntries(config, getRemoteDossiersRoot(clerkId));
+
+  if (!currentPointer && dossierEntries.length === 0) {
+    return null;
+  }
+
+  const dossiers = await Promise.all(
+    dossierEntries
+      .filter((entry) => !entry.id && entry.name)
+      .map(async (entry) => {
+        const raw = await downloadTextFromSupabase(config, `${getRemoteDossiersRoot(clerkId)}/${entry.name}/${REMOTE_DOSSIER_FILE_NAME}`);
+        if (!raw) {
+          return null;
+        }
+
+        return hydrateRemoteAssets(config, JSON.parse(raw) as CaseFile);
+      })
+  );
+
+  return {
+    currentCaseId: currentPointer?.caseId ?? null,
+    dossiers: dossiers.filter((dossier): dossier is CaseFile => Boolean(dossier))
+  };
+}
+
+async function loadRemoteWorkspaceSnapshot(config: { url: string; key: string; bucket: string }): Promise<WorkspaceSnapshot | null> {
+  const [masterDataRaw, workspaceMetaRaw] = await Promise.all([
+    downloadTextFromSupabase(config, REMOTE_MASTER_DATA_PATH),
+    downloadTextFromSupabase(config, REMOTE_WORKSPACE_META_PATH)
+  ]);
+
+  if (!masterDataRaw) {
+    return null;
+  }
+
+  const masterData = importMasterDataFromJson(masterDataRaw);
+  const workspaceMeta = workspaceMetaRaw ? JSON.parse(workspaceMetaRaw) as RemoteWorkspaceMeta : null;
+  const loadedByClerk = await Promise.all(masterData.clerks.map(async (clerk) => ({
+    clerkId: clerk.id,
+    loaded: await loadRemoteClerkDossiers(config, clerk.id)
+  })));
+
+  const currentDossierIdByClerk: Record<string, string | null> = {};
+  const remoteDossiers: CaseFile[] = [];
+
+  loadedByClerk.forEach(({ clerkId, loaded }) => {
+    if (!loaded) {
+      return;
+    }
+
+    currentDossierIdByClerk[clerkId] = loaded.currentCaseId;
+    remoteDossiers.push(...loaded.dossiers);
+  });
+
+  const dossiers = dedupeCases(remoteDossiers);
+  const activeClerkId = workspaceMeta?.activeClerkId ?? null;
+  const currentCaseId = activeClerkId ? currentDossierIdByClerk[activeClerkId] : null;
+  const currentCase = currentCaseId ? dossiers.find((dossier) => dossier.meta.id === currentCaseId) ?? null : null;
+
+  return {
+    masterData,
+    activeClerkId,
+    currentCase,
+    currentDossierIdByClerk,
+    dossiers
+  };
+}
+
+function createDesktopWorkspaceRepository(): WorkspaceRepository {
+  const localRepository = createWorkspaceRepository();
+
+  return {
+    async load() {
+      const localSnapshot = await localRepository.load();
+      const supabaseConfig = getDesktopSupabaseConfig();
+
+      if (!supabaseConfig) {
+        desktopDossierSyncStatusStore.markLocalLoaded(localSnapshot);
+        return localSnapshot;
+      }
+
+      try {
+        const workspaceSnapshot = await loadRemoteWorkspaceSnapshot(supabaseConfig);
+        const desktopRemote = await loadRemoteDesktopDossiers(supabaseConfig);
+        const remoteSnapshot = buildRemoteSnapshot({
+          localSnapshot,
+          workspaceSnapshot,
+          desktopDossiers: desktopRemote.dossiers,
+          desktopMasterDataCandidates: desktopRemote.masterDataCandidates
+        });
+        const mergedSnapshot = mergeWorkspaceSnapshots(localSnapshot, remoteSnapshot);
+
+        if (!mergedSnapshot) {
+          desktopDossierSyncStatusStore.markLocalLoaded(null);
+          return null;
+        }
+
+        await localRepository.save(mergedSnapshot);
+        desktopDossierSyncStatusStore.markMergedLoaded({
+          localSnapshot,
+          remoteSnapshot,
+          mergedSnapshot
+        });
+        return mergedSnapshot;
+      } catch (error) {
+        logger.warn("Desktop-Workspace konnte nicht aus Supabase geladen werden. Lokaler Stand wird verwendet.", error);
+        desktopDossierSyncStatusStore.markLocalLoaded(localSnapshot);
+        return localSnapshot;
+      }
+    },
+    async save(snapshot) {
+      await localRepository.save(snapshot);
+      desktopDossierSyncStatusStore.markSaved(snapshot);
+    }
+  };
 }
 
 async function uploadExportZipToSupabase(args: { clerkId: string; caseId: string; zipFileName: string; zipContent: Blob | ArrayBuffer | Uint8Array }): Promise<string | null> {
@@ -128,8 +681,9 @@ async function loadMasterDataFromSupabase(): Promise<MasterData> {
 
 export const desktopPlatform: AppPlatform = {
   receiptNumberScope: "desktop",
-  workspaceRepository: createWorkspaceRepository(),
+  workspaceRepository: createDesktopWorkspaceRepository(),
   masterDataRepository: createMasterDataRepository(),
+  dossierSyncStatus: desktopDossierSyncStatusStore,
   auditSink: createAuditRepository(),
   caseAssets: {
     persistAsset: (caseFile, asset) => persistCaseAssetImmediately(caseFile, asset)
