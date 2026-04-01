@@ -12,10 +12,15 @@ type CostAmountKey = "commission" | "insurance" | "transport" | "imaging" | "exp
 export function getPreviewFieldValue(caseFile: CaseFile, path: string): string {
   if (path === "meta.receiptNumber") return caseFile.meta.receiptNumber;
   if (path === "meta.clerkId") return caseFile.meta.clerkId;
+  if (path === "consignor.firstName") return caseFile.consignor.firstName;
   if (path === "consignor.lastName") return caseFile.consignor.lastName;
   if (path === "consignor.street") return caseFile.consignor.street;
   if (path === "consignor.zip") return caseFile.consignor.zip;
   if (path === "consignor.city") return caseFile.consignor.city;
+  if (path === "consignor.birthDate") return caseFile.consignor.birthDate;
+  if (path === "consignor.nationality") return caseFile.consignor.nationality;
+  if (path === "consignor.passportNumber") return caseFile.consignor.passportNumber;
+  if (path === "bank.beneficiary") return caseFile.bank.beneficiary;
   if (path === "bank.iban") return caseFile.bank.iban;
   if (path === "bank.bic") return caseFile.bank.bic;
   if (path === "bank.beneficiaryOverride.reason") return caseFile.bank.beneficiaryOverride.reason;
@@ -52,10 +57,15 @@ export function updatePreviewFieldValue(path: string, value: string): void {
   updateCurrentCase((current) => {
     if (path === "meta.receiptNumber") return { ...current, meta: { ...current.meta, receiptNumber: value } };
     if (path === "meta.clerkId") return { ...current, meta: { ...current.meta, clerkId: value } };
+    if (path === "consignor.firstName") return { ...current, consignor: { ...current.consignor, firstName: value } };
     if (path === "consignor.lastName") return { ...current, consignor: { ...current.consignor, lastName: value } };
     if (path === "consignor.street") return { ...current, consignor: { ...current.consignor, street: value } };
     if (path === "consignor.zip") return { ...current, consignor: { ...current.consignor, zip: value } };
     if (path === "consignor.city") return { ...current, consignor: { ...current.consignor, city: value } };
+    if (path === "consignor.birthDate") return { ...current, consignor: { ...current.consignor, birthDate: value } };
+    if (path === "consignor.nationality") return { ...current, consignor: { ...current.consignor, nationality: value } };
+    if (path === "consignor.passportNumber") return { ...current, consignor: { ...current.consignor, passportNumber: value } };
+    if (path === "bank.beneficiary") return { ...current, bank: { ...current.bank, beneficiary: value } };
     if (path === "bank.iban") return { ...current, bank: { ...current.bank, iban: value } };
     if (path === "bank.bic") return { ...current, bank: { ...current.bank, bic: value } };
     if (path === "bank.beneficiaryOverride.reason") {

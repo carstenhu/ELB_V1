@@ -1,13 +1,21 @@
 import { z } from "zod";
+import { deriveBeneficiary } from "./derived";
 import type { CaseFile } from "./types";
 
 export const requiredFieldKeySchema = z.enum([
   "meta.receiptNumber",
   "meta.clerkId",
+  "consignor.firstName",
   "consignor.lastName",
   "consignor.street",
   "consignor.zip",
   "consignor.city",
+  "consignor.birthDate",
+  "consignor.nationality",
+  "consignor.passportNumber",
+  "bank.beneficiary",
+  "bank.iban",
+  "bank.bic",
   "bank.beneficiaryOverride.reason",
   "bank.beneficiaryOverride.name",
   "objects[].auctionId",
@@ -37,10 +45,17 @@ export interface MissingRequiredField {
 const requiredFieldMetadata: Record<RequiredFieldKey, { label: string; inputKind: RequiredFieldInputKind; objectScoped: boolean }> = {
   "meta.receiptNumber": { label: "ELB-Nummer", inputKind: "text", objectScoped: false },
   "meta.clerkId": { label: "Sachbearbeiter", inputKind: "select", objectScoped: false },
+  "consignor.firstName": { label: "Vorname Einlieferer", inputKind: "text", objectScoped: false },
   "consignor.lastName": { label: "Nachname Einlieferer", inputKind: "text", objectScoped: false },
   "consignor.street": { label: "Strasse Einlieferer", inputKind: "text", objectScoped: false },
   "consignor.zip": { label: "PLZ Einlieferer", inputKind: "text", objectScoped: false },
   "consignor.city": { label: "Stadt Einlieferer", inputKind: "text", objectScoped: false },
+  "consignor.birthDate": { label: "Geburtsdatum Einlieferer", inputKind: "text", objectScoped: false },
+  "consignor.nationality": { label: "Nationalitaet Einlieferer", inputKind: "text", objectScoped: false },
+  "consignor.passportNumber": { label: "Passnummer Einlieferer", inputKind: "text", objectScoped: false },
+  "bank.beneficiary": { label: "Beguenstigter", inputKind: "text", objectScoped: false },
+  "bank.iban": { label: "IBAN", inputKind: "text", objectScoped: false },
+  "bank.bic": { label: "BIC", inputKind: "text", objectScoped: false },
   "bank.beneficiaryOverride.reason": { label: "Grund abweichender Beguenstigter", inputKind: "text", objectScoped: false },
   "bank.beneficiaryOverride.name": { label: "Name abweichender Beguenstigter", inputKind: "text", objectScoped: false },
   "objects[].auctionId": { label: "Auktion", inputKind: "select", objectScoped: true },
@@ -95,6 +110,9 @@ function isRequiredFieldMissing(caseFile: CaseFile, key: RequiredFieldKey, objec
   if (key === "meta.clerkId") {
     return !caseFile.meta.clerkId.trim();
   }
+  if (key === "consignor.firstName") {
+    return !caseFile.consignor.firstName.trim();
+  }
   if (key === "consignor.lastName") {
     return !caseFile.consignor.lastName.trim() && !caseFile.consignor.company.trim();
   }
@@ -106,6 +124,24 @@ function isRequiredFieldMissing(caseFile: CaseFile, key: RequiredFieldKey, objec
   }
   if (key === "consignor.city") {
     return !caseFile.consignor.city.trim();
+  }
+  if (key === "consignor.birthDate") {
+    return !caseFile.consignor.birthDate.trim();
+  }
+  if (key === "consignor.nationality") {
+    return !caseFile.consignor.nationality.trim();
+  }
+  if (key === "consignor.passportNumber") {
+    return !caseFile.consignor.passportNumber.trim();
+  }
+  if (key === "bank.beneficiary") {
+    return !deriveBeneficiary(caseFile.consignor, caseFile.bank).trim();
+  }
+  if (key === "bank.iban") {
+    return !caseFile.bank.iban.trim();
+  }
+  if (key === "bank.bic") {
+    return !caseFile.bank.bic.trim();
   }
   if (key === "bank.beneficiaryOverride.reason") {
     return caseFile.bank.beneficiaryOverride.enabled && !caseFile.bank.beneficiaryOverride.reason.trim();

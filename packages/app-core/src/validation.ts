@@ -310,6 +310,9 @@ function toExportValidationIssue(entry: MissingRequiredField): ValidationIssue {
   if (entry.key === "meta.clerkId") {
     return { code: "CLERK_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Ein Sachbearbeiter ist erforderlich." };
   }
+  if (entry.key === "consignor.firstName") {
+    return { code: "CONSIGNOR_FIRST_NAME_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Der Vorname des Einlieferers fehlt." };
+  }
   if (entry.key === "consignor.lastName") {
     return { code: "CONSIGNOR_IDENTITY_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Einlieferername oder Firma fehlt." };
   }
@@ -321,6 +324,24 @@ function toExportValidationIssue(entry: MissingRequiredField): ValidationIssue {
   }
   if (entry.key === "consignor.city") {
     return { code: "CONSIGNOR_CITY_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die Stadt des Einlieferers fehlt." };
+  }
+  if (entry.key === "consignor.birthDate") {
+    return { code: "CONSIGNOR_BIRTH_DATE_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Das Geburtsdatum des Einlieferers fehlt." };
+  }
+  if (entry.key === "consignor.nationality") {
+    return { code: "CONSIGNOR_NATIONALITY_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die Nationalitaet des Einlieferers fehlt." };
+  }
+  if (entry.key === "consignor.passportNumber") {
+    return { code: "CONSIGNOR_PASSPORT_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die Passnummer des Einlieferers fehlt." };
+  }
+  if (entry.key === "bank.beneficiary") {
+    return { code: "BANK_BENEFICIARY_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Der Beguenstigte fehlt." };
+  }
+  if (entry.key === "bank.iban") {
+    return { code: "BANK_IBAN_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Die IBAN fehlt." };
+  }
+  if (entry.key === "bank.bic") {
+    return { code: "BANK_BIC_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Der BIC fehlt." };
   }
   if (entry.key === "bank.beneficiaryOverride.reason") {
     return { code: "BENEFICIARY_OVERRIDE_REASON_REQUIRED", scope: "export", severity: "error", path: entry.key, message: "Der Grund fuer den abweichenden Beguenstigten fehlt." };

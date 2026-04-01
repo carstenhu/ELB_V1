@@ -33,4 +33,16 @@ describe("required field helpers", () => {
       }
     ]);
   });
+
+  it("supports consignor and bank required field keys", () => {
+    const caseFile = createEmptyCase({ id: "case-1", clerkId: "clerk-1", receiptNumber: "0001", createdAt: "2026-03-18T10:00:00.000Z" });
+    const missing = collectMissingRequiredFields(caseFile, ["consignor.birthDate", "consignor.passportNumber", "bank.iban", "bank.bic"]);
+
+    expect(missing.map((entry) => entry.key)).toEqual([
+      "consignor.birthDate",
+      "consignor.passportNumber",
+      "bank.iban",
+      "bank.bic"
+    ]);
+  });
 });

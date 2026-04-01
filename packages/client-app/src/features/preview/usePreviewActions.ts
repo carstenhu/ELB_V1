@@ -91,7 +91,12 @@ function formatIssuePath(path: string): string {
   if (path === "consignor.street") return "Einlieferer: Strasse";
   if (path === "consignor.zip") return "Einlieferer: PLZ";
   if (path === "consignor.city") return "Einlieferer: Ort";
+  if (path === "consignor.firstName") return "Einlieferer: Vorname";
   if (path === "consignor.lastName") return "Einlieferer: Name";
+  if (path === "consignor.birthDate") return "Einlieferer: Geburtsdatum";
+  if (path === "consignor.nationality") return "Einlieferer: Nationalitaet";
+  if (path === "consignor.passportNumber") return "Einlieferer: Passnummer";
+  if (path === "bank.beneficiary") return "Beguenstigter";
   if (path === "bank.beneficiaryOverride.reason") return "Abweichender Beguenstigter: Grund";
   if (path === "bank.beneficiaryOverride.name") return "Abweichender Beguenstigter: Name";
 
