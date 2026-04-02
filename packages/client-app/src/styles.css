@@ -1111,6 +1111,68 @@ textarea {
   gap: 1.25rem;
 }
 
+.pdf-android-preview {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.pdf-android-page {
+  border: 1px solid #d8ddd6;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.pdf-android-page__title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #22352d;
+}
+
+.pdf-android-meta-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pdf-android-object {
+  border-top: 1px solid #e1e4db;
+  padding-top: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pdf-android-object:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.pdf-android-object__head {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.pdf-android-object__photo {
+  width: 130px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #d6dbd2;
+}
+
+.pdf-android-object__grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.pdf-android-object__grid strong {
+  font-size: 0.86rem;
+  color: #2f453a;
+}
+
 .pdf-page {
   margin: 0;
   display: grid;
@@ -1312,5 +1374,9 @@ textarea {
 
   .word-a4-scroll__inner {
     margin: 0;
+  }
+
+  .pdf-android-meta-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

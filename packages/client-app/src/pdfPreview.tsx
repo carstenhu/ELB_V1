@@ -155,8 +155,8 @@ export function PdfCanvasPreview(props: {
 }) {
   const [pages, setPages] = useState<RenderedPage[]>([]);
   const [status, setStatus] = useState("PDF-Vorschau wird erzeugt...");
-  const [androidPdfUrl, setAndroidPdfUrl] = useState("");
-  const [androidPreviewNotice, setAndroidPreviewNotice] = useState("");
+  const [androidPreviewModel, setAndroidPreviewModel] = useState<ReturnType<typeof createPdfPreviewModel> | null>(null);
+  const [androidObjectPages, setAndroidObjectPages] = useState<ObjectPageChunk[]>([]);
   const [layouts, setLayouts] = useState<{ main: PdfHotspotMap | null; follow: PdfHotspotMap | null }>({
     main: null,
     follow: null
@@ -170,33 +170,20 @@ export function PdfCanvasPreview(props: {
       try {
         setStatus("PDF-Vorschau wird erzeugt...");
         if (isAndroidBrowserContext()) {
-          const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
-          const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
-          const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
+          const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
+          const chunks = await buildObjectPageChunks(previewModel.objectRows);
           if (!cancelled) {
             setPages([]);
-            setObjectPages([]);
-            setAndroidPdfUrl((previousUrl) => {
-              if (previousUrl) {
-                URL.revokeObjectURL(previousUrl);
-              }
-              return url;
-            });
-            setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
+            setObjectPages(chunks);
+            setAndroidPreviewModel(previewModel);
+            setAndroidObjectPages(chunks);
             setStatus("");
-          } else {
-            URL.revokeObjectURL(url);
           }
           return;
         }
 
-        setAndroidPdfUrl((previousUrl) => {
-          if (previousUrl) {
-            URL.revokeObjectURL(previousUrl);
-          }
-          return "";
-        });
-        setAndroidPreviewNotice("");
+        setAndroidPreviewModel(null);
+        setAndroidObjectPages([]);
         const pdfjsLib = await loadPdfJs();
         const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
         const chunks = await buildObjectPageChunks(previewModel.objectRows);
@@ -263,12 +250,6 @@ export function PdfCanvasPreview(props: {
     };
   }, [props.caseFile, props.masterData]);
 
-  useEffect(() => () => {
-    if (androidPdfUrl) {
-      URL.revokeObjectURL(androidPdfUrl);
-    }
-  }, [androidPdfUrl]);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -291,22 +272,66 @@ export function PdfCanvasPreview(props: {
     );
   }
 
-  if (androidPdfUrl) {
+  if (androidPreviewModel) {
+    const objectByIndex = props.caseFile.objects;
+
     return (
       <div className="pdf-page-stack">
         <div className="preview-card">
-          <p>{androidPreviewNotice}</p>
-          <p>Hotspot-Bearbeitung ist in der Android-Fallback-Ansicht deaktiviert.</p>
-          <a href={androidPdfUrl} target="_blank" rel="noreferrer">
-            PDF in neuem Tab oeffnen
-          </a>
+          <p>Android-HTML-Vorschau aktiv.</p>
+          <p>Fuer Android wird die PDF-Vorschau ohne Browserdecoder als stabile Layout-Vorschau dargestellt.</p>
         </div>
-        <div className="preview-card">
-          <iframe
-            title="ELB-PDF Vorschau"
-            src={androidPdfUrl}
-            style={{ width: "100%", minHeight: "780px", border: "1px solid #d6dbd2", borderRadius: "12px" }}
-          />
+        <div className="preview-card pdf-android-preview">
+          <div className="pdf-android-page">
+            <div className="pdf-android-page__title">ELB {androidPreviewModel.receiptNumber || "-"}</div>
+            <div className="pdf-android-meta-grid">
+              <div>
+                <strong>Adresse</strong>
+                {androidPreviewModel.addressLines.map((line, index) => (
+                  <div key={`address-${index}`}>{line}</div>
+                ))}
+              </div>
+              <div>
+                <strong>Sachbearbeiter</strong>
+                <div>{androidPreviewModel.clerkLabel || "-"}</div>
+                <strong>Beguenstigter</strong>
+                <div>{androidPreviewModel.beneficiary || "-"}</div>
+              </div>
+            </div>
+          </div>
+          {androidObjectPages.map((chunk, pageIndex) => (
+            <div key={`android-page-${pageIndex}`} className="pdf-android-page">
+              <div className="pdf-android-page__title">Objekte Seite {pageIndex + 1}</div>
+              {chunk.items.map((chunkItem) => {
+                const objectItem = objectByIndex[chunkItem.objectIndex];
+                const firstPhoto = objectItem?.photoAssetIds.length
+                  ? props.caseFile.assets.find((asset) => asset.id === objectItem.photoAssetIds[0])
+                  : null;
+
+                return (
+                  <article key={`android-object-${chunkItem.objectIndex}`} className="pdf-android-object">
+                    <div className="pdf-android-object__head">
+                      <strong>{objectItem?.intNumber || "-"}</strong>
+                      <span>{objectItem?.shortDescription || "Ohne Kurzbeschrieb"}</span>
+                    </div>
+                    {firstPhoto ? (
+                      <img
+                        className="pdf-android-object__photo"
+                        src={firstPhoto.optimizedPath || firstPhoto.originalPath}
+                        alt={`Objekt ${objectItem?.intNumber || chunkItem.objectIndex + 1}`}
+                      />
+                    ) : null}
+                    <div className="pdf-android-object__grid">
+                      <div><strong>Auktion</strong><div>{chunkItem.auctionLabelLines.join(" ").trim() || "-"}</div></div>
+                      <div><strong>Abteilung</strong><div>{chunkItem.departmentCodeLines.join(" ").trim() || "-"}</div></div>
+                      <div><strong>Beschreibung</strong><div>{chunkItem.descriptionLines.join(" ").trim() || "-"}</div></div>
+                      <div><strong>Schätzung</strong><div>{chunkItem.estimateLines.join(" ").trim() || "-"}</div></div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     );
