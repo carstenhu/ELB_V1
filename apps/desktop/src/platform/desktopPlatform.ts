@@ -16,6 +16,8 @@ import { desktopDossierSyncStatusStore } from "./desktopDossierSyncStatus";
 
 const logger = createLogger("desktop-platform");
 const DEFAULT_SUPABASE_BUCKET = "elb-v1-data";
+const DEFAULT_SUPABASE_URL = "https://rlcrejoilwzqbidfbapl.supabase.co";
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_vH2hrtDsZivGn2X7R2A9lg_OQG7DPEj";
 const REMOTE_MASTER_DATA_PATH = "Stammdaten/master-data.json";
 const REMOTE_DOSSIER_EXPORTS_ROOT = "desktop-dossiers";
 const REMOTE_WORKSPACE_META_PATH = "workspace.json";
@@ -65,10 +67,11 @@ function toError(error: unknown, fallback: string): Error {
 }
 
 function getDesktopSupabaseConfig(): { url: string; key: string; bucket: string } | null {
-  const url = import.meta.env.VITE_SUPABASE_URL?.trim();
+  const url = import.meta.env.VITE_SUPABASE_URL?.trim() || DEFAULT_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY?.trim()
     || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim()
-    || import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+    || import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
+    || DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
     return null;
