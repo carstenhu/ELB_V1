@@ -177,33 +177,28 @@ export function PdfCanvasPreview(props: {
     let cancelled = false;
 
     async function renderPreview(): Promise<void> {
+      const applyNativeFallback = async () => {
+        const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
+        const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+        const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
+        if (!cancelled) {
+          setPages([]);
+          setObjectPages([]);
+          setAndroidPdfUrl((previousUrl) => {
+            if (previousUrl) {
+              URL.revokeObjectURL(previousUrl);
+            }
+            return url;
+          });
+          setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
+          setStatus("");
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      };
+
       try {
         setStatus("PDF-Vorschau wird erzeugt...");
-        const applyNativeFallback = async () => {
-          const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
-          const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
-          const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
-          if (!cancelled) {
-            setPages([]);
-            setObjectPages([]);
-            setAndroidPdfUrl((previousUrl) => {
-              if (previousUrl) {
-                URL.revokeObjectURL(previousUrl);
-              }
-              return url;
-            });
-            setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
-            setStatus("");
-          } else {
-            URL.revokeObjectURL(url);
-          }
-        };
-
-        if (isAndroidBrowserContext()) {
-          await applyNativeFallback();
-          return;
-        }
-
         setAndroidPdfUrl((previousUrl) => {
           if (previousUrl) {
             URL.revokeObjectURL(previousUrl);
@@ -223,8 +218,11 @@ export function PdfCanvasPreview(props: {
         });
         const pdfDocument = await loadingTask.promise;
         const rendered: RenderedPage[] = [];
-        const deviceScale = typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1.5) : 1.5;
-        const previewScale = 2.2;
+        const isAndroid = isAndroidBrowserContext();
+        const deviceScale = typeof window !== "undefined"
+          ? (isAndroid ? Math.max(window.devicePixelRatio || 1, 1) : Math.max(window.devicePixelRatio || 1, 1.5))
+          : 1.5;
+        const previewScale = isAndroid ? 1.5 : 2.2;
 
         for (let index = 1; index <= pdfDocument.numPages; index += 1) {
           const page = await pdfDocument.getPage(index);
@@ -265,29 +263,10 @@ export function PdfCanvasPreview(props: {
       } catch (error) {
         if (!cancelled) {
           if (shouldUseNativePdfFallback(error)) {
-            void (async () => {
-              try {
-                const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
-                const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
-                const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
-                if (!cancelled) {
-                  setPages([]);
-                  setAndroidPdfUrl((previousUrl) => {
-                    if (previousUrl) {
-                      URL.revokeObjectURL(previousUrl);
-                    }
-                    return url;
-                  });
-                  setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
-                  setStatus("");
-                } else {
-                  URL.revokeObjectURL(url);
-                }
-              } catch {
-                setStatus(buildPdfPreviewErrorMessage(error));
-                setPages([]);
-              }
-            })();
+            void applyNativeFallback().catch(() => {
+              setStatus(buildPdfPreviewErrorMessage(error));
+              setPages([]);
+            });
             return;
           }
 
