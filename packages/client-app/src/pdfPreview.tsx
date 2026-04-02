@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { type CaseFile, type MasterData } from "@elb/domain/index";
 import { buildObjectPageChunks, createPdfPreviewModel, generateElbPdf, getPdfHotspotMap, type ObjectPageChunk, type PdfHotspotMap } from "@elb/pdf-core/index";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -57,16 +57,6 @@ function buildPdfPreviewErrorMessage(error: unknown): string {
   }
 
   return rawMessage || "PDF-Vorschau konnte nicht erzeugt werden.";
-}
-
-function shouldUseHtmlFallbackPreview(error: unknown): boolean {
-  const rawMessage = error instanceof Error ? error.message : String(error ?? "");
-  const normalized = rawMessage.toLowerCase();
-
-  return normalized.includes("tohex is not a function")
-    || normalized.includes("browserdecoder")
-    || normalized.includes("image decoder")
-    || normalized.includes("imagedecoder");
 }
 
 async function loadPdfJs(): Promise<PdfJsModule> {
@@ -165,7 +155,8 @@ export function PdfCanvasPreview(props: {
 }) {
   const [pages, setPages] = useState<RenderedPage[]>([]);
   const [status, setStatus] = useState("PDF-Vorschau wird erzeugt...");
-  const [androidPreviewModel, setAndroidPreviewModel] = useState<ReturnType<typeof createPdfPreviewModel> | null>(null);
+  const [androidPdfUrl, setAndroidPdfUrl] = useState("");
+  const [androidPreviewNotice, setAndroidPreviewNotice] = useState("");
   const [layouts, setLayouts] = useState<{ main: PdfHotspotMap | null; follow: PdfHotspotMap | null }>({
     main: null,
     follow: null
@@ -179,16 +170,33 @@ export function PdfCanvasPreview(props: {
       try {
         setStatus("PDF-Vorschau wird erzeugt...");
         if (isAndroidBrowserContext()) {
-          const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
+          const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
+          const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+          const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
           if (!cancelled) {
             setPages([]);
-            setAndroidPreviewModel(previewModel);
+            setObjectPages([]);
+            setAndroidPdfUrl((previousUrl) => {
+              if (previousUrl) {
+                URL.revokeObjectURL(previousUrl);
+              }
+              return url;
+            });
+            setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
             setStatus("");
+          } else {
+            URL.revokeObjectURL(url);
           }
           return;
         }
 
-        setAndroidPreviewModel(null);
+        setAndroidPdfUrl((previousUrl) => {
+          if (previousUrl) {
+            URL.revokeObjectURL(previousUrl);
+          }
+          return "";
+        });
+        setAndroidPreviewNotice("");
         const pdfjsLib = await loadPdfJs();
         const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
         const chunks = await buildObjectPageChunks(previewModel.objectRows);
@@ -242,15 +250,6 @@ export function PdfCanvasPreview(props: {
         }
       } catch (error) {
         if (!cancelled) {
-          if (shouldUseHtmlFallbackPreview(error)) {
-            const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
-            setAndroidPreviewModel(previewModel);
-            setPages([]);
-            setObjectPages([]);
-            setStatus("");
-            return;
-          }
-
           setStatus(buildPdfPreviewErrorMessage(error));
           setPages([]);
         }
@@ -263,6 +262,12 @@ export function PdfCanvasPreview(props: {
       cancelled = true;
     };
   }, [props.caseFile, props.masterData]);
+
+  useEffect(() => () => {
+    if (androidPdfUrl) {
+      URL.revokeObjectURL(androidPdfUrl);
+    }
+  }, [androidPdfUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,80 +283,31 @@ export function PdfCanvasPreview(props: {
     };
   }, []);
 
-  if (androidPreviewModel) {
-    const previewRows = androidPreviewModel.objectRows;
-    const rowsPerPage = 8;
-    const androidPages = [];
-    for (let index = 0; index < previewRows.length; index += rowsPerPage) {
-      androidPages.push(previewRows.slice(index, index + rowsPerPage));
-    }
-
-    return (
-      <div className="pdf-page-stack">
-        <div className="preview-card">
-          <p>Android-HTML-Vorschau aktiv.</p>
-          <p>Fuer Android wird die PDF-Vorschau ohne Browserdecoder als stabile Layout-Vorschau dargestellt.</p>
-        </div>
-        <div className="preview-card pdf-android-preview">
-          <div className="pdf-android-page">
-            <div className="pdf-android-page__title">ELB {androidPreviewModel.receiptNumber || "-"}</div>
-            <div className="pdf-android-meta-grid">
-              <div>
-                <strong>Adresse</strong>
-                {androidPreviewModel.addressLines.map((line, index) => (
-                  <div key={`address-${index}`}>{line}</div>
-                ))}
-              </div>
-              <div>
-                <strong>Sachbearbeiter</strong>
-                <div>{androidPreviewModel.clerkLabel || "-"}</div>
-                <strong>Beguenstigter</strong>
-                <div>{androidPreviewModel.beneficiary || "-"}</div>
-              </div>
-            </div>
-          </div>
-          {androidPages.map((pageRows, pageIndex) => (
-            <div key={`android-page-${pageIndex}`} className="pdf-android-page">
-              <div className="pdf-android-page__title">Objekte Seite {pageIndex + 1}</div>
-              {pageRows.map((row) => {
-                const objectItem = props.caseFile.objects.find((item) => item.id === row.id);
-                const firstPhoto = objectItem?.photoAssetIds.length
-                  ? props.caseFile.assets.find((asset) => asset.id === objectItem.photoAssetIds[0])
-                  : null;
-
-                return (
-                  <article key={`android-object-${row.id}`} className="pdf-android-object">
-                    <div className="pdf-android-object__head">
-                      <strong>{row.intNumber || "-"}</strong>
-                      <span>{row.shortDescription || "Ohne Kurzbeschrieb"}</span>
-                    </div>
-                    {firstPhoto ? (
-                      <img
-                        className="pdf-android-object__photo"
-                        src={firstPhoto.optimizedPath || firstPhoto.originalPath}
-                        alt={`Objekt ${row.intNumber || row.id}`}
-                      />
-                    ) : null}
-                    <div className="pdf-android-object__grid">
-                      <div><strong>Auktion</strong><div>{row.auctionLabel || "-"}</div></div>
-                      <div><strong>Abteilung</strong><div>{row.departmentCode || "-"}</div></div>
-                      <div><strong>Beschreibung</strong><div>{row.description || row.shortDescription || "-"}</div></div>
-                      <div><strong>Schätzung</strong><div>{row.estimate ? `${row.estimate}${row.priceValue ? ` | ${row.priceLabel}: ${row.priceValue}` : ""}` : "-"}</div></div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (status && pages.length === 0) {
     return (
       <div className="preview-card">
         <p>{status}</p>
+      </div>
+    );
+  }
+
+  if (androidPdfUrl) {
+    return (
+      <div className="pdf-page-stack">
+        <div className="preview-card">
+          <p>{androidPreviewNotice}</p>
+          <p>Hotspot-Bearbeitung ist in der Android-Fallback-Ansicht deaktiviert.</p>
+          <a href={androidPdfUrl} target="_blank" rel="noreferrer">
+            PDF in neuem Tab oeffnen
+          </a>
+        </div>
+        <div className="preview-card">
+          <iframe
+            title="ELB-PDF Vorschau"
+            src={androidPdfUrl}
+            style={{ width: "100%", minHeight: "780px", border: "1px solid #d6dbd2", borderRadius: "12px" }}
+          />
+        </div>
       </div>
     );
   }
