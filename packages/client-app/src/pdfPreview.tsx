@@ -59,6 +59,16 @@ function buildPdfPreviewErrorMessage(error: unknown): string {
   return rawMessage || "PDF-Vorschau konnte nicht erzeugt werden.";
 }
 
+function shouldUseNativePdfFallback(error: unknown): boolean {
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = rawMessage.toLowerCase();
+
+  return normalized.includes("tohex is not a function")
+    || normalized.includes("browserdecoder")
+    || normalized.includes("image decoder")
+    || normalized.includes("imagedecoder");
+}
+
 async function loadPdfJs(): Promise<PdfJsModule> {
   if (!pdfJsLoader) {
     pdfJsLoader = import("pdfjs-dist/legacy/build/pdf.mjs").then((module) => {
@@ -169,7 +179,7 @@ export function PdfCanvasPreview(props: {
     async function renderPreview(): Promise<void> {
       try {
         setStatus("PDF-Vorschau wird erzeugt...");
-        if (isAndroidBrowserContext()) {
+        const applyNativeFallback = async () => {
           const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
           const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
           const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
@@ -187,6 +197,10 @@ export function PdfCanvasPreview(props: {
           } else {
             URL.revokeObjectURL(url);
           }
+        };
+
+        if (isAndroidBrowserContext()) {
+          await applyNativeFallback();
           return;
         }
 
@@ -250,6 +264,33 @@ export function PdfCanvasPreview(props: {
         }
       } catch (error) {
         if (!cancelled) {
+          if (shouldUseNativePdfFallback(error)) {
+            void (async () => {
+              try {
+                const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
+                const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+                const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
+                if (!cancelled) {
+                  setPages([]);
+                  setAndroidPdfUrl((previousUrl) => {
+                    if (previousUrl) {
+                      URL.revokeObjectURL(previousUrl);
+                    }
+                    return url;
+                  });
+                  setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
+                  setStatus("");
+                } else {
+                  URL.revokeObjectURL(url);
+                }
+              } catch {
+                setStatus(buildPdfPreviewErrorMessage(error));
+                setPages([]);
+              }
+            })();
+            return;
+          }
+
           setStatus(buildPdfPreviewErrorMessage(error));
           setPages([]);
         }
@@ -283,14 +324,6 @@ export function PdfCanvasPreview(props: {
     };
   }, []);
 
-  if (status && pages.length === 0) {
-    return (
-      <div className="preview-card">
-        <p>{status}</p>
-      </div>
-    );
-  }
-
   if (androidPdfUrl) {
     return (
       <div className="pdf-page-stack">
@@ -308,6 +341,14 @@ export function PdfCanvasPreview(props: {
             style={{ width: "100%", minHeight: "780px", border: "1px solid #d6dbd2", borderRadius: "12px" }}
           />
         </div>
+      </div>
+    );
+  }
+
+  if (status && pages.length === 0) {
+    return (
+      <div className="preview-card">
+        <p>{status}</p>
       </div>
     );
   }
