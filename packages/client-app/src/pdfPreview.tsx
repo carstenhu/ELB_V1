@@ -155,6 +155,8 @@ export function PdfCanvasPreview(props: {
 }) {
   const [pages, setPages] = useState<RenderedPage[]>([]);
   const [status, setStatus] = useState("PDF-Vorschau wird erzeugt...");
+  const [androidPdfUrl, setAndroidPdfUrl] = useState("");
+  const [androidPreviewNotice, setAndroidPreviewNotice] = useState("");
   const [layouts, setLayouts] = useState<{ main: PdfHotspotMap | null; follow: PdfHotspotMap | null }>({
     main: null,
     follow: null
@@ -167,6 +169,34 @@ export function PdfCanvasPreview(props: {
     async function renderPreview(): Promise<void> {
       try {
         setStatus("PDF-Vorschau wird erzeugt...");
+        if (isAndroidBrowserContext()) {
+          const pdfBytes = await generateElbPdf(props.caseFile, props.masterData);
+          const buffer = pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer;
+          const url = URL.createObjectURL(new Blob([buffer], { type: "application/pdf" }));
+          if (!cancelled) {
+            setPages([]);
+            setObjectPages([]);
+            setAndroidPdfUrl((previousUrl) => {
+              if (previousUrl) {
+                URL.revokeObjectURL(previousUrl);
+              }
+              return url;
+            });
+            setAndroidPreviewNotice("Android-Fallback aktiv: PDF wird nativ angezeigt.");
+            setStatus("");
+          } else {
+            URL.revokeObjectURL(url);
+          }
+          return;
+        }
+
+        setAndroidPdfUrl((previousUrl) => {
+          if (previousUrl) {
+            URL.revokeObjectURL(previousUrl);
+          }
+          return "";
+        });
+        setAndroidPreviewNotice("");
         const pdfjsLib = await loadPdfJs();
         const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
         const chunks = await buildObjectPageChunks(previewModel.objectRows);
@@ -233,6 +263,12 @@ export function PdfCanvasPreview(props: {
     };
   }, [props.caseFile, props.masterData]);
 
+  useEffect(() => () => {
+    if (androidPdfUrl) {
+      URL.revokeObjectURL(androidPdfUrl);
+    }
+  }, [androidPdfUrl]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -251,6 +287,27 @@ export function PdfCanvasPreview(props: {
     return (
       <div className="preview-card">
         <p>{status}</p>
+      </div>
+    );
+  }
+
+  if (androidPdfUrl) {
+    return (
+      <div className="pdf-page-stack">
+        <div className="preview-card">
+          <p>{androidPreviewNotice}</p>
+          <p>Hotspot-Bearbeitung ist in der Android-Fallback-Ansicht deaktiviert.</p>
+          <a href={androidPdfUrl} target="_blank" rel="noreferrer">
+            PDF in neuem Tab oeffnen
+          </a>
+        </div>
+        <div className="preview-card">
+          <iframe
+            title="ELB-PDF Vorschau"
+            src={androidPdfUrl}
+            style={{ width: "100%", minHeight: "780px", border: "1px solid #d6dbd2", borderRadius: "12px" }}
+          />
+        </div>
       </div>
     );
   }
