@@ -549,27 +549,71 @@ async function loadRemoteClerkDossiers(config: { url: string; key: string; bucke
   };
 }
 
+async function loadRemoteClerkDossiersByRoot(config: { url: string; key: string; bucket: string }, clerkRootSegment: string): Promise<{ clerkId: string; currentCaseId: string | null; dossiers: CaseFile[] } | null> {
+  const currentPointerPath = `clerks/${clerkRootSegment}/${REMOTE_CURRENT_POINTER_FILE_NAME}`;
+  const dossiersRoot = `clerks/${clerkRootSegment}/dossiers`;
+  const currentPointerRaw = await downloadTextFromSupabase(config, currentPointerPath);
+  const currentPointer = currentPointerRaw ? JSON.parse(currentPointerRaw) as RemoteCurrentDossierPointer : null;
+  const dossierEntries = await listSupabaseEntries(config, dossiersRoot);
+
+  if (!currentPointer && dossierEntries.length === 0) {
+    return null;
+  }
+
+  const dossiers = await Promise.all(
+    dossierEntries
+      .filter((entry) => !entry.id && entry.name)
+      .map(async (entry) => {
+        const raw = await downloadTextFromSupabase(config, `${dossiersRoot}/${entry.name}/${REMOTE_DOSSIER_FILE_NAME}`);
+        if (!raw) {
+          return null;
+        }
+
+        return hydrateRemoteAssets(config, JSON.parse(raw) as CaseFile);
+      })
+  );
+
+  const availableDossiers = dossiers.filter((dossier): dossier is CaseFile => Boolean(dossier));
+  const inferredClerkId = availableDossiers[0]?.meta.clerkId || clerkRootSegment;
+  return {
+    clerkId: inferredClerkId,
+    currentCaseId: currentPointer?.caseId ?? null,
+    dossiers: availableDossiers
+  };
+}
+
 async function loadRemoteWorkspaceSnapshot(config: { url: string; key: string; bucket: string }): Promise<WorkspaceSnapshot | null> {
   const [masterDataRaw, workspaceMetaRaw] = await Promise.all([
     downloadTextFromSupabase(config, REMOTE_MASTER_DATA_PATH),
     downloadTextFromSupabase(config, REMOTE_WORKSPACE_META_PATH)
   ]);
 
-  if (!masterDataRaw) {
-    return null;
-  }
-
-  const masterData = importMasterDataFromJson(masterDataRaw);
+  const masterData = masterDataRaw ? importMasterDataFromJson(masterDataRaw) : loadSeedMasterData();
   const workspaceMeta = workspaceMetaRaw ? JSON.parse(workspaceMetaRaw) as RemoteWorkspaceMeta : null;
-  const loadedByClerk = await Promise.all(masterData.clerks.map(async (clerk) => ({
+  const knownClerkRoots = new Set(masterData.clerks.map((clerk) => sanitizeRemoteSegment(clerk.id)));
+  const clerkRootEntries = await listSupabaseEntries(config, "clerks");
+  const discoveredRoots = clerkRootEntries
+    .filter((entry) => !entry.id && entry.name.trim())
+    .map((entry) => entry.name.trim());
+
+  const loadedKnownClerks = await Promise.all(masterData.clerks.map(async (clerk) => ({
     clerkId: clerk.id,
     loaded: await loadRemoteClerkDossiers(config, clerk.id)
   })));
 
+  const loadedDiscoveredRoots = await Promise.all(
+    discoveredRoots
+      .filter((root) => !knownClerkRoots.has(root))
+      .map(async (root) => ({
+        root,
+        loaded: await loadRemoteClerkDossiersByRoot(config, root)
+      }))
+  );
+
   const currentDossierIdByClerk: Record<string, string | null> = {};
   const remoteDossiers: CaseFile[] = [];
 
-  loadedByClerk.forEach(({ clerkId, loaded }) => {
+  loadedKnownClerks.forEach(({ clerkId, loaded }) => {
     if (!loaded) {
       return;
     }
@@ -577,6 +621,19 @@ async function loadRemoteWorkspaceSnapshot(config: { url: string; key: string; b
     currentDossierIdByClerk[clerkId] = loaded.currentCaseId;
     remoteDossiers.push(...loaded.dossiers);
   });
+
+  loadedDiscoveredRoots.forEach(({ loaded }) => {
+    if (!loaded) {
+      return;
+    }
+
+    currentDossierIdByClerk[loaded.clerkId] = loaded.currentCaseId;
+    remoteDossiers.push(...loaded.dossiers);
+  });
+
+  if (!masterDataRaw && remoteDossiers.length === 0 && !workspaceMeta) {
+    return null;
+  }
 
   const dossiers = dedupeCases(remoteDossiers);
   const activeClerkId = workspaceMeta?.activeClerkId ?? null;
