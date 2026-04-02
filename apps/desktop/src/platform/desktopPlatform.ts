@@ -870,10 +870,12 @@ async function loadRemoteWorkspaceSnapshot(config: { url: string; key: string; b
 
 function createDesktopWorkspaceRepository(): WorkspaceRepository {
   const localRepository = createWorkspaceRepository();
+  let localPinnedDossierIds = new Set<string>();
 
   return {
     async load() {
       const localSnapshot = await localRepository.load();
+      localPinnedDossierIds = new Set((localSnapshot?.dossiers ?? []).map((dossier) => dossier.meta.id));
       const supabaseConfig = getDesktopSupabaseConfig();
 
       if (!supabaseConfig) {
@@ -907,7 +909,6 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
           return null;
         }
 
-        await localRepository.save(mergedSnapshot);
         desktopDossierSyncStatusStore.markMergedLoaded({
           localSnapshot,
           remoteSnapshot,
@@ -921,7 +922,39 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
       }
     },
     async save(snapshot) {
-      await localRepository.save(snapshot);
+      if (snapshot.currentCase?.meta.id) {
+        localPinnedDossierIds.add(snapshot.currentCase.meta.id);
+      }
+
+      const syncSnapshot = desktopDossierSyncStatusStore.getSnapshot();
+      const syncedIds = new Set(
+        Object.entries(syncSnapshot?.dossiers ?? {})
+          .filter(([, entry]) => entry.state === "synced")
+          .map(([id]) => id)
+      );
+      const dossiersToPersist = snapshot.dossiers.filter((dossier) =>
+        localPinnedDossierIds.has(dossier.meta.id) || !syncedIds.has(dossier.meta.id)
+      );
+      dossiersToPersist.forEach((dossier) => localPinnedDossierIds.add(dossier.meta.id));
+
+      const persistedDossierIdSet = new Set(dossiersToPersist.map((dossier) => dossier.meta.id));
+      const persistedCurrentByClerk = Object.fromEntries(
+        Object.entries(snapshot.currentDossierIdByClerk).map(([clerkId, caseId]) => [
+          clerkId,
+          caseId && persistedDossierIdSet.has(caseId) ? caseId : null
+        ])
+      ) as Record<string, string | null>;
+      const persistedCurrentCase = snapshot.currentCase && persistedDossierIdSet.has(snapshot.currentCase.meta.id)
+        ? snapshot.currentCase
+        : null;
+      const snapshotToPersist: WorkspaceSnapshot = {
+        ...snapshot,
+        currentCase: persistedCurrentCase,
+        currentDossierIdByClerk: persistedCurrentByClerk,
+        dossiers: dossiersToPersist
+      };
+
+      await localRepository.save(snapshotToPersist);
       const supabaseConfig = getDesktopSupabaseConfig();
       if (supabaseConfig) {
         try {
