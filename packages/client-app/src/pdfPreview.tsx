@@ -156,7 +156,6 @@ export function PdfCanvasPreview(props: {
   const [pages, setPages] = useState<RenderedPage[]>([]);
   const [status, setStatus] = useState("PDF-Vorschau wird erzeugt...");
   const [androidPreviewModel, setAndroidPreviewModel] = useState<ReturnType<typeof createPdfPreviewModel> | null>(null);
-  const [androidObjectPages, setAndroidObjectPages] = useState<ObjectPageChunk[]>([]);
   const [layouts, setLayouts] = useState<{ main: PdfHotspotMap | null; follow: PdfHotspotMap | null }>({
     main: null,
     follow: null
@@ -171,19 +170,15 @@ export function PdfCanvasPreview(props: {
         setStatus("PDF-Vorschau wird erzeugt...");
         if (isAndroidBrowserContext()) {
           const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
-          const chunks = await buildObjectPageChunks(previewModel.objectRows);
           if (!cancelled) {
             setPages([]);
-            setObjectPages(chunks);
             setAndroidPreviewModel(previewModel);
-            setAndroidObjectPages(chunks);
             setStatus("");
           }
           return;
         }
 
         setAndroidPreviewModel(null);
-        setAndroidObjectPages([]);
         const pdfjsLib = await loadPdfJs();
         const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
         const chunks = await buildObjectPageChunks(previewModel.objectRows);
@@ -273,7 +268,12 @@ export function PdfCanvasPreview(props: {
   }
 
   if (androidPreviewModel) {
-    const objectByIndex = props.caseFile.objects;
+    const previewRows = androidPreviewModel.objectRows;
+    const rowsPerPage = 8;
+    const androidPages = [];
+    for (let index = 0; index < previewRows.length; index += rowsPerPage) {
+      androidPages.push(previewRows.slice(index, index + rowsPerPage));
+    }
 
     return (
       <div className="pdf-page-stack">
@@ -299,33 +299,33 @@ export function PdfCanvasPreview(props: {
               </div>
             </div>
           </div>
-          {androidObjectPages.map((chunk, pageIndex) => (
+          {androidPages.map((pageRows, pageIndex) => (
             <div key={`android-page-${pageIndex}`} className="pdf-android-page">
               <div className="pdf-android-page__title">Objekte Seite {pageIndex + 1}</div>
-              {chunk.items.map((chunkItem) => {
-                const objectItem = objectByIndex[chunkItem.objectIndex];
+              {pageRows.map((row) => {
+                const objectItem = props.caseFile.objects.find((item) => item.id === row.id);
                 const firstPhoto = objectItem?.photoAssetIds.length
                   ? props.caseFile.assets.find((asset) => asset.id === objectItem.photoAssetIds[0])
                   : null;
 
                 return (
-                  <article key={`android-object-${chunkItem.objectIndex}`} className="pdf-android-object">
+                  <article key={`android-object-${row.id}`} className="pdf-android-object">
                     <div className="pdf-android-object__head">
-                      <strong>{objectItem?.intNumber || "-"}</strong>
-                      <span>{objectItem?.shortDescription || "Ohne Kurzbeschrieb"}</span>
+                      <strong>{row.intNumber || "-"}</strong>
+                      <span>{row.shortDescription || "Ohne Kurzbeschrieb"}</span>
                     </div>
                     {firstPhoto ? (
                       <img
                         className="pdf-android-object__photo"
                         src={firstPhoto.optimizedPath || firstPhoto.originalPath}
-                        alt={`Objekt ${objectItem?.intNumber || chunkItem.objectIndex + 1}`}
+                        alt={`Objekt ${row.intNumber || row.id}`}
                       />
                     ) : null}
                     <div className="pdf-android-object__grid">
-                      <div><strong>Auktion</strong><div>{chunkItem.auctionLabelLines.join(" ").trim() || "-"}</div></div>
-                      <div><strong>Abteilung</strong><div>{chunkItem.departmentCodeLines.join(" ").trim() || "-"}</div></div>
-                      <div><strong>Beschreibung</strong><div>{chunkItem.descriptionLines.join(" ").trim() || "-"}</div></div>
-                      <div><strong>Schätzung</strong><div>{chunkItem.estimateLines.join(" ").trim() || "-"}</div></div>
+                      <div><strong>Auktion</strong><div>{row.auctionLabel || "-"}</div></div>
+                      <div><strong>Abteilung</strong><div>{row.departmentCode || "-"}</div></div>
+                      <div><strong>Beschreibung</strong><div>{row.description || row.shortDescription || "-"}</div></div>
+                      <div><strong>Schätzung</strong><div>{row.estimate ? `${row.estimate}${row.priceValue ? ` | ${row.priceLabel}: ${row.priceValue}` : ""}` : "-"}</div></div>
                     </div>
                   </article>
                 );
