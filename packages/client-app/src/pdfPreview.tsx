@@ -59,6 +59,16 @@ function buildPdfPreviewErrorMessage(error: unknown): string {
   return rawMessage || "PDF-Vorschau konnte nicht erzeugt werden.";
 }
 
+function shouldUseHtmlFallbackPreview(error: unknown): boolean {
+  const rawMessage = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = rawMessage.toLowerCase();
+
+  return normalized.includes("tohex is not a function")
+    || normalized.includes("browserdecoder")
+    || normalized.includes("image decoder")
+    || normalized.includes("imagedecoder");
+}
+
 async function loadPdfJs(): Promise<PdfJsModule> {
   if (!pdfJsLoader) {
     pdfJsLoader = import("pdfjs-dist/legacy/build/pdf.mjs").then((module) => {
@@ -232,6 +242,15 @@ export function PdfCanvasPreview(props: {
         }
       } catch (error) {
         if (!cancelled) {
+          if (shouldUseHtmlFallbackPreview(error)) {
+            const previewModel = createPdfPreviewModel(props.caseFile, props.masterData);
+            setAndroidPreviewModel(previewModel);
+            setPages([]);
+            setObjectPages([]);
+            setStatus("");
+            return;
+          }
+
           setStatus(buildPdfPreviewErrorMessage(error));
           setPages([]);
         }
@@ -258,14 +277,6 @@ export function PdfCanvasPreview(props: {
       cancelled = true;
     };
   }, []);
-
-  if (status && pages.length === 0) {
-    return (
-      <div className="preview-card">
-        <p>{status}</p>
-      </div>
-    );
-  }
 
   if (androidPreviewModel) {
     const previewRows = androidPreviewModel.objectRows;
@@ -333,6 +344,14 @@ export function PdfCanvasPreview(props: {
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (status && pages.length === 0) {
+    return (
+      <div className="preview-card">
+        <p>{status}</p>
       </div>
     );
   }
