@@ -187,6 +187,18 @@ textarea {
   display: inline;
 }
 
+.topbar__sync-inline {
+  display: none;
+  align-items: center;
+  min-width: 0;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  color: #1d5b3d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .topbar__menu-panel {
   position: absolute;
   top: calc(100% + 0.5rem);
@@ -698,9 +710,9 @@ textarea {
     padding: 0;
     border: 0;
     background: transparent;
-    justify-content: space-between;
+    justify-content: flex-start;
     flex-wrap: nowrap;
-    gap: 0;
+    gap: 0.4rem;
   }
 
   .topbar__page-button {
@@ -712,9 +724,11 @@ textarea {
   }
 
   .topbar__menu-trigger {
-    min-width: auto;
-    padding: 0.56rem 0.9rem;
-    gap: 0.4rem;
+    min-width: 2.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    gap: 0;
     border-color: #c6cec5;
     background: rgba(255, 255, 255, 0.94);
   }
@@ -724,12 +738,22 @@ textarea {
   }
 
   .topbar__menu-icon {
-    display: none;
+    display: inline;
+    font-size: 1.3rem;
   }
 
   .topbar__menu-label {
-    display: inline;
-    font-size: 0.92rem;
+    display: none;
+  }
+
+  .topbar__sync-inline {
+    display: inline-flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 2.5rem;
+    border: 1px solid rgba(195, 203, 192, 0.9);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
   }
 
   .topbar__menu-panel {
@@ -1300,6 +1324,18 @@ textarea {
   margin-top: 0.9rem;
 }
 
+.pin-modal__actions--new-dossier {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  padding-bottom: 0.2rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pin-modal__actions--new-dossier button {
+  flex: 0 0 auto;
+}
+
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -1362,6 +1398,15 @@ textarea {
 
   .admin-header {
     top: -0.95rem;
+  }
+
+  .pin-modal__actions--new-dossier {
+    gap: 0.45rem;
+  }
+
+  .pin-modal__actions--new-dossier button {
+    padding: 0.42rem 0.72rem;
+    font-size: 0.84rem;
   }
 
   .word-sheet__body {

@@ -106,6 +106,9 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
     };
   }, [pageMenuOpen]);
 
+  const syncTimestamp = workspaceSyncStatus?.timestamp?.replace(/^Gespeichert um\s*/i, "").trim() ?? "";
+  const topbarSyncLabel = syncTimestamp ? `In Supabase gespeichert um ${syncTimestamp}` : null;
+
   return (
     <header className="topbar-wrap">
       <div className="topbar">
@@ -126,7 +129,7 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
               <span className="topbar__menu-icon" aria-hidden="true">
                 &#9776;
               </span>
-              <span className="topbar__menu-label">Seiten</span>
+              <span className="topbar__menu-label">Menue</span>
             </button>
             {pageMenuOpen ? (
               <div className="topbar__menu-panel topbar__menu-panel--pages">
@@ -156,6 +159,11 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
               </div>
             ) : null}
           </div>
+          {topbarSyncLabel ? (
+            <div className="topbar__sync-inline" title={topbarSyncLabel}>
+              {topbarSyncLabel}
+            </div>
+          ) : null}
           <button className="nav-button topbar__page-button" onClick={props.onOpenDossierCreate}>
             Dossier
           </button>
@@ -170,12 +178,6 @@ export function TopBar(props: { page: PageId; onPageChange: (page: PageId) => vo
           ))}
         </nav>
       </div>
-      {workspaceSyncStatus ? (
-        <div className={`sync-status sync-status--${workspaceSyncStatus.level}`}>
-          {workspaceSyncStatus.message}
-          {workspaceSyncStatus.timestamp ? ` · ${workspaceSyncStatus.timestamp}` : ""}
-        </div>
-      ) : null}
     </header>
   );
 }

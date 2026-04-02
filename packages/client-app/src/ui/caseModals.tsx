@@ -84,7 +84,7 @@ export function NewDossierModal(props: {
               />
             </Field>
             {errorMessage ? <p className="field-warning">{errorMessage}</p> : null}
-            <div className="pin-modal__actions">
+            <div className="pin-modal__actions pin-modal__actions--new-dossier">
               <button type="button" onClick={props.onCancel}>
                 Abbrechen
               </button>
