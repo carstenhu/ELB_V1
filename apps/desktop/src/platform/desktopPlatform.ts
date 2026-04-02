@@ -24,6 +24,9 @@ const REMOTE_WORKSPACE_META_PATH = "workspace.json";
 const REMOTE_CURRENT_POINTER_FILE_NAME = "current.json";
 const REMOTE_DOSSIER_FILE_NAME = "dossier.json";
 const REMOTE_ASSET_REF_PREFIX = "remote://";
+const APP_DATA_EXPORT_ROOT = "Daten_zip";
+const PENDING_WORKSPACE_SYNC_FILE = `${APP_DATA_EXPORT_ROOT}/pending-workspace-sync.json`;
+const PENDING_EXPORT_UPLOADS_FILE = `${APP_DATA_EXPORT_ROOT}/pending-export-uploads.json`;
 
 interface RemoteWorkspaceMeta {
   activeClerkId: string | null;
@@ -36,6 +39,14 @@ interface RemoteCurrentDossierPointer {
 interface SupabaseListEntry {
   name: string;
   id: string | null;
+}
+
+interface PendingExportUpload {
+  clerkId: string;
+  caseId: string;
+  zipFileName: string;
+  localCachePath: string;
+  queuedAt: string;
 }
 
 async function loadTauriCore() {
@@ -150,6 +161,69 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
+function createTimestampSegment(): string {
+  return new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-").replace("T", "_").replace("Z", "");
+}
+
+function parseDataUrl(dataUrl: string): { mimeType: string; bytes: Uint8Array } {
+  const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+  if (!match) {
+    throw new Error("Asset liegt nicht als Data-URL vor.");
+  }
+  return {
+    mimeType: match[1] || "image/jpeg",
+    bytes: Uint8Array.from(atob(match[2] || ""), (char) => char.charCodeAt(0))
+  };
+}
+
+function getAssetExtension(mimeType: string, fileName: string): string {
+  if (mimeType === "image/png" || fileName.toLowerCase().endsWith(".png")) return ".png";
+  if (mimeType === "image/webp" || fileName.toLowerCase().endsWith(".webp")) return ".webp";
+  if (mimeType === "image/gif" || fileName.toLowerCase().endsWith(".gif")) return ".gif";
+  return ".jpg";
+}
+
+function toRemoteAssetRef(path: string): string {
+  return `${REMOTE_ASSET_REF_PREFIX}${path}`;
+}
+
+async function readAppDataJson<T>(path: string): Promise<T | null> {
+  const fs = await loadTauriFs();
+  if (!("exists" in fs) || !("readTextFile" in fs)) {
+    return null;
+  }
+  const exists = await fs.exists(path, { baseDir: fs.BaseDirectory.AppLocalData });
+  if (!exists) {
+    return null;
+  }
+  const raw = await fs.readTextFile(path, { baseDir: fs.BaseDirectory.AppLocalData });
+  if (!raw.trim()) {
+    return null;
+  }
+  return JSON.parse(raw) as T;
+}
+
+async function writeAppDataJson(path: string, value: unknown): Promise<void> {
+  const fs = await loadTauriFs();
+  if (!("mkdir" in fs) || !("writeTextFile" in fs)) {
+    return;
+  }
+  await fs.mkdir(APP_DATA_EXPORT_ROOT, { baseDir: fs.BaseDirectory.AppLocalData, recursive: true });
+  await fs.writeTextFile(path, JSON.stringify(value, null, 2), { baseDir: fs.BaseDirectory.AppLocalData });
+}
+
+async function deleteAppDataFile(path: string): Promise<void> {
+  const fs = await loadTauriFs();
+  if (!("exists" in fs) || !("writeTextFile" in fs)) {
+    return;
+  }
+  const exists = await fs.exists(path, { baseDir: fs.BaseDirectory.AppLocalData });
+  if (!exists) {
+    return;
+  }
+  await fs.writeTextFile(path, "", { baseDir: fs.BaseDirectory.AppLocalData });
+}
+
 async function downloadTextFromSupabase(config: { url: string; key: string; bucket: string }, path: string): Promise<string | null> {
   const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
     headers: createSupabaseAuthHeaders(config)
@@ -217,6 +291,36 @@ async function listSupabaseEntries(config: { url: string; key: string; bucket: s
   return payload
     .filter((entry): entry is { name: string; id: string | null } => typeof entry?.name === "string")
     .map((entry) => ({ name: entry.name, id: typeof entry.id === "string" ? entry.id : null }));
+}
+
+async function uploadTextToSupabase(config: { url: string; key: string; bucket: string }, path: string, value: string): Promise<void> {
+  const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
+    method: "POST",
+    headers: {
+      ...createSupabaseAuthHeaders(config),
+      "x-upsert": "true",
+      "content-type": "application/json"
+    },
+    body: value
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase-Textupload fehlgeschlagen (${response.status}): ${path}`);
+  }
+}
+
+async function uploadBinaryToSupabase(config: { url: string; key: string; bucket: string }, path: string, bytes: Uint8Array, mimeType: string): Promise<void> {
+  const response = await fetch(buildSupabaseObjectUrl(config.url, config.bucket, path), {
+    method: "POST",
+    headers: {
+      ...createSupabaseAuthHeaders(config),
+      "x-upsert": "true",
+      "content-type": mimeType
+    },
+    body: new Blob([toArrayBuffer(bytes)], { type: mimeType })
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase-Binaryupload fehlgeschlagen (${response.status}): ${path}`);
+  }
 }
 
 function escapeRegex(value: string): string {
@@ -498,6 +602,118 @@ function mergeWorkspaceSnapshots(localSnapshot: WorkspaceSnapshot | null, remote
   };
 }
 
+function getRelevantClerkIds(snapshot: WorkspaceSnapshot): string[] {
+  const ids = new Set<string>();
+  snapshot.masterData.clerks.forEach((clerk) => ids.add(clerk.id));
+  snapshot.dossiers.forEach((caseFile) => ids.add(caseFile.meta.clerkId));
+  if (snapshot.currentCase?.meta.clerkId) ids.add(snapshot.currentCase.meta.clerkId);
+  if (snapshot.activeClerkId) ids.add(snapshot.activeClerkId);
+  return [...ids];
+}
+
+function getCasesForClerk(snapshot: WorkspaceSnapshot, clerkId: string): CaseFile[] {
+  return dedupeCases(
+    [snapshot.currentCase, ...snapshot.dossiers]
+      .filter((caseFile): caseFile is CaseFile => Boolean(caseFile))
+      .filter((caseFile) => caseFile.meta.clerkId === clerkId)
+  );
+}
+
+async function persistRemoteAssetsForCase(config: { url: string; key: string; bucket: string }, caseFile: CaseFile): Promise<CaseFile> {
+  const assets = await Promise.all(caseFile.assets.map(async (asset) => {
+    const source = asset.optimizedPath || asset.originalPath;
+    if (!source.startsWith("data:")) {
+      return asset;
+    }
+
+    const { mimeType, bytes } = parseDataUrl(source);
+    const extension = getAssetExtension(mimeType, asset.fileName);
+    const remotePath = `${getRemoteDossiersRoot(caseFile.meta.clerkId)}/${sanitizeRemoteSegment(caseFile.meta.id)}/assets/optimized/${asset.id}${extension}`;
+    await uploadBinaryToSupabase(config, remotePath, bytes, mimeType);
+    return {
+      ...asset,
+      originalPath: toRemoteAssetRef(remotePath),
+      optimizedPath: toRemoteAssetRef(remotePath)
+    };
+  }));
+
+  return {
+    ...caseFile,
+    assets
+  };
+}
+
+async function saveWorkspaceSnapshotToSupabase(config: { url: string; key: string; bucket: string }, snapshot: WorkspaceSnapshot): Promise<void> {
+  await uploadTextToSupabase(config, REMOTE_MASTER_DATA_PATH, JSON.stringify(snapshot.masterData, null, 2));
+  await uploadTextToSupabase(config, REMOTE_WORKSPACE_META_PATH, JSON.stringify({
+    activeClerkId: snapshot.activeClerkId,
+    savedAt: new Date().toISOString()
+  }, null, 2));
+
+  for (const clerkId of getRelevantClerkIds(snapshot)) {
+    const currentCaseId = snapshot.currentDossierIdByClerk[clerkId]
+      ?? (snapshot.currentCase?.meta.clerkId === clerkId ? snapshot.currentCase.meta.id : null);
+    await uploadTextToSupabase(config, getRemoteCurrentPointerPath(clerkId), JSON.stringify({
+      caseId: currentCaseId,
+      savedAt: new Date().toISOString()
+    }, null, 2));
+
+    await Promise.all(getCasesForClerk(snapshot, clerkId).map(async (caseFile) => {
+      const persistedCase = await persistRemoteAssetsForCase(config, caseFile);
+      const remoteDossierPath = `${getRemoteDossiersRoot(clerkId)}/${sanitizeRemoteSegment(caseFile.meta.id)}/${REMOTE_DOSSIER_FILE_NAME}`;
+      await uploadTextToSupabase(config, remoteDossierPath, JSON.stringify(persistedCase, null, 2));
+    }));
+  }
+}
+
+async function queuePendingWorkspaceSync(snapshot: WorkspaceSnapshot): Promise<void> {
+  await writeAppDataJson(PENDING_WORKSPACE_SYNC_FILE, snapshot);
+}
+
+async function loadPendingWorkspaceSync(): Promise<WorkspaceSnapshot | null> {
+  return readAppDataJson<WorkspaceSnapshot>(PENDING_WORKSPACE_SYNC_FILE);
+}
+
+async function clearPendingWorkspaceSync(): Promise<void> {
+  await deleteAppDataFile(PENDING_WORKSPACE_SYNC_FILE);
+}
+
+async function cacheExportZipLocally(args: { clerkId: string; caseId: string; zipFileName: string; zipContent: Blob | ArrayBuffer | Uint8Array }): Promise<string> {
+  const fs = await loadTauriFs();
+  if (!("mkdir" in fs) || !("writeFile" in fs)) {
+    return "";
+  }
+  const targetRoot = `${APP_DATA_EXPORT_ROOT}/${sanitizeRemoteSegment(args.clerkId)}/${sanitizeRemoteSegment(args.caseId)}/${createTimestampSegment()}`;
+  const targetPath = `${targetRoot}/${sanitizeRemoteSegment(args.zipFileName)}`;
+  await fs.mkdir(targetRoot, { baseDir: fs.BaseDirectory.AppLocalData, recursive: true });
+  await fs.writeFile(targetPath, await toBinaryBytes(args.zipContent), { baseDir: fs.BaseDirectory.AppLocalData });
+  return targetPath;
+}
+
+async function readCachedZip(path: string): Promise<Uint8Array | null> {
+  const fs = await loadTauriFs();
+  if (!("exists" in fs) || !("readFile" in fs)) {
+    return null;
+  }
+  const exists = await fs.exists(path, { baseDir: fs.BaseDirectory.AppLocalData });
+  if (!exists) {
+    return null;
+  }
+  return fs.readFile(path, { baseDir: fs.BaseDirectory.AppLocalData });
+}
+
+async function loadPendingExportUploads(): Promise<PendingExportUpload[]> {
+  return (await readAppDataJson<PendingExportUpload[]>(PENDING_EXPORT_UPLOADS_FILE)) ?? [];
+}
+
+async function savePendingExportUploads(queue: PendingExportUpload[]): Promise<void> {
+  if (!queue.length) {
+    await deleteAppDataFile(PENDING_EXPORT_UPLOADS_FILE);
+    return;
+  }
+  await writeAppDataJson(PENDING_EXPORT_UPLOADS_FILE, queue);
+}
+
 async function hydrateRemoteAssets(config: { url: string; key: string; bucket: string }, caseFile: CaseFile): Promise<CaseFile> {
   const assets = await Promise.all(caseFile.assets.map(async (asset) => {
     const sourcePath = asset.optimizedPath || asset.originalPath;
@@ -666,6 +882,16 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
       }
 
       try {
+        const pendingSnapshot = await loadPendingWorkspaceSync();
+        if (pendingSnapshot) {
+          try {
+            await saveWorkspaceSnapshotToSupabase(supabaseConfig, pendingSnapshot);
+            await clearPendingWorkspaceSync();
+          } catch (pendingError) {
+            logger.warn("Ausstehender Workspace-Sync konnte noch nicht nach Supabase geschrieben werden.", pendingError);
+          }
+        }
+
         const workspaceSnapshot = await loadRemoteWorkspaceSnapshot(supabaseConfig);
         const desktopRemote = await loadRemoteDesktopDossiers(supabaseConfig);
         const remoteSnapshot = buildRemoteSnapshot({
@@ -696,6 +922,20 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
     },
     async save(snapshot) {
       await localRepository.save(snapshot);
+      const supabaseConfig = getDesktopSupabaseConfig();
+      if (supabaseConfig) {
+        try {
+          const pendingSnapshot = await loadPendingWorkspaceSync();
+          if (pendingSnapshot) {
+            await saveWorkspaceSnapshotToSupabase(supabaseConfig, pendingSnapshot);
+            await clearPendingWorkspaceSync();
+          }
+          await saveWorkspaceSnapshotToSupabase(supabaseConfig, snapshot);
+        } catch (error) {
+          logger.warn("Workspace konnte nicht direkt nach Supabase gespeichert werden. Wird spaeter erneut versucht.", error);
+          await queuePendingWorkspaceSync(snapshot);
+        }
+      }
       desktopDossierSyncStatusStore.markSaved(snapshot);
     }
   };
@@ -722,6 +962,34 @@ async function uploadExportZipToSupabase(args: { clerkId: string; caseId: string
   }
 
   return path;
+}
+
+async function flushPendingExportUploads(): Promise<void> {
+  const queue = await loadPendingExportUploads();
+  if (!queue.length) {
+    return;
+  }
+
+  const remaining: PendingExportUpload[] = [];
+  for (const entry of queue) {
+    try {
+      const bytes = await readCachedZip(entry.localCachePath);
+      if (!bytes) {
+        continue;
+      }
+      await uploadExportZipToSupabase({
+        clerkId: entry.clerkId,
+        caseId: entry.caseId,
+        zipFileName: entry.zipFileName,
+        zipContent: bytes
+      });
+    } catch (error) {
+      logger.warn("Ausstehender Supabase-Export konnte nicht synchronisiert werden.", error);
+      remaining.push(entry);
+    }
+  }
+
+  await savePendingExportUploads(remaining);
 }
 
 async function loadMasterDataFromSupabase(): Promise<MasterData> {
@@ -825,22 +1093,42 @@ export const desktopPlatform: AppPlatform = {
       try {
         const { savedPath } = await persistExportArtifactsToDisk(args);
         const zipFileName = savedPath.split("/").pop() || args.zipFileName;
+        const localCachePath = await cacheExportZipLocally({
+          clerkId: args.caseFile.meta.clerkId,
+          caseId: args.caseFile.meta.id,
+          zipFileName,
+          zipContent: args.zipContent
+        });
+        const supabaseConfig = getDesktopSupabaseConfig();
 
         try {
-          const remoteZipPath = await uploadExportZipToSupabase({
-            clerkId: args.caseFile.meta.clerkId,
-            caseId: args.caseFile.meta.id,
-            zipFileName,
-            zipContent: args.zipContent
-          });
+          let remoteZipPath: string | null = null;
+          if (supabaseConfig) {
+            await flushPendingExportUploads();
+            remoteZipPath = await uploadExportZipToSupabase({
+              clerkId: args.caseFile.meta.clerkId,
+              caseId: args.caseFile.meta.id,
+              zipFileName,
+              zipContent: args.zipContent
+            });
+          }
           return {
             message: remoteZipPath
-              ? `Dossierdateien wurden lokal gespeichert: ${savedPath}. Online gespeichert unter: ${remoteZipPath}`
-              : `Dossierdateien wurden lokal gespeichert: ${savedPath}`
+              ? `Dossierdateien wurden lokal gespeichert: ${savedPath}. App-Cache: ${localCachePath}. Online gespeichert unter: ${remoteZipPath}`
+              : `Dossierdateien wurden lokal gespeichert: ${savedPath}. App-Cache: ${localCachePath}`
           };
         } catch (uploadError) {
           logger.warn("Desktop-Dossier-ZIP konnte nicht nach Supabase hochgeladen werden.", uploadError);
-          return { message: `Dossierdateien wurden lokal gespeichert: ${savedPath}. Supabase-Upload ist fehlgeschlagen.` };
+          const queue = await loadPendingExportUploads();
+          queue.push({
+            clerkId: args.caseFile.meta.clerkId,
+            caseId: args.caseFile.meta.id,
+            zipFileName,
+            localCachePath,
+            queuedAt: new Date().toISOString()
+          });
+          await savePendingExportUploads(queue);
+          return { message: `Dossierdateien wurden lokal gespeichert: ${savedPath}. App-Cache: ${localCachePath}. Supabase-Upload ist fehlgeschlagen und wird spaeter erneut versucht.` };
         }
       } catch (error) {
         logger.error("Desktop-Dossierdateien konnten nicht gespeichert werden.", error);

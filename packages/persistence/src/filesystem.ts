@@ -114,6 +114,13 @@ function splitFileName(fileName: string): { name: string; extension: string } {
     : { name: fileName.slice(0, lastDotIndex), extension: fileName.slice(lastDotIndex) };
 }
 
+function getParentDirectory(path: string): string | null {
+  const normalized = path.replaceAll("\\", "/");
+  const lastSlash = normalized.lastIndexOf("/");
+  if (lastSlash <= 0) return null;
+  return normalized.slice(0, lastSlash);
+}
+
 function buildVersionedFileName(fileName: string, version: number): string {
   const parsed = splitFileName(fileName);
   return `${parsed.name}_v${version}${parsed.extension}`;
@@ -715,6 +722,10 @@ export async function persistExportArtifactsToDisk(args: {
 
   await Promise.all(args.artifacts.map(async (artifact) => {
     const targetPath = `${exportsRoot}/${artifact.fileName}`;
+    const targetDirectory = getParentDirectory(targetPath);
+    if (targetDirectory) {
+      await ensureDir(fsModule, targetDirectory);
+    }
     if (typeof artifact.content === "string") {
       await writeTextData(fsModule, targetPath, artifact.content);
     } else {
