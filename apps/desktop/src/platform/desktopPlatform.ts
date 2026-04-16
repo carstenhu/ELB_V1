@@ -969,7 +969,7 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
           await queuePendingWorkspaceSync(snapshot);
         }
       }
-      desktopDossierSyncStatusStore.markSaved(snapshot);
+      desktopDossierSyncStatusStore.markSaved(snapshot, persistedDossierIdSet);
     }
   };
 }

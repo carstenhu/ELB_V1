@@ -69,6 +69,7 @@ export interface WorkspaceSyncStatusPort {
 
 export interface DossierSyncEntrySnapshot {
   state: "synced" | "local-only" | "pending" | "error";
+  cache?: "remote-only" | "local";
   updatedAt: string | null;
 }
 

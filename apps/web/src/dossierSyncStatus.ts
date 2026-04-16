@@ -3,6 +3,7 @@ import type { WorkspaceSnapshot } from "@elb/app-core/index";
 
 const listeners = new Set<() => void>();
 let snapshot: DossierSyncStatusSnapshot | null = null;
+type DossierCacheState = NonNullable<DossierSyncEntrySnapshot["cache"]>;
 
 const DOSSIER_INDEX_KEY = "elb.v1.web.dossier-index";
 
@@ -47,12 +48,17 @@ function persistIndex(snapshotToStore: WorkspaceSnapshot) {
   window.localStorage.setItem(DOSSIER_INDEX_KEY, JSON.stringify(index));
 }
 
-function buildEntriesFromSnapshot(snapshotToStore: WorkspaceSnapshot, state: DossierSyncEntrySnapshot["state"]): Record<string, DossierSyncEntrySnapshot> {
+function buildEntriesFromSnapshot(
+  snapshotToStore: WorkspaceSnapshot,
+  state: DossierSyncEntrySnapshot["state"],
+  cache: DossierCacheState = "local"
+): Record<string, DossierSyncEntrySnapshot> {
   return Object.fromEntries(
     snapshotToStore.dossiers.map((caseFile) => [
       caseFile.meta.id,
       {
         state,
+        cache,
         updatedAt: caseFile.meta.updatedAt
       } satisfies DossierSyncEntrySnapshot
     ])
@@ -95,7 +101,7 @@ export const dossierSyncStatusStore = {
     setSnapshot({
       source: "supabase",
       offline: currentOfflineState(),
-      dossiers: buildEntriesFromSnapshot(snapshotToStore, "synced")
+      dossiers: buildEntriesFromSnapshot(snapshotToStore, "synced", "local")
     });
   },
   markLocalLoaded(snapshotToStore: WorkspaceSnapshot | null) {
@@ -112,7 +118,7 @@ export const dossierSyncStatusStore = {
     setSnapshot({
       source: "local",
       offline: currentOfflineState(),
-      dossiers: buildEntriesFromSnapshot(snapshotToStore, "local-only")
+      dossiers: buildEntriesFromSnapshot(snapshotToStore, "local-only", "local")
     });
   },
   markRemoteSaved(snapshotToStore: WorkspaceSnapshot) {
@@ -120,13 +126,13 @@ export const dossierSyncStatusStore = {
     setSnapshot({
       source: "supabase",
       offline: currentOfflineState(),
-      dossiers: buildEntriesFromSnapshot(snapshotToStore, "synced")
+      dossiers: buildEntriesFromSnapshot(snapshotToStore, "synced", "local")
     });
   },
   markRemoteSaveFailed(snapshotToStore: WorkspaceSnapshot) {
     persistIndex(snapshotToStore);
     const currentEntries = snapshot?.dossiers ?? {};
-    const pendingEntries = buildEntriesFromSnapshot(snapshotToStore, currentOfflineState() ? "pending" : "error");
+    const pendingEntries = buildEntriesFromSnapshot(snapshotToStore, currentOfflineState() ? "pending" : "error", "local");
     setSnapshot({
       source: snapshot?.source ?? "local",
       offline: currentOfflineState(),

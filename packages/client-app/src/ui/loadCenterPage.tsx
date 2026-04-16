@@ -2,6 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { type CaseFile } from "@elb/domain/index";
 import { Section } from "@elb/ui/forms";
 import { loadCaseById } from "../appState";
+import type { DossierSyncEntrySnapshot } from "../platform/platformTypes";
 import { usePlatform } from "../platform/platformContext";
 import { useAppState } from "../useAppState";
 
@@ -33,10 +34,18 @@ function getSyncStateLabel(state: DossierSyncState): string | null {
   return "Sync-Fehler";
 }
 
+function getStorageLabel(entry: DossierSyncEntrySnapshot | undefined): string | null {
+  if (!entry) return null;
+  if (entry.cache === "remote-only") return "Remote-only";
+  if (entry.cache === "local") return "Lokal geladen";
+  return null;
+}
+
 function DossierList(props: {
   dossiers: CaseFile[];
   clerkNameById: Map<string, string>;
   currentDossierIdByClerk: Record<string, string | null>;
+  syncEntries: Record<string, DossierSyncEntrySnapshot | undefined>;
   syncStates: Record<string, DossierSyncState>;
   onSelectDossier: (id: string) => void;
 }) {
@@ -54,6 +63,7 @@ function DossierList(props: {
             {[
               getDossierStatusLabel(dossier, props.currentDossierIdByClerk),
               `ELB ${dossier.meta.receiptNumber}`,
+              getStorageLabel(props.syncEntries[dossier.meta.id]),
               getSyncStateLabel(props.syncStates[dossier.meta.id])
             ].filter(Boolean).join(" - ")}
           </span>
@@ -79,6 +89,13 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
       Object.fromEntries(
         state.dossiers.map((dossier) => [dossier.meta.id, dossierSyncStatus?.dossiers[dossier.meta.id]?.state])
       ) as Record<string, DossierSyncState>,
+    [state.dossiers, dossierSyncStatus]
+  );
+  const syncEntries = useMemo(
+    () =>
+      Object.fromEntries(
+        state.dossiers.map((dossier) => [dossier.meta.id, dossierSyncStatus?.dossiers[dossier.meta.id]])
+      ) as Record<string, DossierSyncEntrySnapshot | undefined>,
     [state.dossiers, dossierSyncStatus]
   );
 
@@ -136,6 +153,7 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
               dossiers={supabaseDossiers}
               clerkNameById={clerkNameById}
               currentDossierIdByClerk={state.currentDossierIdByClerk}
+              syncEntries={syncEntries}
               syncStates={syncStates}
               onSelectDossier={handleSelectDossier}
             />
@@ -150,6 +168,7 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
               dossiers={localDossiers}
               clerkNameById={clerkNameById}
               currentDossierIdByClerk={state.currentDossierIdByClerk}
+              syncEntries={syncEntries}
               syncStates={syncStates}
               onSelectDossier={handleSelectDossier}
             />
