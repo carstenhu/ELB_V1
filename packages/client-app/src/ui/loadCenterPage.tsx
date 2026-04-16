@@ -41,6 +41,11 @@ function getStorageLabel(entry: DossierSyncEntrySnapshot | undefined): string | 
   return null;
 }
 
+function isSupabaseEntry(entry: DossierSyncEntrySnapshot | undefined): boolean {
+  if (!entry) return false;
+  return entry.cache === "remote-only" || entry.state === "synced";
+}
+
 function DossierList(props: {
   dossiers: CaseFile[];
   clerkNameById: Map<string, string>;
@@ -100,16 +105,16 @@ export function LoadCenterPage(props: { onDone?: () => void; onOpenClerkSelector
   );
 
   const supabaseDossiers = useMemo(
-    () => sortDossiers(state.dossiers.filter((dossier) => syncStates[dossier.meta.id] === "synced")),
-    [state.dossiers, syncStates]
+    () => sortDossiers(state.dossiers.filter((dossier) => isSupabaseEntry(syncEntries[dossier.meta.id]))),
+    [state.dossiers, syncEntries]
   );
 
   const localDossiers = useMemo(() => {
     const base = showAllClerks || !state.activeClerkId
       ? state.dossiers
       : state.dossiers.filter((caseFile) => caseFile.meta.clerkId === state.activeClerkId);
-    return sortDossiers(base.filter((dossier) => syncStates[dossier.meta.id] !== "synced"));
-  }, [showAllClerks, state.activeClerkId, state.dossiers, syncStates]);
+    return sortDossiers(base.filter((dossier) => !isSupabaseEntry(syncEntries[dossier.meta.id])));
+  }, [showAllClerks, state.activeClerkId, state.dossiers, syncEntries]);
 
   function handleSelectDossier(id: string) {
     loadCaseById(id);
