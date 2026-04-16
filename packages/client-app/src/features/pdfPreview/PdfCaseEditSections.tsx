@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { formatAmountForDisplay, type Asset, type CaseFile } from "@elb/domain/index";
 import { Field, Section } from "@elb/ui/forms";
 import { useCaseEditorActions } from "../caseEditor/useCaseEditorActions";
@@ -5,6 +6,11 @@ import { clearOwnerData, hasSeparateOwnerData } from "../owner/ownerState";
 import { useAppState } from "../../useAppState";
 import { findAsset } from "../../ui/caseAssets";
 import { ReceiptNumberField } from "../../ui/ReceiptNumberField";
+import {
+  SHORT_DESCRIPTION_LIMIT_MESSAGE,
+  SHORT_DESCRIPTION_MAX_LENGTH,
+  wouldExceedInputLimit
+} from "../../ui/shortDescriptionLimit";
 import {
   CountryInput,
   InlineToggle,
@@ -296,6 +302,11 @@ export function PdfObjectEditorSection(props: {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
   const objectItem = props.caseFile.objects[props.objectIndex] ?? null;
+  const [shortDescriptionWarning, setShortDescriptionWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    setShortDescriptionWarning(null);
+  }, [objectItem?.id]);
 
   if (!objectItem) {
     return null;
@@ -365,7 +376,35 @@ export function PdfObjectEditorSection(props: {
         </Field>
       </div>
       <Field label="Kurzbeschrieb" full>
-        <input className={getFieldInputClassName(objectItem.shortDescription)} value={objectItem.shortDescription} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, shortDescription: event.target.value }))} />
+        <>
+          <input
+            className={getFieldInputClassName(objectItem.shortDescription)}
+            value={objectItem.shortDescription}
+            maxLength={SHORT_DESCRIPTION_MAX_LENGTH}
+            onKeyDown={(event) => {
+              if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) {
+                return;
+              }
+              if (wouldExceedInputLimit(event.currentTarget, event.key, SHORT_DESCRIPTION_MAX_LENGTH)) {
+                setShortDescriptionWarning(SHORT_DESCRIPTION_LIMIT_MESSAGE);
+              }
+            }}
+            onPaste={(event) => {
+              const pastedText = event.clipboardData.getData("text");
+              if (wouldExceedInputLimit(event.currentTarget, pastedText, SHORT_DESCRIPTION_MAX_LENGTH)) {
+                setShortDescriptionWarning(SHORT_DESCRIPTION_LIMIT_MESSAGE);
+              }
+            }}
+            onChange={(event) => {
+              const rawValue = event.target.value;
+              const exceedsLimit = rawValue.length > SHORT_DESCRIPTION_MAX_LENGTH;
+              const nextValue = rawValue.slice(0, SHORT_DESCRIPTION_MAX_LENGTH);
+              setShortDescriptionWarning(exceedsLimit ? SHORT_DESCRIPTION_LIMIT_MESSAGE : null);
+              actions.updateObject(objectItem.id, (current) => ({ ...current, shortDescription: nextValue }));
+            }}
+          />
+          {shortDescriptionWarning ? <p className="field-warning">{shortDescriptionWarning}</p> : null}
+        </>
       </Field>
       <Field label="Beschreibung" full>
         <textarea className={getFieldInputClassName(objectItem.description)} value={objectItem.description} onChange={(event) => actions.updateObject(objectItem.id, (current) => ({ ...current, description: event.target.value }))} />

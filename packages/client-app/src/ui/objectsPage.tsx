@@ -13,12 +13,18 @@ import {
   normalizeIntNumberFieldValue,
   renderFollowUpOption
 } from "./formSupport";
+import {
+  SHORT_DESCRIPTION_LIMIT_MESSAGE,
+  SHORT_DESCRIPTION_MAX_LENGTH,
+  wouldExceedInputLimit
+} from "./shortDescriptionLimit";
 
 export function ObjectsPage(props: { caseFile: CaseFile }) {
   const state = useAppState();
   const actions = useCaseEditorActions(props.caseFile);
   const [selectedObjectId, setSelectedObjectId] = useState<string>(props.caseFile.objects[0]?.id ?? "");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [shortDescriptionWarning, setShortDescriptionWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const pendingObjectId = consumePendingObjectSelectionId();
@@ -36,6 +42,10 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
       setSelectedObjectId(props.caseFile.objects[0]?.id ?? "");
     }
   }, [props.caseFile.objects, selectedObjectId]);
+
+  useEffect(() => {
+    setShortDescriptionWarning(null);
+  }, [selectedObjectId]);
 
   const selectedObject = props.caseFile.objects.find((item) => item.id === selectedObjectId) ?? props.caseFile.objects[0] ?? null;
   const selectedObjectAssets = selectedObject
@@ -121,11 +131,35 @@ export function ObjectsPage(props: { caseFile: CaseFile }) {
                 </Field>
               </div>
               <Field label="Kurzbeschrieb" full>
-                <input
-                  className={getFieldInputClassName(selectedObject.shortDescription)}
-                  value={selectedObject.shortDescription}
-                  onChange={(event) => actions.updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: event.target.value }))}
-                />
+                <>
+                  <input
+                    className={getFieldInputClassName(selectedObject.shortDescription)}
+                    value={selectedObject.shortDescription}
+                    maxLength={SHORT_DESCRIPTION_MAX_LENGTH}
+                    onKeyDown={(event) => {
+                      if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) {
+                        return;
+                      }
+                      if (wouldExceedInputLimit(event.currentTarget, event.key, SHORT_DESCRIPTION_MAX_LENGTH)) {
+                        setShortDescriptionWarning(SHORT_DESCRIPTION_LIMIT_MESSAGE);
+                      }
+                    }}
+                    onPaste={(event) => {
+                      const pastedText = event.clipboardData.getData("text");
+                      if (wouldExceedInputLimit(event.currentTarget, pastedText, SHORT_DESCRIPTION_MAX_LENGTH)) {
+                        setShortDescriptionWarning(SHORT_DESCRIPTION_LIMIT_MESSAGE);
+                      }
+                    }}
+                    onChange={(event) => {
+                      const rawValue = event.target.value;
+                      const exceedsLimit = rawValue.length > SHORT_DESCRIPTION_MAX_LENGTH;
+                      const nextValue = rawValue.slice(0, SHORT_DESCRIPTION_MAX_LENGTH);
+                      setShortDescriptionWarning(exceedsLimit ? SHORT_DESCRIPTION_LIMIT_MESSAGE : null);
+                      actions.updateObject(selectedObject.id, (current) => ({ ...current, shortDescription: nextValue }));
+                    }}
+                  />
+                  {shortDescriptionWarning ? <p className="field-warning">{shortDescriptionWarning}</p> : null}
+                </>
               </Field>
               <Field label="Beschreibung" full>
                 <textarea
