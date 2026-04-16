@@ -77,6 +77,17 @@ function toError(error: unknown, fallback: string): Error {
   return new Error(fallback);
 }
 
+function parseJsonSafely<T>(raw: string | null, fallback: T): T {
+  if (!raw) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 function getDesktopSupabaseConfig(): { url: string; key: string; bucket: string } | null {
   const url = import.meta.env.VITE_SUPABASE_URL?.trim() || DEFAULT_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY?.trim()
@@ -742,7 +753,7 @@ async function hydrateRemoteAssets(config: { url: string; key: string; bucket: s
 
 async function loadRemoteClerkDossiers(config: { url: string; key: string; bucket: string }, clerkId: string): Promise<{ currentCaseId: string | null; dossiers: CaseFile[] } | null> {
   const currentPointerRaw = await downloadTextFromSupabase(config, getRemoteCurrentPointerPath(clerkId));
-  const currentPointer = currentPointerRaw ? JSON.parse(currentPointerRaw) as RemoteCurrentDossierPointer : null;
+  const currentPointer = parseJsonSafely<RemoteCurrentDossierPointer | null>(currentPointerRaw, null);
   const dossierEntries = await listSupabaseEntries(config, getRemoteDossiersRoot(clerkId));
 
   if (!currentPointer && dossierEntries.length === 0) {
@@ -753,12 +764,17 @@ async function loadRemoteClerkDossiers(config: { url: string; key: string; bucke
     dossierEntries
       .filter((entry) => !entry.id && entry.name)
       .map(async (entry) => {
-        const raw = await downloadTextFromSupabase(config, `${getRemoteDossiersRoot(clerkId)}/${entry.name}/${REMOTE_DOSSIER_FILE_NAME}`);
-        if (!raw) {
+        try {
+          const raw = await downloadTextFromSupabase(config, `${getRemoteDossiersRoot(clerkId)}/${entry.name}/${REMOTE_DOSSIER_FILE_NAME}`);
+          if (!raw) {
+            return null;
+          }
+
+          return hydrateRemoteAssets(config, JSON.parse(raw) as CaseFile);
+        } catch (error) {
+          logger.warn(`Remote-Dossier konnte nicht geladen werden (clerk=${clerkId}, dossier=${entry.name}).`, error);
           return null;
         }
-
-        return hydrateRemoteAssets(config, JSON.parse(raw) as CaseFile);
       })
   );
 
@@ -772,7 +788,7 @@ async function loadRemoteClerkDossiersByRoot(config: { url: string; key: string;
   const currentPointerPath = `clerks/${clerkRootSegment}/${REMOTE_CURRENT_POINTER_FILE_NAME}`;
   const dossiersRoot = `clerks/${clerkRootSegment}/dossiers`;
   const currentPointerRaw = await downloadTextFromSupabase(config, currentPointerPath);
-  const currentPointer = currentPointerRaw ? JSON.parse(currentPointerRaw) as RemoteCurrentDossierPointer : null;
+  const currentPointer = parseJsonSafely<RemoteCurrentDossierPointer | null>(currentPointerRaw, null);
   const dossierEntries = await listSupabaseEntries(config, dossiersRoot);
 
   if (!currentPointer && dossierEntries.length === 0) {
@@ -783,12 +799,17 @@ async function loadRemoteClerkDossiersByRoot(config: { url: string; key: string;
     dossierEntries
       .filter((entry) => !entry.id && entry.name)
       .map(async (entry) => {
-        const raw = await downloadTextFromSupabase(config, `${dossiersRoot}/${entry.name}/${REMOTE_DOSSIER_FILE_NAME}`);
-        if (!raw) {
+        try {
+          const raw = await downloadTextFromSupabase(config, `${dossiersRoot}/${entry.name}/${REMOTE_DOSSIER_FILE_NAME}`);
+          if (!raw) {
+            return null;
+          }
+
+          return hydrateRemoteAssets(config, JSON.parse(raw) as CaseFile);
+        } catch (error) {
+          logger.warn(`Remote-Dossier konnte nicht geladen werden (root=${clerkRootSegment}, dossier=${entry.name}).`, error);
           return null;
         }
-
-        return hydrateRemoteAssets(config, JSON.parse(raw) as CaseFile);
       })
   );
 
@@ -807,10 +828,21 @@ async function loadRemoteWorkspaceSnapshot(config: { url: string; key: string; b
     downloadTextFromSupabase(config, REMOTE_WORKSPACE_META_PATH)
   ]);
 
-  const masterData = masterDataRaw ? importMasterDataFromJson(masterDataRaw) : loadSeedMasterData();
-  const workspaceMeta = workspaceMetaRaw ? JSON.parse(workspaceMetaRaw) as RemoteWorkspaceMeta : null;
+  let masterData: MasterData;
+  try {
+    masterData = masterDataRaw ? importMasterDataFromJson(masterDataRaw) : loadSeedMasterData();
+  } catch (error) {
+    logger.warn("Stammdaten aus Supabase konnten nicht geparst werden. Fallback auf Seed-Stammdaten.", error);
+    masterData = loadSeedMasterData();
+  }
+  const workspaceMeta = parseJsonSafely<RemoteWorkspaceMeta | null>(workspaceMetaRaw, null);
   const knownClerkRoots = new Set(masterData.clerks.map((clerk) => sanitizeRemoteSegment(clerk.id)));
-  const clerkRootEntries = await listSupabaseEntries(config, "clerks");
+  let clerkRootEntries: SupabaseListEntry[] = [];
+  try {
+    clerkRootEntries = await listSupabaseEntries(config, "clerks");
+  } catch (error) {
+    logger.warn("Clerk-Roots konnten nicht aus Supabase gelistet werden.", error);
+  }
   const discoveredRoots = clerkRootEntries
     .filter((entry) => !entry.id && entry.name.trim())
     .map((entry) => entry.name.trim());
