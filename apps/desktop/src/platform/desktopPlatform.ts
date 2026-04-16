@@ -732,17 +732,22 @@ async function hydrateRemoteAssets(config: { url: string; key: string; bucket: s
       return asset;
     }
 
-    const binary = await downloadBinaryFromSupabase(config, fromRemoteAssetRef(sourcePath));
-    if (!binary) {
+    try {
+      const binary = await downloadBinaryFromSupabase(config, fromRemoteAssetRef(sourcePath));
+      if (!binary) {
+        return asset;
+      }
+
+      const dataUrl = toDataUrl(binary.mimeType, binary.bytes);
+      return {
+        ...asset,
+        originalPath: dataUrl,
+        optimizedPath: dataUrl
+      };
+    } catch (error) {
+      logger.warn(`Remote-Asset konnte nicht geladen werden: ${sourcePath}`, error);
       return asset;
     }
-
-    const dataUrl = toDataUrl(binary.mimeType, binary.bytes);
-    return {
-      ...asset,
-      originalPath: dataUrl,
-      optimizedPath: dataUrl
-    };
   }));
 
   return {
@@ -907,7 +912,8 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
   return {
     async load() {
       const localSnapshot = await localRepository.load();
-      localPinnedDossierIds = new Set((localSnapshot?.dossiers ?? []).map((dossier) => dossier.meta.id));
+      const localSnapshotIds = new Set((localSnapshot?.dossiers ?? []).map((dossier) => dossier.meta.id));
+      localPinnedDossierIds = new Set(localSnapshotIds);
       const supabaseConfig = getDesktopSupabaseConfig();
 
       if (!supabaseConfig) {
@@ -939,6 +945,15 @@ function createDesktopWorkspaceRepository(): WorkspaceRepository {
         if (!mergedSnapshot) {
           desktopDossierSyncStatusStore.markLocalLoaded(null);
           return null;
+        }
+
+        if (remoteSnapshot) {
+          const remoteIds = new Set(remoteSnapshot.dossiers.map((dossier) => dossier.meta.id));
+          localPinnedDossierIds = new Set(
+            [...localSnapshotIds].filter((id) => !remoteIds.has(id))
+          );
+        } else {
+          localPinnedDossierIds = new Set(localSnapshotIds);
         }
 
         desktopDossierSyncStatusStore.markMergedLoaded({
