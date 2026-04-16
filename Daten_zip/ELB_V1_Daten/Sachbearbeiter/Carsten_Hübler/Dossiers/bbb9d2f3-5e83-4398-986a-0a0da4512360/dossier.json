@@ -1,0 +1,199 @@
+{
+  "meta": {
+    "id": "bbb9d2f3-5e83-4398-986a-0a0da4512360",
+    "receiptNumber": "8889",
+    "clerkId": "clerk-1",
+    "createdAt": "2026-03-30T05:57:35.317Z",
+    "updatedAt": "2026-03-30T06:54:44.474Z",
+    "status": "draft"
+  },
+  "consignor": {
+    "useCompanyAddress": false,
+    "customerNumber": "",
+    "vatCategory": "",
+    "vatNumber": "",
+    "company": "",
+    "title": "",
+    "firstName": "dsfd",
+    "lastName": "fsdfsdfsdf",
+    "addressAddon": "",
+    "street": "Angaben folgen",
+    "houseNumber": "",
+    "zip": "Angaben folgen",
+    "city": "Angaben folgen",
+    "country": "",
+    "email": "",
+    "phone": "",
+    "birthDate": "",
+    "nationality": "",
+    "passportNumber": "",
+    "photoAssetId": ""
+  },
+  "owner": {
+    "sameAsConsignor": true,
+    "firstName": "",
+    "lastName": "",
+    "street": "",
+    "houseNumber": "",
+    "zip": "",
+    "city": "",
+    "country": ""
+  },
+  "bank": {
+    "beneficiary": "",
+    "iban": "",
+    "bic": "",
+    "beneficiaryOverride": {
+      "enabled": false,
+      "reason": "",
+      "name": ""
+    }
+  },
+  "costs": {
+    "commission": {
+      "amount": "",
+      "note": ""
+    },
+    "insurance": {
+      "amount": "",
+      "note": ""
+    },
+    "transport": {
+      "amount": "",
+      "note": ""
+    },
+    "imaging": {
+      "amount": "",
+      "note": ""
+    },
+    "expertise": {
+      "amount": "",
+      "note": ""
+    },
+    "internet": {
+      "amount": "",
+      "note": ""
+    },
+    "onlyIfSuccessful": false,
+    "provenance": ""
+  },
+  "internalInfo": {
+    "notes": "",
+    "interestDepartmentIds": []
+  },
+  "objects": [
+    {
+      "id": "00a95af2-7fa0-4349-9ca8-500e5a16269b",
+      "intNumber": "0001",
+      "auctionId": "auction-1",
+      "departmentId": "department-1",
+      "shortDescription": "dsfsdfd",
+      "description": "dsfsdf",
+      "estimate": {
+        "low": "",
+        "high": ""
+      },
+      "pricingMode": "limit",
+      "priceValue": "",
+      "referenceNumber": "",
+      "remarks": "",
+      "photoAssetIds": [
+        "4665ef64-db27-4803-8ee9-44c2d49db75b"
+      ]
+    },
+    {
+      "id": "9d8c200a-372c-4a3a-b86e-1e9d484b096a",
+      "intNumber": "0002",
+      "auctionId": "auction-1",
+      "departmentId": "department-1",
+      "shortDescription": "Angaben folgen",
+      "description": "",
+      "estimate": {
+        "low": "",
+        "high": ""
+      },
+      "pricingMode": "limit",
+      "priceValue": "",
+      "referenceNumber": "",
+      "remarks": "",
+      "photoAssetIds": [
+        "fa0c8dff-437f-4ef3-89eb-cb51287a22db"
+      ]
+    },
+    {
+      "id": "4e97cb29-ab2f-47e8-9648-bd5cd545f265",
+      "intNumber": "0003",
+      "auctionId": "auction-1",
+      "departmentId": "department-1",
+      "shortDescription": "Angaben folgen",
+      "description": "",
+      "estimate": {
+        "low": "",
+        "high": ""
+      },
+      "pricingMode": "limit",
+      "priceValue": "",
+      "referenceNumber": "",
+      "remarks": "",
+      "photoAssetIds": [
+        "ee3a13df-8491-49f4-b8f5-a06959078dfd"
+      ]
+    },
+    {
+      "id": "d59ac0de-1ea8-4835-a708-654c14a2e04e",
+      "intNumber": "0004",
+      "auctionId": "auction-1",
+      "departmentId": "department-1",
+      "shortDescription": "Angaben folgen",
+      "description": "",
+      "estimate": {
+        "low": "",
+        "high": ""
+      },
+      "pricingMode": "limit",
+      "priceValue": "",
+      "referenceNumber": "",
+      "remarks": "",
+      "photoAssetIds": [
+        "9e27a91d-3bf2-4997-80b0-fca9efc90a58"
+      ]
+    }
+  ],
+  "signatures": {
+    "consignorSignaturePng": ""
+  },
+  "assets": [
+    {
+      "id": "9e27a91d-3bf2-4997-80b0-fca9efc90a58",
+      "fileName": "1a8bf6fd-76b6-4bbb-a647-eacd27059801.jpg",
+      "originalPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/9e27a91d-3bf2-4997-80b0-fca9efc90a58.optimized.txt",
+      "optimizedPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/9e27a91d-3bf2-4997-80b0-fca9efc90a58.optimized.txt",
+      "width": 723,
+      "height": 1000
+    },
+    {
+      "id": "ee3a13df-8491-49f4-b8f5-a06959078dfd",
+      "fileName": "5aa1c7ee-20d6-442c-83cd-f088d8377464.jpg",
+      "originalPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/ee3a13df-8491-49f4-b8f5-a06959078dfd.optimized.txt",
+      "optimizedPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/ee3a13df-8491-49f4-b8f5-a06959078dfd.optimized.txt",
+      "width": 751,
+      "height": 1000
+    },
+    {
+      "id": "fa0c8dff-437f-4ef3-89eb-cb51287a22db",
+      "fileName": "5e95a580-4c52-41c7-8dc8-b010a1102c40.jpg",
+      "originalPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/fa0c8dff-437f-4ef3-89eb-cb51287a22db.optimized.txt",
+      "optimizedPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/fa0c8dff-437f-4ef3-89eb-cb51287a22db.optimized.txt",
+      "width": 1495,
+      "height": 1000
+    },
+    {
+      "id": "4665ef64-db27-4803-8ee9-44c2d49db75b",
+      "fileName": "148db893-721d-4b70-aabf-31c5596184ed.jpg",
+      "originalPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/4665ef64-db27-4803-8ee9-44c2d49db75b.optimized.txt",
+      "optimizedPath": "stored://ELB_V1_Daten/Sachbearbeiter/Carsten_Hübler/Dossiers/bbb9d2f3-5e83-4398-986a-0a0da4512360/assets/optimized/4665ef64-db27-4803-8ee9-44c2d49db75b.optimized.txt",
+      "width": 748,
+      "height": 1000
+    }
+  ]
+}
